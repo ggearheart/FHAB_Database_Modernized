@@ -1,0 +1,7 @@
+waterbody,waterbody_type,county,state,site_name,latitude,longitude,sample_date,collected_by,analyte,value,unit,detect_flag
+Clear Lake,lake,Lake,CA,Lakeport Shore,39.0428,-122.9158,2026-06-10,J. Rivera,microcystin,4.2,ug/L,detect
+Clear Lake,lake,Lake,CA,Lakeport Shore,39.0428,-122.9158,2026-06-10,J. Rivera,anatoxin-a,0.0,ug/L,non-detect
+Clear Lake,lake,Lake,CA,Soda Bay,38.9772,-122.7503,2026-06-12,J. Rivera,microcystin,12.8,ug/L,detect
+Pinto Lake,lake,Santa Cruz,CA,County Park,36.9469,-121.7689,2026-06-15,A. Chen,microcystin,28.5,ug/L,detect
+Pinto Lake,lake,Santa Cruz,CA,County Park,36.9469,-121.7689,2026-06-15,A. Chen,cylindrospermopsin,1.1,ug/L,estimated
+Discovery Park,river,Sacramento,CA,Boat Launch,38.6005,-121.5030,2026-06-20,T. Okafor,microcystin,0.0,ug/L,non-detect

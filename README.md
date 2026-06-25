@@ -37,9 +37,13 @@ pip install -e ".[dev]"
 # Initialize the database
 python scripts/init_db.py
 
-# Ingest a raw file
-python scripts/ingest.py data/raw/incidents.csv
+# Ingest a long-format CSV (creates the schema if needed)
+python scripts/ingest.py tests/fixtures/sample_incidents.csv --db fhab.db
 ```
+
+The ingest is **idempotent** — re-running the same file updates existing rows
+rather than duplicating them. Pass `--strict` to exit non-zero if any row fails
+validation. See [`fhab.ingest`](src/fhab/ingest.py) for the expected CSV columns.
 
 ## Status
 
