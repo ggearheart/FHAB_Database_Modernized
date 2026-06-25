@@ -47,7 +47,15 @@ validation. See [`fhab.ingest`](src/fhab/ingest.py) for the expected CSV columns
 
 ## Status
 
-Early scaffold. See [docs/SCHEMA.md](docs/SCHEMA.md) for the proposed data model.
+Early scaffold. The current relational core implements a Tier 3-shaped model; the
+full tiered framework is not yet built.
+
+- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) — business requirements (three-tier
+  ingestion model, management, dissemination) derived from the IoW / CA State Water
+  Boards Phase 1 framework.
+- [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) — how the current schema maps to those
+  requirements and what's next.
+- [docs/SCHEMA.md](docs/SCHEMA.md) — the current data model.
 
 ## License
 
