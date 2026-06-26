@@ -1,6 +1,11 @@
 # Gap Analysis — current scaffold vs. ingestion requirements
 
-How today's schema and ETL ([SCHEMA.md](SCHEMA.md), [src/fhab/](../src/fhab))
+> **Historical note:** this analysis predates the implemented schema. The scaffold it
+> compares against has been replaced by the PostgreSQL + PostGIS CRM model in
+> [../sql/schema.sql](../sql/schema.sql) ([SCHEMA_PROPOSAL.md](SCHEMA_PROPOSAL.md)). Kept
+> for traceability of how the requirements were derived.
+
+How the original scaffold's schema and ETL ([src/fhab/](../src/fhab))
 measure against the [REQUIREMENTS.md](REQUIREMENTS.md) derived from the IoW Phase 1
 framework. Status legend: ✅ met · 🟡 partial · ❌ missing.
 

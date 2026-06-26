@@ -8,47 +8,64 @@ schema, automated ETL, and tested data-quality checks.
 
 ## Goals
 
-- **Modern schema** — a normalized relational model for waterbodies, monitoring sites, samples, and bloom advisories.
-- **Reproducible ETL** — scripted ingestion from raw sources (CSV/Excel/API) into a clean database.
-- **Data quality** — validation rules and tests so bad records are caught before they land.
-- **Open & portable** — defaults to SQLite for zero-setup local use; portable to PostgreSQL.
+- **CRM lifecycle** — a normalized model of the CA FHAB case-management lifecycle:
+  `report → event → case`, with `response` (advisories) and `result` (field/lab analysis).
+- **Backwards compatible** — field names and integer IDs mirror the published open-data
+  reports; the four published flat files are regenerated as exports.
+- **Geospatial** — PostgreSQL + PostGIS, with HUC-12 watershed linkage and Geoconnex
+  persistent identifiers for HAB locations.
+- **Reproducible & tested** — scripted load of the published data and a pytest suite.
 
 ## Project layout
 
 ```
 .
-├── src/fhab/          # Python package: ETL, models, validation
-├── sql/               # Schema definitions and migrations
-├── scripts/           # CLI entry points (init-db, ingest, export)
-├── data/
-│   ├── raw/           # Source files (gitignored)
-│   └── processed/     # Cleaned outputs (gitignored)
-├── tests/             # Test suite
-└── docs/              # Documentation
+├── src/fhab/          # Python package: db, parsing, loaders, export
+├── sql/               # PostgreSQL + PostGIS schema
+├── scripts/           # devdb.sh, init_db.py, fetch/export CLIs
+├── data/raw/          # Source files (gitignored)
+├── tests/             # Test suite (+ fixtures sampled from real data)
+└── docs/              # Requirements, data model, proposals, reviews
 ```
 
 ## Quick start
 
+Requires Homebrew. Sets up a local PostgreSQL 17 + PostGIS dev database.
+
 ```bash
-# Set up environment
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+brew install postgresql@17 postgis
+pip install -e ".[dev]"               # installs psycopg
 
-# Initialize the database
-python scripts/init_db.py
+# Start the dev DB and create the `fhab` database (idempotent)
+bash scripts/devdb.sh
+export FHAB_DATABASE_URL="dbname=fhab host=/tmp port=5432"
 
-# Ingest a long-format CSV (creates the schema if needed)
-python scripts/ingest.py tests/fixtures/sample_incidents.csv --db fhab.db
+# Pull the published CA FHAB reference data into data/raw/
+python scripts/fetch_reference_data.py
+
+# Apply schema, load the four published flat files, re-export them
+python scripts/init_db.py --reset --load --export /tmp/fhab_export
 ```
 
-The ingest is **idempotent** — re-running the same file updates existing rows
-rather than duplicating them. Pass `--strict` to exit non-zero if any row fails
-validation. See [`fhab.ingest`](src/fhab/ingest.py) for the expected CSV columns.
+Run the tests (creates/uses a `fhab_test` database):
+
+```bash
+createdb fhab_test && psql -d fhab_test -c "CREATE EXTENSION postgis;"
+export FHAB_TEST_DATABASE_URL="dbname=fhab_test host=/tmp port=5432"
+pytest -q
+```
 
 ## Status
 
-Early scaffold. The current relational core implements a Tier 3-shaped model; the
-full tiered framework is not yet built.
+**Working build.** The PostgreSQL + PostGIS CRM schema is implemented; the four published
+flat files load into the normalized model and re-export with matching row counts and
+published headers. The lifecycle (`report → event → case`, `response`/`advisory`,
+3-level analyte taxonomy incl. genetic `mcyE` / cyanotoxin) and PostGIS geometry are
+exercised by the test suite.
+
+**Next:** load the HUC-12 watershed layer + point-in-polygon derivation (`GEO-4`),
+Geoconnex PID minting (`GEO-1`), full-fidelity export of all published columns, and the
+external Tier 1–3 ingestion path.
 
 - [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) — business requirements: the external
   three-tier ingestion model (IoW / CA State Water Boards Phase 1) **and** the internal
@@ -56,23 +73,15 @@ full tiered framework is not yet built.
 - [docs/DATA_MODEL_CA_FHAB.md](docs/DATA_MODEL_CA_FHAB.md) — the authoritative target:
   the published CA FHAB model (Report → Case → Response → Result + Advisory) and its
   four flat files on the California Open Data Portal.
-- [docs/SCHEMA_PROPOSAL.md](docs/SCHEMA_PROPOSAL.md) — **proposed** PostgreSQL + PostGIS
-  redesign around the CRM lifecycle (under review; not yet applied).
+- [docs/SCHEMA_PROPOSAL.md](docs/SCHEMA_PROPOSAL.md) — the PostgreSQL + PostGIS design,
+  now implemented in [sql/schema.sql](sql/schema.sql).
 - [docs/GEOCONNEX.md](docs/GEOCONNEX.md) — persistent URL identifiers for HAB locations
   via Geoconnex, and HUC-12 watershed linkage.
 - [docs/LEGACY_SCHEMA_REVIEW.md](docs/LEGACY_SCHEMA_REVIEW.md) — analysis of the existing
   (problematic) database that produces the open data: what it validates, what to adopt,
   and the anti-patterns to fix.
-- [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) — how the current schema maps to those
-  requirements and what's next.
-- [docs/SCHEMA.md](docs/SCHEMA.md) — the current (scaffold) data model.
-
-Pull the published CA FHAB reference data (flat files + data dictionary) into
-`data/raw/` for development:
-
-```bash
-python scripts/fetch_reference_data.py
-```
+- [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) — how the scaffold mapped to the
+  requirements (historical; superseded by the implemented schema).
 
 ## License
 

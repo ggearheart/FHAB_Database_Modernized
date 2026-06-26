@@ -1,23 +1,32 @@
-"""Database connection and schema initialization helpers."""
+"""PostgreSQL connection and schema helpers (psycopg 3)."""
 
 from __future__ import annotations
 
-import sqlite3
+import os
 from pathlib import Path
 
-DEFAULT_DB_PATH = Path("fhab.db")
+import psycopg
+
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "sql" / "schema.sql"
 
-
-def connect(db_path: Path | str = DEFAULT_DB_PATH) -> sqlite3.Connection:
-    """Open a connection with foreign keys enabled and row access by name."""
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+# Connection comes from the standard libpq env vars (PGHOST, PGDATABASE, …) or a single
+# FHAB_DATABASE_URL. Defaults suit a local dev cluster created by scripts/devdb.sh.
+DEFAULT_DSN = os.environ.get("FHAB_DATABASE_URL", "dbname=fhab")
 
 
-def init_db(conn: sqlite3.Connection, schema_path: Path = SCHEMA_PATH) -> None:
-    """Apply the schema. Idempotent — uses CREATE TABLE IF NOT EXISTS."""
-    conn.executescript(schema_path.read_text())
+def connect(dsn: str | None = None) -> psycopg.Connection:
+    """Open a connection. Row factory returns dict-like rows."""
+    return psycopg.connect(dsn or DEFAULT_DSN, row_factory=psycopg.rows.dict_row)
+
+
+def apply_schema(conn: psycopg.Connection, schema_path: Path = SCHEMA_PATH) -> None:
+    """Apply the schema. Idempotent — uses CREATE … IF NOT EXISTS."""
+    conn.execute(schema_path.read_text())
     conn.commit()
+
+
+def reset_schema(conn: psycopg.Connection) -> None:
+    """Drop and recreate the public schema, then reapply. Destructive — dev/test only."""
+    conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
+    conn.commit()
+    apply_schema(conn)

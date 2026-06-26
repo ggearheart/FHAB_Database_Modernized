@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Initialize (or re-apply) the FHAB database schema."""
+"""Apply the schema, then optionally load the published open data and re-export it."""
 
 import argparse
 import sys
@@ -7,18 +7,30 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fhab.db import DEFAULT_DB_PATH, connect, init_db  # noqa: E402
+from fhab.db import apply_schema, connect, reset_schema  # noqa: E402
+from fhab.export import export_all  # noqa: E402
+from fhab.loaders import load_open_data  # noqa: E402
+
+REF_DIR = Path(__file__).resolve().parents[1] / "data" / "raw" / "ca_fhab_reference"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Initialize the FHAB database schema.")
-    parser.add_argument("--db", default=str(DEFAULT_DB_PATH), help="Path to the SQLite database file.")
-    args = parser.parse_args()
+    p = argparse.ArgumentParser(description="Initialize and (optionally) load the FHAB database.")
+    p.add_argument("--reset", action="store_true", help="Drop and recreate the schema first.")
+    p.add_argument("--load", action="store_true", help="Load the published flat files after applying schema.")
+    p.add_argument("--data-dir", default=str(REF_DIR), help="Directory of the four published CSVs.")
+    p.add_argument("--export", metavar="DIR", help="Re-export the flat files into DIR.")
+    args = p.parse_args()
 
-    conn = connect(args.db)
-    init_db(conn)
-    conn.close()
-    print(f"Schema applied to {args.db}")
+    conn = connect()
+    reset_schema(conn) if args.reset else apply_schema(conn)
+    print("Schema applied.")
+
+    if args.load:
+        print(load_open_data(conn, args.data_dir).summary())
+    if args.export:
+        counts = export_all(conn, args.export)
+        print("exported:", ", ".join(f"{k}={v}" for k, v in counts.items()))
 
 
 if __name__ == "__main__":

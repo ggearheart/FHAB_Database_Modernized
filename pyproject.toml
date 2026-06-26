@@ -10,13 +10,16 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "Greg Gearheart" }]
-dependencies = []
+dependencies = ["psycopg[binary]>=3.1"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "ruff>=0.1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
