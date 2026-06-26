@@ -53,5 +53,10 @@ def acting_as(conn: psycopg.Connection, user_id: int | None):
     try:
         yield conn
     finally:
-        conn.execute("RESET ROLE")
+        # A failed write may leave the transaction aborted; clear it before resetting.
+        try:
+            conn.execute("RESET ROLE")
+        except psycopg.Error:
+            conn.rollback()
+            conn.execute("RESET ROLE")
         conn.execute("SELECT set_config('fhab.user_id', '', false)")

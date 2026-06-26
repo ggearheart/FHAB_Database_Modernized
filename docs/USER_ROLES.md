@@ -160,8 +160,19 @@ notes:
 - **RLS defines the maximum visible set**; the app may apply tighter work-queue filters.
 - **Internal staff are region-scoped** (unscoped internal roles and admins see all); the
   public/manager clauses apply to non-internal users.
-- **Reads only so far** — `fhab_app` is granted `SELECT`. Per-role **write** policies
-  (staff edit; contributor own-data via an ownership column) are the next increment.
+
+**Writes are enforced too** (INSERT/UPDATE/DELETE policies + an `owner_org` column on the
+contributor-owned tables `event`/`station`/`sample`/`result`):
+- **Staff** edit within their region (`wb_staff` region-scoped; `viewer` is read-only).
+- **Contributors** edit only rows owned by *their* organization — a tribal/community user
+  cannot create or alter another org's data, enforced by `WITH CHECK (owner_org ∈ my orgs)`.
+- **Responses and advisories are staff-only**, so contributors can submit observations but
+  **cannot self-verify or post advisories** to the public map (the IoW review-gating rule).
+- **Public / decision-maker / viewer** cannot write.
+
+Verified by tests: a Region-5 staffer can insert an event in Region 5 but not Region 1; a
+`tribal_admin` for "TribeX" can insert a TribeX-owned event but not an "OtherOrg" one and not
+a `response`; the public cannot write; only staff can post advisories.
 
 ## Resolved by the manual
 

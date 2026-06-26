@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS event (
     illness_type             text,
     illness_description      text,
     geoconnex_uri            text UNIQUE,
+    owner_org                text,   -- contributor org that owns this row (NULL = State)
     created_at               timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS event_case_idx ON event(case_id);
@@ -168,6 +169,7 @@ CREATE TABLE IF NOT EXISTS sample (
     site            text,
     sample_date     date,
     sample_time     time,
+    owner_org       text,        -- contributor org that owns this sample (NULL = State)
     coc_id          text,        -- chain of custody (adopted from legacy review)
     -- CEDEN / Bend sample identity (populated from the Bend->CEDEN workflow).
     bg_id           text,        -- Bend Genetics per-sample id (e.g. WB6630)
@@ -200,7 +202,8 @@ CREATE TABLE IF NOT EXISTS result (
     mdl               numeric,    -- method detection limit
     rl                numeric,    -- reporting limit
     qa_code           text,
-    compliance_code   text
+    compliance_code   text,
+    owner_org         text        -- contributor org that owns this result (NULL = State)
 );
 
 -- ---------- Stations & CEDEN linkage (docs/BEND_CEDEN_WORKFLOW.md) ----------
@@ -224,7 +227,8 @@ CREATE TABLE IF NOT EXISTS station (
     waterbody_id  bigint REFERENCES waterbody(id),
     geom          geometry(Point, 4326),       -- enriched from a CEDEN station registry
     huc12         char(12) REFERENCES huc12(huc12),
-    geoconnex_uri text UNIQUE
+    geoconnex_uri text UNIQUE,
+    owner_org     text   -- contributor org that owns this station (NULL = State)
 );
 CREATE INDEX IF NOT EXISTS station_geom_gix ON station USING gist (geom);
 

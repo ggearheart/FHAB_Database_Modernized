@@ -1,5 +1,6 @@
 """Row-Level Security tests: role + scope determine which rows each user sees."""
 
+import psycopg
 import pytest
 
 from fhab.auth import acting_as, create_user, grant_role
@@ -100,3 +101,69 @@ def test_water_body_manager_sees_their_waterbody(conn, world):
         bids = {r["bloom_report_id"] for r in conn.execute(
             "SELECT bloom_report_id FROM event").fetchall()}
     assert bids == {1, 3}
+
+
+# ---- Write policies ----
+
+def _write(conn, uid, sql, params=()):
+    """Attempt a write as a user; return True if it committed, False if RLS rejected it."""
+    with acting_as(conn, uid):
+        try:
+            conn.execute(sql, params)
+            conn.commit()
+            return True
+        except psycopg.Error:
+            conn.rollback()
+            return False
+
+
+def _loc_in(conn, world, key):
+    return conn.execute(
+        "INSERT INTO location (waterbody_id) VALUES (%s) RETURNING id", (world[key],)
+    ).fetchone()["id"]
+
+
+def test_staff_write_is_region_scoped(conn, world):
+    staff = create_user(conn, "r5w@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    loc_r5 = _loc_in(conn, world, "wb_a")   # Region 5
+    loc_r1 = _loc_in(conn, world, "wb_b")   # Region 1
+    conn.commit()
+    assert _write(conn, staff,
+                  "INSERT INTO event (bloom_report_id, location_id) VALUES (10, %s)", (loc_r5,))
+    assert not _write(conn, staff,
+                      "INSERT INTO event (bloom_report_id, location_id) VALUES (11, %s)", (loc_r1,))
+
+
+def test_contributor_writes_only_own_org(conn, world):
+    user = create_user(conn, "tribe@x.org")
+    grant_role(conn, user, "tribal_admin", org="TribeX")
+    loc = _loc_in(conn, world, "wb_a"); conn.commit()
+    # Can insert an event owned by their org…
+    assert _write(conn, user,
+                  "INSERT INTO event (bloom_report_id, location_id, owner_org) VALUES (20, %s, 'TribeX')",
+                  (loc,))
+    # …but not one owned by another org…
+    assert not _write(conn, user,
+                      "INSERT INTO event (bloom_report_id, location_id, owner_org) VALUES (21, %s, 'OtherOrg')",
+                      (loc,))
+    # …and not a staff-only response.
+    assert not _write(conn, user,
+                      "INSERT INTO response (response_action_id, bloom_report_id) VALUES (99, 1)")
+
+
+def test_public_cannot_write(conn, world):
+    pub = create_user(conn, "p@public.org"); grant_role(conn, pub, "public")
+    loc = _loc_in(conn, world, "wb_a"); conn.commit()
+    assert not _write(conn, pub,
+                      "INSERT INTO event (bloom_report_id, location_id) VALUES (30, %s)", (loc,))
+
+
+def test_only_staff_post_advisories(conn, world):
+    staff = create_user(conn, "s@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    contrib = create_user(conn, "c@x.org"); grant_role(conn, contrib, "comm_sci_manager", org="OrgY")
+    conn.execute("INSERT INTO response (response_action_id, bloom_report_id) VALUES (50, 1)")
+    conn.commit()
+    assert _write(conn, staff,
+                  "INSERT INTO advisory (advisory_id, response_action_id, display_advisory_on_map) VALUES (60, 50, true)")
+    assert not _write(conn, contrib,
+                      "INSERT INTO advisory (advisory_id, response_action_id, display_advisory_on_map) VALUES (61, 50, true)")

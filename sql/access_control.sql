@@ -97,6 +97,29 @@ CREATE OR REPLACE FUNCTION fhab_waterbody_ids() RETURNS bigint[]
     FROM user_role WHERE user_id = fhab_user_id()
       AND role_code = 'water_body_manager' AND scope_waterbody_id IS NOT NULL $$;
 
+-- Write helpers: staff who may edit (internal except read-only 'viewer'), and the
+-- contributor organizations the user owns data for.
+CREATE OR REPLACE FUNCTION fhab_is_staff_writer() RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER AS $$
+    SELECT EXISTS (SELECT 1 FROM user_role ur JOIN role r ON r.code = ur.role_code
+                   WHERE ur.user_id = fhab_user_id()
+                     AND r.category = 'internal_staff' AND ur.role_code <> 'viewer') $$;
+
+CREATE OR REPLACE FUNCTION fhab_user_orgs() RETURNS text[]
+  LANGUAGE sql STABLE SECURITY DEFINER AS $$
+    SELECT coalesce(array_agg(DISTINCT ur.scope_org), '{}')
+    FROM user_role ur JOIN role r ON r.code = ur.role_code
+    WHERE ur.user_id = fhab_user_id() AND r.category = 'contributor' AND ur.scope_org IS NOT NULL $$;
+
+CREATE OR REPLACE FUNCTION fhab_location_region(locid bigint) RETURNS text
+  LANGUAGE sql STABLE SECURITY DEFINER AS $$
+    SELECT w.regional_water_board FROM location l JOIN waterbody w ON w.id = l.waterbody_id
+    WHERE l.id = locid $$;
+
+CREATE OR REPLACE FUNCTION fhab_waterbody_region(wbid bigint) RETURNS text
+  LANGUAGE sql STABLE SECURITY DEFINER AS $$
+    SELECT regional_water_board FROM waterbody WHERE id = wbid $$;
+
 -- Cross-table helpers (SECURITY DEFINER = bypass RLS, no policy recursion).
 CREATE OR REPLACE FUNCTION fhab_event_region(brid bigint) RETURNS text
   LANGUAGE sql STABLE SECURITY DEFINER AS $$
@@ -146,6 +169,7 @@ DROP POLICY IF EXISTS event_read ON event;
 CREATE POLICY event_read ON event FOR SELECT USING (
     fhab_is_admin()
     OR (fhab_is_internal() AND fhab_region_ok(fhab_event_region(bloom_report_id)))
+    OR (owner_org = ANY (fhab_user_orgs()))   -- contributor sees its own
     OR (NOT fhab_is_internal() AND (
         fhab_event_waterbody(bloom_report_id) = ANY (fhab_waterbody_ids())
         OR fhab_event_has_public_advisory(bloom_report_id)))
@@ -167,11 +191,25 @@ CREATE POLICY hab_case_read ON hab_case FOR SELECT USING (
     fhab_is_admin() OR fhab_is_internal() OR (waterbody_id = ANY (fhab_waterbody_ids()))
 );
 
--- Internal-only tables (region/manager scoping is a planned refinement).
+-- Contributor-owned tables: internal staff + the owning contributor org can read.
 DO $$
 DECLARE t text;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['response','result','sample','station','location'] LOOP
+    FOREACH t IN ARRAY ARRAY['result','sample','station'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('DROP POLICY IF EXISTS %I_read ON %I', t, t);
+        EXECUTE format(
+            'CREATE POLICY %I_read ON %I FOR SELECT USING (
+                 fhab_is_admin() OR fhab_is_internal() OR (owner_org = ANY (fhab_user_orgs())))',
+            t, t);
+    END LOOP;
+END $$;
+
+-- Internal-only tables.
+DO $$
+DECLARE t text;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['response','location'] LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
         EXECUTE format('DROP POLICY IF EXISTS %I_read ON %I', t, t);
         EXECUTE format(
@@ -180,7 +218,33 @@ BEGIN
     END LOOP;
 END $$;
 
+-- ---------- Write policies (INSERT / UPDATE / DELETE) ----------
+-- Each writable table gets a predicate; the loop builds matching insert/update/delete
+-- policies. Staff edit within their region; contributors edit only their own org's rows;
+-- responses and advisories are staff-only (so contributors submit but cannot self-verify).
+DO $$
+DECLARE rec record;
+BEGIN
+    FOR rec IN SELECT * FROM (VALUES
+        ('event',   'fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(fhab_location_region(location_id))) OR (owner_org = ANY (fhab_user_orgs()))'),
+        ('station', 'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
+        ('sample',  'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
+        ('result',  'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
+        ('hab_case','fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(fhab_waterbody_region(waterbody_id)))'),
+        ('response','fhab_is_admin() OR fhab_is_staff_writer()'),
+        ('advisory','fhab_is_admin() OR fhab_is_staff_writer()')
+    ) AS t(tbl, pred) LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %1$I_ins ON %1$I; DROP POLICY IF EXISTS %1$I_upd ON %1$I; DROP POLICY IF EXISTS %1$I_del ON %1$I;', rec.tbl);
+        EXECUTE format('CREATE POLICY %1$I_ins ON %1$I FOR INSERT WITH CHECK (%2$s)', rec.tbl, rec.pred);
+        EXECUTE format('CREATE POLICY %1$I_upd ON %1$I FOR UPDATE USING (%2$s) WITH CHECK (%2$s)', rec.tbl, rec.pred);
+        EXECUTE format('CREATE POLICY %1$I_del ON %1$I FOR DELETE USING (%2$s)', rec.tbl, rec.pred);
+    END LOOP;
+END $$;
+
 -- ---------- Grants ----------
 
 GRANT USAGE ON SCHEMA public TO fhab_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO fhab_app;
+-- Writes are allowed only on the tables that have write policies above.
+GRANT INSERT, UPDATE, DELETE ON event, station, sample, result, hab_case, response, advisory TO fhab_app;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO fhab_app;
