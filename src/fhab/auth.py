@@ -41,6 +41,15 @@ def grant_role(conn: psycopg.Connection, user_id: int, role_code: str, *,
     conn.commit()
 
 
+def user_regions(conn: psycopg.Connection, user_id: int) -> list[str]:
+    """Return the regions a user is scoped to (empty = unscoped / admin / contributor)."""
+    rows = conn.execute(
+        "SELECT DISTINCT scope_region FROM user_role WHERE user_id = %s AND scope_region IS NOT NULL",
+        (user_id,),
+    ).fetchall()
+    return [r["scope_region"] for r in rows]
+
+
 @contextmanager
 def acting_as(conn: psycopg.Connection, user_id: int | None):
     """Run queries as `user_id` under RLS (via the fhab_app role). Resets on exit.

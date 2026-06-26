@@ -24,9 +24,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import psycopg  # noqa: E402
 
-from fhab.auth import create_user, grant_role  # noqa: E402
+from fhab.auth import create_user, grant_role, user_regions  # noqa: E402
 from fhab.db import connect  # noqa: E402
 from fhab.reports import enter_report  # noqa: E402
+
+
+def confirm_cross_region(conn, user_id, target_region, assume_yes) -> bool:
+    """If the target region differs from the staffer's own region(s), note it and confirm."""
+    if not target_region:
+        return True
+    regions = user_regions(conn, user_id)
+    if not regions or target_region in regions:
+        return True  # unscoped/admin, or own region — no note needed
+    print("\n  Note: you are entering a report on behalf of a different Regional Board.")
+    print(f"    Your region(s):   {', '.join(regions)}")
+    print(f"    Report region:    {target_region}")
+    if assume_yes:
+        print("  Proceeding (--yes given).\n")
+        return True
+    if not sys.stdin.isatty():
+        print("  Re-run with --yes to confirm entering for a different region.\n")
+        return False
+    return input("  Proceed entering for a different region? [y/N]: ").strip().lower() in ("y", "yes")
 
 
 def main() -> None:
@@ -47,6 +66,8 @@ def main() -> None:
     p.add_argument("--bloom-texture")
     p.add_argument("--description")
     p.add_argument("--owner-org", help="Owning organization (for contributor-submitted reports).")
+    p.add_argument("--yes", "-y", action="store_true",
+                   help="Skip the cross-region confirmation prompt.")
     args = p.parse_args()
 
     conn = connect()
@@ -59,6 +80,9 @@ def main() -> None:
         print(f"Created user {args.email} with role {args.ensure_role}.")
     else:
         sys.exit(f"No user '{args.email}'. Pass --ensure-role to create one.")
+
+    if not confirm_cross_region(conn, user_id, args.region, args.yes):
+        sys.exit("Aborted — report not entered.")
 
     try:
         rid = enter_report(

@@ -123,15 +123,33 @@ def _loc_in(conn, world, key):
     ).fetchone()["id"]
 
 
-def test_staff_write_is_region_scoped(conn, world):
+def test_staff_can_enter_report_in_any_region(conn, world):
+    # Report intake is open to any staff writer, including on behalf of another region
+    # (the app warns + confirms; the DB allows it).
     staff = create_user(conn, "r5w@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
-    loc_r5 = _loc_in(conn, world, "wb_a")   # Region 5
-    loc_r1 = _loc_in(conn, world, "wb_b")   # Region 1
+    loc_r5 = _loc_in(conn, world, "wb_a")   # Region 5 (own)
+    loc_r1 = _loc_in(conn, world, "wb_b")   # Region 1 (other)
     conn.commit()
     assert _write(conn, staff,
                   "INSERT INTO event (bloom_report_id, location_id) VALUES (10, %s)", (loc_r5,))
-    assert not _write(conn, staff,
-                      "INSERT INTO event (bloom_report_id, location_id) VALUES (11, %s)", (loc_r1,))
+    assert _write(conn, staff,
+                  "INSERT INTO event (bloom_report_id, location_id) VALUES (11, %s)", (loc_r1,))
+
+
+def test_case_management_stays_region_scoped(conn, world):
+    # Cross-region report intake is allowed, but creating a CASE in another region is not.
+    staff = create_user(conn, "rg@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    assert _write(conn, staff,   # waterbody (intake) in another region: allowed
+                  "INSERT INTO waterbody (water_body_name, regional_water_board) VALUES ('X', %s)", (R1,))
+    assert not _write(conn, staff,   # a case on that other-region waterbody: rejected
+                      "INSERT INTO hab_case (case_id, waterbody_id) "
+                      "VALUES (777, (SELECT id FROM waterbody WHERE regional_water_board=%s LIMIT 1))", (R1,))
+
+
+def test_user_regions_helper(conn):
+    from fhab.auth import user_regions
+    u = create_user(conn, "u@wb.ca.gov"); grant_role(conn, u, "wb_staff", region=R5)
+    assert user_regions(conn, u) == [R5]
 
 
 def test_contributor_writes_only_own_org(conn, world):
@@ -173,12 +191,6 @@ def test_staff_can_enter_a_new_report_in_region(conn):
         conn.commit()
         assert conn.execute(
             "SELECT count(*) n FROM event WHERE bloom_report_id=40").fetchone()["n"] == 1
-
-
-def test_staff_cannot_create_waterbody_in_other_region(conn):
-    staff = create_user(conn, "rg@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
-    assert not _write(conn, staff,
-                      "INSERT INTO waterbody (water_body_name, regional_water_board) VALUES ('X', %s)", (R1,))
 
 
 def test_only_staff_post_advisories(conn, world):

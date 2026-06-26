@@ -225,14 +225,17 @@ END $$;
 DO $$
 DECLARE rec record;
 BEGIN
+    -- Report intake (event/waterbody/location) is open to ANY staff writer, in any region:
+    -- a regional board may enter a report on behalf of another (the app warns + confirms).
+    -- Case management stays region-scoped (a case cannot span Regional Boards).
     FOR rec IN SELECT * FROM (VALUES
-        ('event',    'fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(fhab_location_region(location_id))) OR (owner_org = ANY (fhab_user_orgs()))'),
+        ('event',    'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
+        ('waterbody','fhab_is_admin() OR fhab_is_staff_writer()'),
+        ('location', 'fhab_is_admin() OR fhab_is_staff_writer()'),
         ('station',  'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
         ('sample',   'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
         ('result',   'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
         ('hab_case', 'fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(fhab_waterbody_region(waterbody_id)))'),
-        ('waterbody','fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(regional_water_board))'),
-        ('location', 'fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(fhab_waterbody_region(waterbody_id)))'),
         ('response', 'fhab_is_admin() OR fhab_is_staff_writer()'),
         ('advisory', 'fhab_is_admin() OR fhab_is_staff_writer()')
     ) AS t(tbl, pred) LOOP

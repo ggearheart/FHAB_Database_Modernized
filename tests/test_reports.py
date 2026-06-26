@@ -23,6 +23,20 @@ def test_staff_enters_report_in_region(conn):
     assert row["bloom_type"] == "cyanobacteria"
 
 
+def test_staff_enters_report_on_behalf_of_other_region(conn):
+    # A regional staffer may file a report for a different region (the CLI warns + confirms).
+    staff = create_user(conn, "r2@wb.ca.gov")
+    grant_role(conn, staff, "wb_staff", region="Region 2 - San Francisco Bay")
+    rid = enter_report(conn, staff, water_body_name="Other Region Pond",
+                       region=R5, county="Lake", lat=39.0, lon=-122.9)
+    # Visible to the owning region's staff (and admin), confirming it landed in Region 5.
+    region = conn.execute(
+        """SELECT w.regional_water_board FROM event e JOIN location l ON l.id=e.location_id
+           JOIN waterbody w ON w.id=l.waterbody_id WHERE e.bloom_report_id=%s""", (rid,)
+    ).fetchone()["regional_water_board"]
+    assert region == R5
+
+
 def test_public_user_cannot_enter_report(conn):
     pub = create_user(conn, "p@public.org"); grant_role(conn, pub, "public")
     with pytest.raises(psycopg.Error):

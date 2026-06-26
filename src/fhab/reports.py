@@ -43,6 +43,9 @@ def enter_report(
             "SELECT coalesce(max(bloom_report_id), 0) + 1 AS n FROM event"
         ).fetchone()["n"]
 
+    # Use plain INSERT + currval rather than RETURNING: when a staffer files on behalf of
+    # another region, RETURNING would read the new row back and trip the region-scoped read
+    # policy. currval reads the sequence, which is not subject to RLS.
     with acting_as(conn, user_id):
         wb = conn.execute(
             "SELECT id FROM waterbody WHERE water_body_name = %s AND county IS NOT DISTINCT FROM %s",
@@ -51,22 +54,26 @@ def enter_report(
         if wb:
             wb_id = wb["id"]
         else:
-            wb_id = conn.execute(
+            conn.execute(
                 """INSERT INTO waterbody (water_body_name, county, regional_water_board)
-                   VALUES (%s, %s, %s) RETURNING id""",
+                   VALUES (%s, %s, %s)""",
                 (water_body_name, county, region),
+            )
+            wb_id = conn.execute(
+                "SELECT currval(pg_get_serial_sequence('waterbody', 'id')) AS id"
             ).fetchone()["id"]
 
         if lat is not None and lon is not None:
-            loc_id = conn.execute(
+            conn.execute(
                 """INSERT INTO location (waterbody_id, geom)
-                   VALUES (%s, ST_SetSRID(ST_MakePoint(%s, %s), 4326)) RETURNING id""",
+                   VALUES (%s, ST_SetSRID(ST_MakePoint(%s, %s), 4326))""",
                 (wb_id, lon, lat),
-            ).fetchone()["id"]
+            )
         else:
-            loc_id = conn.execute(
-                "INSERT INTO location (waterbody_id) VALUES (%s) RETURNING id", (wb_id,)
-            ).fetchone()["id"]
+            conn.execute("INSERT INTO location (waterbody_id) VALUES (%s)", (wb_id,))
+        loc_id = conn.execute(
+            "SELECT currval(pg_get_serial_sequence('location', 'id')) AS id"
+        ).fetchone()["id"]
 
         conn.execute(
             """INSERT INTO event

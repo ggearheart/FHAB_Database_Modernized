@@ -163,9 +163,11 @@ notes:
 
 **Writes are enforced too** (INSERT/UPDATE/DELETE policies + an `owner_org` column on the
 contributor-owned tables `event`/`station`/`sample`/`result`):
-- **Staff** edit within their region (`wb_staff` region-scoped; `viewer` is read-only),
-  including creating the geography for a new report — a `waterbody` (must carry the staffer's
-  region) and its `location` point — so they can enter a brand-new bloom report end to end.
+- **Staff** edit within their region (`wb_staff` region-scoped; `viewer` is read-only).
+  **Report intake is open to any staff writer in any region** — a regional board may enter a
+  report on behalf of another (a valid operational case); the app shows a note and asks the
+  staffer to confirm before filing for a different region. **Case management stays
+  region-scoped** (a case cannot span Regional Boards), so the relaxation is intake-only.
 - **Contributors** edit only rows owned by *their* organization — a tribal/community user
   cannot create or alter another org's data, enforced by `WITH CHECK (owner_org ∈ my orgs)`.
 - **Responses and advisories are staff-only**, so contributors can submit observations but
