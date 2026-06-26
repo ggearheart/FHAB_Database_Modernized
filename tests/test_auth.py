@@ -158,6 +158,29 @@ def test_public_cannot_write(conn, world):
                       "INSERT INTO event (bloom_report_id, location_id) VALUES (30, %s)", (loc,))
 
 
+def test_staff_can_enter_a_new_report_in_region(conn):
+    """End-to-end: a wb_staff user creates waterbody + location + event in their region."""
+    staff = create_user(conn, "newrep@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    with acting_as(conn, staff):
+        wb = conn.execute(
+            "INSERT INTO waterbody (water_body_name, regional_water_board) VALUES ('New Pond', %s) RETURNING id",
+            (R5,)).fetchone()["id"]
+        loc = conn.execute(
+            "INSERT INTO location (waterbody_id) VALUES (%s) RETURNING id", (wb,)).fetchone()["id"]
+        conn.execute(
+            "INSERT INTO event (bloom_report_id, location_id, report_type) VALUES (40, %s, 'Staff entry')",
+            (loc,))
+        conn.commit()
+        assert conn.execute(
+            "SELECT count(*) n FROM event WHERE bloom_report_id=40").fetchone()["n"] == 1
+
+
+def test_staff_cannot_create_waterbody_in_other_region(conn):
+    staff = create_user(conn, "rg@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    assert not _write(conn, staff,
+                      "INSERT INTO waterbody (water_body_name, regional_water_board) VALUES ('X', %s)", (R1,))
+
+
 def test_only_staff_post_advisories(conn, world):
     staff = create_user(conn, "s@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
     contrib = create_user(conn, "c@x.org"); grant_role(conn, contrib, "comm_sci_manager", org="OrgY")

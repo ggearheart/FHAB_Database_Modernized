@@ -226,13 +226,15 @@ DO $$
 DECLARE rec record;
 BEGIN
     FOR rec IN SELECT * FROM (VALUES
-        ('event',   'fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(fhab_location_region(location_id))) OR (owner_org = ANY (fhab_user_orgs()))'),
-        ('station', 'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
-        ('sample',  'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
-        ('result',  'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
-        ('hab_case','fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(fhab_waterbody_region(waterbody_id)))'),
-        ('response','fhab_is_admin() OR fhab_is_staff_writer()'),
-        ('advisory','fhab_is_admin() OR fhab_is_staff_writer()')
+        ('event',    'fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(fhab_location_region(location_id))) OR (owner_org = ANY (fhab_user_orgs()))'),
+        ('station',  'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
+        ('sample',   'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
+        ('result',   'fhab_is_admin() OR fhab_is_staff_writer() OR (owner_org = ANY (fhab_user_orgs()))'),
+        ('hab_case', 'fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(fhab_waterbody_region(waterbody_id)))'),
+        ('waterbody','fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(regional_water_board))'),
+        ('location', 'fhab_is_admin() OR (fhab_is_staff_writer() AND fhab_region_ok(fhab_waterbody_region(waterbody_id)))'),
+        ('response', 'fhab_is_admin() OR fhab_is_staff_writer()'),
+        ('advisory', 'fhab_is_admin() OR fhab_is_staff_writer()')
     ) AS t(tbl, pred) LOOP
         EXECUTE format('DROP POLICY IF EXISTS %1$I_ins ON %1$I; DROP POLICY IF EXISTS %1$I_upd ON %1$I; DROP POLICY IF EXISTS %1$I_del ON %1$I;', rec.tbl);
         EXECUTE format('CREATE POLICY %1$I_ins ON %1$I FOR INSERT WITH CHECK (%2$s)', rec.tbl, rec.pred);
@@ -246,5 +248,6 @@ END $$;
 GRANT USAGE ON SCHEMA public TO fhab_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO fhab_app;
 -- Writes are allowed only on the tables that have write policies above.
-GRANT INSERT, UPDATE, DELETE ON event, station, sample, result, hab_case, response, advisory TO fhab_app;
+GRANT INSERT, UPDATE, DELETE ON
+    event, station, sample, result, hab_case, waterbody, location, response, advisory TO fhab_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO fhab_app;

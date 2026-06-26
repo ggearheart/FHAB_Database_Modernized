@@ -163,7 +163,9 @@ notes:
 
 **Writes are enforced too** (INSERT/UPDATE/DELETE policies + an `owner_org` column on the
 contributor-owned tables `event`/`station`/`sample`/`result`):
-- **Staff** edit within their region (`wb_staff` region-scoped; `viewer` is read-only).
+- **Staff** edit within their region (`wb_staff` region-scoped; `viewer` is read-only),
+  including creating the geography for a new report — a `waterbody` (must carry the staffer's
+  region) and its `location` point — so they can enter a brand-new bloom report end to end.
 - **Contributors** edit only rows owned by *their* organization — a tribal/community user
   cannot create or alter another org's data, enforced by `WITH CHECK (owner_org ∈ my orgs)`.
 - **Responses and advisories are staff-only**, so contributors can submit observations but
