@@ -65,13 +65,27 @@ exercised by the test suite (22 tests).
 
 The **Bend→CEDEN ingestion** is also built: `fhab.ceden` loads a Bend_CEDEN_workflow output
 pair (FieldResults + WaterChemistry) into `station`/`sample`/`result`, **filling the analyte
-values that are blank in the FHAB data**, and links samples to FHAB events/cases where they
-coincide. Load with `init_db.py --ceden FIELD_CSV CHEMISTRY_CSV`.
+values that are blank in the FHAB data**, geocodes stations from the CEDEN station registry,
+and links samples to FHAB events/cases (spatial+temporal → name).
 
-**Next:** enrich `station.geom` from a CEDEN/SWAMP station registry (enables spatial
-linking), load the HUC-12 watershed layer + point-in-polygon derivation (`GEO-4`),
-Geoconnex PID minting (`GEO-1`), full-fidelity export of all published columns, and the
-external Tier 1–3 ingestion path.
+The **geospatial backbone** is complete (`fhab.geo`): the CA Water Boards HUC-12 watershed
+layer (4,719 polygons) loads into PostGIS, `location`/`station` get their watershed by
+point-in-polygon (`GEO-4`), and events/stations are minted **Geoconnex persistent
+identifiers** (`https://geoconnex.us/ca-fhab/{events|sites}/…`, `GEO-1`), each tied to its
+HUC-12 reference URI. Load with `init_db.py --huc12 data/raw/huc12.geojson`.
+
+```bash
+python scripts/fetch_ceden_stations.py   # CEDEN station registry (geocoding)
+python scripts/fetch_huc12.py            # HUC-12 watershed layer
+python scripts/init_db.py --reset --load \
+  --ceden-stations data/raw/ceden_stations.csv \
+  --ceden <FieldResults.csv> <WaterChemistry.csv> \
+  --huc12 data/raw/huc12.geojson
+```
+
+**Next:** full-fidelity export of all published columns, the external Tier 1–3 contributor
+ingestion path, generating the `ca-fhab` Geoconnex namespace CSV, and serving features via
+pygeoapi (OGC API – Features) for the PID landing pages.
 
 - [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) — business requirements: the external
   three-tier ingestion model (IoW / CA State Water Boards Phase 1) **and** the internal

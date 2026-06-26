@@ -118,6 +118,18 @@ PostGIS DB ──┬─► pygeoapi (OGC API Features)  ──► JSON-LD landin
         each event also linked to https://geoconnex.us/ref/hu12/{huc12}
 ```
 
+## Implementation status
+
+✅ **Built** (`fhab.geo`, `tests/test_geo.py`): the CA Water Boards HUC-12 layer (4,719
+watersheds) loads into PostGIS via `scripts/fetch_huc12.py` + `load_huc12`; `location` and
+`station` get their HUC-12 by point-in-polygon (`derive_huc12`, `GEO-4`); and events/stations
+are minted Geoconnex PIDs (`mint_geoconnex`, `GEO-1`). Verified against real data: 3,441
+event locations and all CEDEN stations assigned to watersheds; 3,462 event + 4 station PIDs
+minted, each joinable to its `https://geoconnex.us/ref/hu12/{huc12}` reference URI.
+
+**Not yet built:** generating the `ca-fhab` namespace CSV for the geoconnex registry (`GEO-5`)
+and the pygeoapi OGC API – Features landing pages (`GEO-3`).
+
 ## Requirements added
 
 See [REQUIREMENTS.md](REQUIREMENTS.md) `GEO-1..6`.

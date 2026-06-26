@@ -37,7 +37,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- CA Water Boards "HUC Watersheds" feature service (HUC12 layer; USGS WBD republish).
 CREATE TABLE IF NOT EXISTS huc12 (
     huc12          char(12) PRIMARY KEY,
-    name           text NOT NULL,
+    name           text,
     hutype         text,
     tohuc          char(12),
     areasqkm       double precision,
@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS waterbody (
     UNIQUE (water_body_name, county)
 );
 
+CREATE INDEX IF NOT EXISTS huc12_geom_gix ON huc12 USING gist (geom);
+
 -- A point: an ad-hoc report/observation location or a fixed monitoring site.
 CREATE TABLE IF NOT EXISTS location (
     id            bigserial PRIMARY KEY,
@@ -66,6 +68,7 @@ CREATE TABLE IF NOT EXISTS location (
     landmark      text,
     huc12         char(12) REFERENCES huc12(huc12)
 );
+CREATE INDEX IF NOT EXISTS location_geom_gix ON location USING gist (geom);
 
 -- ---------- Lifecycle spine ----------
 
@@ -223,6 +226,7 @@ CREATE TABLE IF NOT EXISTS station (
     huc12         char(12) REFERENCES huc12(huc12),
     geoconnex_uri text UNIQUE
 );
+CREATE INDEX IF NOT EXISTS station_geom_gix ON station USING gist (geom);
 
 -- Link a CEDEN station/sample to an FHAB event/case, with how + how sure (never silent).
 CREATE TABLE IF NOT EXISTS sample_link (

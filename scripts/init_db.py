@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fhab.ceden import load_ceden_output, load_station_registry  # noqa: E402
 from fhab.db import apply_schema, connect, reset_schema  # noqa: E402
 from fhab.export import export_all  # noqa: E402
+from fhab.geo import build_geospatial_backbone  # noqa: E402
 from fhab.loaders import load_open_data  # noqa: E402
 
 REF_DIR = Path(__file__).resolve().parents[1] / "data" / "raw" / "ca_fhab_reference"
@@ -24,6 +25,8 @@ def main() -> None:
                    help="Load the CEDEN station lookup registry (for station geocoding).")
     p.add_argument("--ceden", nargs=2, metavar=("FIELD_CSV", "CHEMISTRY_CSV"),
                    help="Load a Bend->CEDEN output pair (FieldResults, WaterChemistry).")
+    p.add_argument("--huc12", metavar="GEOJSON",
+                   help="Load HUC-12 watersheds, derive by point-in-polygon, mint geoconnex PIDs.")
     p.add_argument("--export", metavar="DIR", help="Re-export the flat files into DIR.")
     args = p.parse_args()
 
@@ -37,6 +40,8 @@ def main() -> None:
         print(f"station registry: {load_station_registry(conn, args.ceden_stations):,} rows")
     if args.ceden:
         print(load_ceden_output(conn, args.ceden[0], args.ceden[1]).summary())
+    if args.huc12:
+        print("geospatial backbone:", build_geospatial_backbone(conn, args.huc12))
     if args.export:
         counts = export_all(conn, args.export)
         print("exported:", ", ".join(f"{k}={v}" for k, v in counts.items()))

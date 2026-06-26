@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "huc12": "180500059999",
+        "name": "Test Watershed",
+        "hutype": "S",
+        "tohuc": "180500050000",
+        "areasqkm": 100.0
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[-123.0, 37.8], [-122.5, 37.8], [-122.5, 38.2], [-123.0, 38.2], [-123.0, 37.8]]
+        ]
+      }
+    }
+  ]
+}
