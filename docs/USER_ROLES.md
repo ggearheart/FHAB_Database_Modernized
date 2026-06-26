@@ -145,6 +145,24 @@ CREATE TABLE user_role (
 RLS policies then key off `current_setting('fhab.user_id')` to resolve the user's roles +
 scopes at query time.
 
+## Implementation status
+
+✅ **Built and tested** (`sql/access_control.sql`, `src/fhab/auth.py`, `tests/test_auth.py`).
+The `app_user` / `role` / `user_role` tables exist, the 14-role catalog is seeded, and
+**Row-Level Security** is enabled on the lifecycle tables. The app connects as the read-only
+`fhab_app` role and calls `set_config('fhab.user_id', …)`; policies then filter rows by the
+user's roles + scopes. `fhab.auth.acting_as(conn, user_id)` runs queries under RLS.
+
+Verified on real data: a Region-5 `wb_staff` user sees exactly its **192** region events, a
+`program_admin` sees all **3,462**, and `public`/anonymous see only the **2,752** events with
+a published advisory (internal-only tables like `response`/`sample` return nothing). Model
+notes:
+- **RLS defines the maximum visible set**; the app may apply tighter work-queue filters.
+- **Internal staff are region-scoped** (unscoped internal roles and admins see all); the
+  public/manager clauses apply to non-internal users.
+- **Reads only so far** — `fhab_app` is granted `SELECT`. Per-role **write** policies
+  (staff edit; contributor own-data via an ownership column) are the next increment.
+
 ## Resolved by the manual
 
 - **Legacy roles** — one authenticated staff role (region-scoped) + the Illness Workgroup;

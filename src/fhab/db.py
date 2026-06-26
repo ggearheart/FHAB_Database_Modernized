@@ -7,7 +7,9 @@ from pathlib import Path
 
 import psycopg
 
-SCHEMA_PATH = Path(__file__).resolve().parents[2] / "sql" / "schema.sql"
+SQL_DIR = Path(__file__).resolve().parents[2] / "sql"
+SCHEMA_PATH = SQL_DIR / "schema.sql"
+ACCESS_CONTROL_PATH = SQL_DIR / "access_control.sql"
 
 # Connection comes from the standard libpq env vars (PGHOST, PGDATABASE, …) or a single
 # FHAB_DATABASE_URL. Defaults suit a local dev cluster created by scripts/devdb.sh.
@@ -20,8 +22,10 @@ def connect(dsn: str | None = None) -> psycopg.Connection:
 
 
 def apply_schema(conn: psycopg.Connection, schema_path: Path = SCHEMA_PATH) -> None:
-    """Apply the schema. Idempotent — uses CREATE … IF NOT EXISTS."""
+    """Apply the schema and access-control layer. Idempotent."""
     conn.execute(schema_path.read_text())
+    conn.commit()
+    conn.execute(ACCESS_CONTROL_PATH.read_text())
     conn.commit()
 
 
