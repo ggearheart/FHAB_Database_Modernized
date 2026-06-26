@@ -77,6 +77,9 @@ external Tier 1–3 ingestion path.
   now implemented in [sql/schema.sql](sql/schema.sql).
 - [docs/GEOCONNEX.md](docs/GEOCONNEX.md) — persistent URL identifiers for HAB locations
   via Geoconnex, and HUC-12 watershed linkage.
+- [docs/BEND_CEDEN_WORKFLOW.md](docs/BEND_CEDEN_WORKFLOW.md) — recommended workflow to
+  ingest Bend lab data (the missing analyte values), restructure it for CEDEN 2.0, and
+  connect sampling locations to FHAB events/cases via a canonical station registry.
 - [docs/LEGACY_SCHEMA_REVIEW.md](docs/LEGACY_SCHEMA_REVIEW.md) — analysis of the existing
   (problematic) database that produces the open data: what it validates, what to adopt,
   and the anti-patterns to fix.
