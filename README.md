@@ -50,12 +50,22 @@ validation. See [`fhab.ingest`](src/fhab/ingest.py) for the expected CSV columns
 Early scaffold. The current relational core implements a Tier 3-shaped model; the
 full tiered framework is not yet built.
 
-- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) — business requirements (three-tier
-  ingestion model, management, dissemination) derived from the IoW / CA State Water
-  Boards Phase 1 framework.
+- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) — business requirements: the external
+  three-tier ingestion model (IoW / CA State Water Boards Phase 1) **and** the internal
+  CRM case-management lifecycle.
+- [docs/DATA_MODEL_CA_FHAB.md](docs/DATA_MODEL_CA_FHAB.md) — the authoritative target:
+  the published CA FHAB model (Report → Case → Response → Result + Advisory) and its
+  four flat files on the California Open Data Portal.
 - [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) — how the current schema maps to those
   requirements and what's next.
 - [docs/SCHEMA.md](docs/SCHEMA.md) — the current data model.
+
+Pull the published CA FHAB reference data (flat files + data dictionary) into
+`data/raw/` for development:
+
+```bash
+python scripts/fetch_reference_data.py
+```
 
 ## License
 

@@ -1,13 +1,25 @@
 # Business Requirements — FHAB Data Ingestion
 
-These requirements are derived from the **California Freshwater Harmful Algal Bloom
-Monitoring Systems Data Ingestion Framework Recommendations — Phase 1: Model
-Frameworks** (Internet of Water, in partnership with the California State Water
-Resources Control Board / OIMA and The Commons).
+Requirements come from **two complementary sources**:
 
-The framework's purpose is to integrate **Tribal Government and community science
-data** into California's modernized FHAB database for early warning, detection, and
-monitoring. Its organizing principle is a **tiered collection model** that meets
+1. **External ingestion** — the **CA FHAB Data Ingestion Framework Recommendations,
+   Phase 1** (Internet of Water + State Water Boards / OIMA + The Commons): how to take
+   in Tribal Government and community-science data. Covered in sections 1–4 below.
+2. **Internal system of record** — the existing **CA FHAB CRM / case-management** model
+   and its published flat files on the California Open Data Portal. This is the
+   authoritative lifecycle the database must support and the report format it must
+   produce. Covered in section 5; the model is documented in
+   [DATA_MODEL_CA_FHAB.md](DATA_MODEL_CA_FHAB.md).
+
+The two halves meet in the middle: external contributor data (1) flows *into* the
+internal case-management lifecycle (5), which produces the public flat files and
+advisories.
+
+---
+
+The ingestion framework's purpose is to integrate **Tribal Government and community
+science data** into California's modernized FHAB database for early warning, detection,
+and monitoring. Its organizing principle is a **tiered collection model** that meets
 contributors where they are — gathering the greatest amount of data of *known
 quality* for the least contributor effort — followed by management (QAQC + API) and
 dissemination (visualization, export, alerts).
@@ -22,7 +34,7 @@ Three core principles govern every system in the framework:
   report to EPA's Water Quality Exchange (WQX); alignment with such standards is expected.
 
 Requirement IDs are stable handles for traceability (`COL` = collection, `MGT` =
-management, `DIS` = dissemination, `PRN` = principle).
+management, `DIS` = dissemination, `PRN` = principle, `CRM` = internal case management).
 
 ---
 
@@ -149,12 +161,58 @@ Requires the most data-management effort and typically a QAPP.
   status and associated **risk levels** (human health ranked the top data use).
 - **`DIS-2`** **Export** in machine-readable formats; align with adopted standards
   (**CEDEN**, **WQX**) so authorized parties can always retrieve raw data.
+- **`DIS-2a`** Reproduce the four **published flat files** that the CA Open Data Portal
+  serves today — `bloom-report.csv`, `hab-cases.csv`, `hab-responses.csv`,
+  `hab-results.csv` — preserving their column sets and join keys (`Bloom_Report_ID`,
+  `Case_ID`, `Response_Action_ID`, `Result_ID`, `Advisory_ID`). These are generated
+  *views* over the normalized model, with derived counts/flags computed at export time.
+  See [DATA_MODEL_CA_FHAB.md](DATA_MODEL_CA_FHAB.md). **Veterinary results are excluded
+  from public exports.**
 - **`DIS-3`** Adopt **JSON-LD** for discoverability/indexing (search, voice assistants).
 - **`DIS-4`** **Alerts** via email / SMS / push / social (e.g. Twilio, Mandrill),
   **only after** State, Tribal, and community authorities align on the public call to
   action; alerts must carry the recommended actions, framed for public-health context.
 
 ---
+
+## 4a. Internal CRM / case-management lifecycle
+
+The system of record is a **CRM-style case-management** application for Water Board and
+partner state-agency staff. It carries a suspected HAB through its full life cycle. Four
+core entities, each with a stable unique ID (see [DATA_MODEL_CA_FHAB.md](DATA_MODEL_CA_FHAB.md)):
+
+- **`CRM-1` Report** (`Bloom_Report_ID`) — intake of a *suspected* HAB from the public
+  or a partner. No determination is made at submission. Staff can also initiate one.
+- **`CRM-2` Case** (`Case_ID`) — staff organizational grouping of one or more reports
+  for the same waterbody/source. `Case_Status` (Open/Closed), `Case_Lead`, `Case_Class`,
+  start/end dates, year. A waterbody may have several cases; a case is *not* a severity
+  signal.
+- **`CRM-3` Response** (`Response_Action_ID`) — staff action against a report/case,
+  including **advisory** recommendations. This is where a HAB event is **verified or
+  refuted**.
+- **`CRM-4` Result** (`Result_ID`) — field and laboratory analysis attached as evidence
+  (see `CRM-6`).
+
+Additional requirements:
+
+- **`CRM-5` Advisory listing/delisting** (`Advisory_ID`) — responses create, update
+  (intra-/inter-annually as new data arrives), and end advisories. Category ∈
+  {none, caution, warning, danger}. Results serve as **supplemental information to
+  support listing an advisory, or to delist** an event (bloom senesced, or it was never
+  a HAB). A `Display_Advisory_On_Map?` flag gates public posting.
+- **`CRM-6` Analysis result types** — store field and lab analysis with the three-level
+  taxonomy (Analysis Type → Analyte Class → Analyte) and method/value/unit. Must cover:
+  field visual, field measurement, **microscopy** (taxa/dominance), **genetic/molecular
+  toxin-gene markers** for toxin-producing cyanobacteria (e.g. `mcyE`), **cyanotoxin**
+  concentrations (e.g. total microcystin), plus nutrient/pigment context.
+  `Measurement_Value` may be numeric *or* categorical (presence/absence). `Data_Type`
+  distinguishes Laboratory / Field Visual / Field Measurement / Field Batch / Lab Batch
+  / Veterinary.
+- **`CRM-7` Audit timestamps** — automatic created/updated timestamps and editor
+  attribution on reports, cases, responses, and advisory actions (the `*_DateTimeStamp`
+  and `Response_Update_By` fields).
+- **`CRM-8` Attachments** — reports may carry photos/files (`Has_Pictures`, attachment
+  counts).
 
 ## 4. Governing principles (cross-cutting)
 

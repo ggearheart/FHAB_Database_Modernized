@@ -12,6 +12,16 @@ contributor-defined parameters, watershed derivation, review status, provenance/
 the API, or dissemination. The biggest structural decision ahead is how to host all
 three tiers in one model.
 
+> **Bigger gap (added after the CA FHAB model review):** the authoritative target is a
+> **CRM case-management lifecycle** — `Report → Case → Response → Result`, plus
+> `Advisory` listing/delisting — that produces four published flat files
+> ([DATA_MODEL_CA_FHAB.md](DATA_MODEL_CA_FHAB.md), reqs `CRM-1..8`, `DIS-2a`). The
+> current `waterbody/site/sample/result/advisory` scaffold maps only loosely onto this:
+> it has no Report or Case entity, no Response/advisory-action history, no three-level
+> analysis taxonomy (microscopy / genetic `mcyE` / cyanotoxin), and no flat-file export.
+> **The schema needs a redesign around the four core entities before more is built.**
+> The external three-tier ingestion (below) then feeds *into* this lifecycle.
+
 | Area                          | Req                | Status | Notes |
 |-------------------------------|--------------------|--------|-------|
 | Tier 3 sites + time-series    | `COL-T3.1/.2`      | ✅ | `site` + `sample`/`result` give the one-to-many station→readings shape. |
