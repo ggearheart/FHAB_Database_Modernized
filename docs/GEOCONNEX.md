@@ -87,14 +87,18 @@ These are populated when a site/event is created and never reused.
 
 Geoconnex publishes authoritative **reference features** (HUC watersheds, mainstems, NHD)
 under its `ref/` namespace. Each FHAB location is related to the HUC-12 it falls within —
-derived by **PostGIS point-in-polygon** against the **USGS Watershed Boundary Dataset
-(WBD)** — and we store both the HUC-12 code and its geoconnex reference URI
-(`https://geoconnex.us/ref/hu12/{huc12}`). This is what turns isolated points into
-*resilient connections*: a HAB event is permanently tied to its watershed in the graph.
+derived by **PostGIS point-in-polygon** — and we store both the HUC-12 code and its
+geoconnex reference URI (`https://geoconnex.us/ref/hu12/{huc12}`). This is what turns
+isolated points into *resilient connections*: a HAB event is permanently tied to its
+watershed in the graph.
 
-> **Open item:** confirm the authoritative HUC boundary source. Default assumption is the
-> USGS WBD HUC-12 (the national standard, and geoconnex's own reference source). If you
-> intended a specific California source, point me at it and I'll target that instead.
+**Authoritative boundary source (confirmed):** the CA Water Boards' hosted **"HUC
+Watersheds"** feature service — its **HUC12** layer, which republishes the USGS Watershed
+Boundary Dataset and is the layer the agency itself uses. Using the agency's own layer
+keeps the watershed assignment consistent with prior Water Boards work.
+
+- Portal item: <https://gispublic.waterboards.ca.gov/portal/home/item.html?id=b6c1bab9acc148e7ac726e33c43402ee>
+- Feature service: `https://gispublic.waterboards.ca.gov/portalserver/rest/services/Hosted/HUC_Watersheds/FeatureServer` (layer 0 = HUC12; fields `huc12`, `name`, `hutype`, `tohuc`, …)
 
 ### 5. Generate the namespace CSV from the database
 
@@ -123,4 +127,4 @@ See [REQUIREMENTS.md](REQUIREMENTS.md) `GEO-1..6`.
 - Geoconnex docs: <https://docs.geoconnex.us>
 - Registry repo: <https://github.com/internetofwater/geoconnex.us>
 - Contributing: <https://docs.geoconnex.us/contributing/overview>
-- USGS Watershed Boundary Dataset (WBD): <https://www.usgs.gov/national-hydrography/watershed-boundary-dataset>
+- CA Water Boards HUC Watersheds: <https://gispublic.waterboards.ca.gov/portal/home/item.html?id=b6c1bab9acc148e7ac726e33c43402ee>

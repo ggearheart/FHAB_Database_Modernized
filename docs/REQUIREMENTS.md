@@ -178,18 +178,27 @@ Requires the most data-management effort and typically a QAPP.
 ## 4a. Internal CRM / case-management lifecycle
 
 The system of record is a **CRM-style case-management** application for Water Board and
-partner state-agency staff. It carries a suspected HAB through its full life cycle. Four
-core entities, each with a stable unique ID (see [DATA_MODEL_CA_FHAB.md](DATA_MODEL_CA_FHAB.md)):
+partner state-agency staff. It carries a suspected HAB through its full life cycle.
 
-- **`CRM-1` Report** (`Bloom_Report_ID`) — intake of a *suspected* HAB from the public
-  or a partner. No determination is made at submission. Staff can also initiate one.
-- **`CRM-2` Case** (`Case_ID`) — staff organizational grouping of one or more reports
-  for the same waterbody/source. `Case_Status` (Open/Closed), `Case_Lead`, `Case_Class`,
+**Lifecycle:** *All pathways start with a `report`.* A report may be triaged into an
+`event` (first-class). *Some — but not all —* events are confirmed as actual HAB events;
+*some* of those are organized into a `case`. A `response` relates to **both events and
+cases**. (See [DATA_MODEL_CA_FHAB.md](DATA_MODEL_CA_FHAB.md) for the published
+report/case/response/result files; `event` is the internal pivot between report and case.)
+
+- **`CRM-1` Report** (`Bloom_Report_ID`) — **entry point**. Intake of a *suspected* HAB
+  from the public or a partner; no determination at submission. Staff can also initiate
+  one. Many reports may be triaged onto one event.
+- **`CRM-1a` Event** (`event_id`, internal) — a distinct, first-class bloom occurrence
+  created from a report. Carries a status (suspected → confirmed actual HAB → not-a-HAB).
+  Gets a geoconnex PID (`GEO-1`).
+- **`CRM-2` Case** (`Case_ID`) — staff organizational grouping of one or more *confirmed
+  events* for a waterbody. `Case_Status` (Open/Closed), `Case_Lead`, `Case_Class`,
   start/end dates, year. A waterbody may have several cases; a case is *not* a severity
   signal.
-- **`CRM-3` Response** (`Response_Action_ID`) — staff action against a report/case,
-  including **advisory** recommendations. This is where a HAB event is **verified or
-  refuted**.
+- **`CRM-3` Response** (`Response_Action_ID`) — staff action that **relates to both
+  events and cases** (either/both), including **advisory** recommendations. Where a HAB
+  event is **verified or refuted**.
 - **`CRM-4` Result** (`Result_ID`) — field and laboratory analysis attached as evidence
   (see `CRM-6`).
 
@@ -228,7 +237,8 @@ vision via [Geoconnex](https://geoconnex.us). See [GEOCONNEX.md](GEOCONNEX.md).
   via OGC API – Features (pygeoapi) as the PID redirect target, so it is crawlable into
   the geoconnex knowledge graph.
 - **`GEO-4`** Derive each location's **HUC-12 watershed** by PostGIS point-in-polygon
-  against the authoritative boundary source (USGS WBD by default) and link it to the
+  against the CA Water Boards **HUC Watersheds** feature service (HUC12 layer, item
+  `b6c1bab9acc148e7ac726e33c43402ee` — the agency's WBD republish) and link it to the
   geoconnex reference URI `https://geoconnex.us/ref/hu12/{huc12}`.
 - **`GEO-5`** Generate the `ca-fhab` namespace CSV (`id,target`) from the database as an
   export and keep it synced via PR to the `geoconnex.us` registry.
