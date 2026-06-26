@@ -214,6 +214,27 @@ Additional requirements:
 - **`CRM-8` Attachments** — reports may carry photos/files (`Has_Pictures`, attachment
   counts).
 
+## 4b. Persistent identifiers & geospatial (Geoconnex)
+
+Implements the framework's *distributed responsibilities / resilient data connections*
+vision via [Geoconnex](https://geoconnex.us). See [GEOCONNEX.md](GEOCONNEX.md).
+
+- **`GEO-1`** Mint **persistent URL identifiers** (geoconnex PIDs) for stable HAB
+  locations — fixed monitoring sites and confirmed event locations — under a `ca-fhab`
+  namespace: `https://geoconnex.us/ca-fhab/{sites|events}/{id}`.
+- **`GEO-2`** Store the geoconnex URI as an immutable column on the location entities so
+  it is the durable public handle across map/service changes.
+- **`GEO-3`** Serve each feature as a dereferenceable landing page (GeoJSON + JSON-LD)
+  via OGC API – Features (pygeoapi) as the PID redirect target, so it is crawlable into
+  the geoconnex knowledge graph.
+- **`GEO-4`** Derive each location's **HUC-12 watershed** by PostGIS point-in-polygon
+  against the authoritative boundary source (USGS WBD by default) and link it to the
+  geoconnex reference URI `https://geoconnex.us/ref/hu12/{huc12}`.
+- **`GEO-5`** Generate the `ca-fhab` namespace CSV (`id,target`) from the database as an
+  export and keep it synced via PR to the `geoconnex.us` registry.
+- **`GEO-6`** Target **PostgreSQL + PostGIS** (the geospatial derivations, map serving,
+  and cloud hosting in `COL-T1.4` / `MGT-6` require it).
+
 ## 4. Governing principles (cross-cutting)
 
 - **`PRN-1`** Organized around business capability — produce structured, machine-readable

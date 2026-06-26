@@ -56,9 +56,13 @@ full tiered framework is not yet built.
 - [docs/DATA_MODEL_CA_FHAB.md](docs/DATA_MODEL_CA_FHAB.md) — the authoritative target:
   the published CA FHAB model (Report → Case → Response → Result + Advisory) and its
   four flat files on the California Open Data Portal.
+- [docs/SCHEMA_PROPOSAL.md](docs/SCHEMA_PROPOSAL.md) — **proposed** PostgreSQL + PostGIS
+  redesign around the CRM lifecycle (under review; not yet applied).
+- [docs/GEOCONNEX.md](docs/GEOCONNEX.md) — persistent URL identifiers for HAB locations
+  via Geoconnex, and HUC-12 watershed linkage.
 - [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) — how the current schema maps to those
   requirements and what's next.
-- [docs/SCHEMA.md](docs/SCHEMA.md) — the current data model.
+- [docs/SCHEMA.md](docs/SCHEMA.md) — the current (scaffold) data model.
 
 Pull the published CA FHAB reference data (flat files + data dictionary) into
 `data/raw/` for development:
