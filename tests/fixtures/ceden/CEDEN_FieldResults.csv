@@ -1,0 +1,5 @@
+StationCode,StationName,SampleDate,SampleTime,ProjectCode,MatrixName,SampleTypeCode,Collectors,EventCode,ProtocolCode,SampleComments
+201MUD500,Muddy Hollow Creek,06/02/2026,09:15,SWB_RCMP_2026,samplealgae,Grab,NA,Grab,Not Recorded,NA
+201PNG050,Teixeira,06/02/2026,12:45,SWB_RCMP_2026,samplealgae,Grab,NA,Grab,Not Recorded,NA
+201LAG335,Big Carson Creek Tributary,06/01/2026,13:45,SWB_RCMP_2026,samplealgae,Grab,NA,Grab,Not Recorded,NA
+201AHO350,Arroyo Hondo Creek,06/03/2026,09:45,SWB_RCMP_2026,samplealgae,Grab,NA,Grab,Not Recorded,NA

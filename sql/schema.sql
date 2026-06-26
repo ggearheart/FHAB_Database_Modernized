@@ -158,12 +158,20 @@ CREATE TABLE IF NOT EXISTS sample (
     bloom_report_id bigint REFERENCES event(bloom_report_id),
     case_id         bigint REFERENCES hab_case(case_id),
     location_id     bigint REFERENCES location(id),
+    station_id      bigint,      -- FK added after station table (see ALTER below)
     sample_id       text,        -- container/tracking label ("Sample_ID")
     sample_type     text,
     sample_location text,
     site            text,
     sample_date     date,
-    coc_id          text         -- chain of custody (adopted from legacy review)
+    sample_time     time,
+    coc_id          text,        -- chain of custody (adopted from legacy review)
+    -- CEDEN / Bend sample identity (populated from the Bend->CEDEN workflow).
+    bg_id           text,        -- Bend Genetics per-sample id (e.g. WB6630)
+    lab_sample_id   text,
+    lab_batch       text,
+    project_code    text,
+    lab_agency_code text
 );
 
 -- CRM-6: one analyte result per sample. Value may be numeric or categorical.
@@ -182,5 +190,49 @@ CREATE TABLE IF NOT EXISTS result (
     measurement_unit  text,
     taxa              text,
     lab               text,       -- LabCode / lab identity (adopted from legacy review)
-    results_date      date
+    results_date      date,
+    -- CEDEN chemistry fields (populated when filled from the Bend->CEDEN workflow).
+    res_qual_code     text,       -- '=', 'ND', '<', …
+    fraction_name     text,       -- 'Total'
+    mdl               numeric,    -- method detection limit
+    rl                numeric,    -- reporting limit
+    qa_code           text,
+    compliance_code   text
 );
+
+-- ---------- Stations & CEDEN linkage (docs/BEND_CEDEN_WORKFLOW.md) ----------
+
+-- Canonical monitoring station — the shared spine across Bend, CEDEN, and FHAB.
+CREATE TABLE IF NOT EXISTS station (
+    id            bigserial PRIMARY KEY,
+    station_code  text UNIQUE,                 -- CEDEN StationCode (= Bend CustomerSample)
+    station_name  text,
+    waterbody_id  bigint REFERENCES waterbody(id),
+    geom          geometry(Point, 4326),       -- enriched from a CEDEN station registry
+    huc12         char(12) REFERENCES huc12(huc12),
+    geoconnex_uri text UNIQUE
+);
+
+-- Link a CEDEN station/sample to an FHAB event/case, with how + how sure (never silent).
+CREATE TABLE IF NOT EXISTS sample_link (
+    id              bigserial PRIMARY KEY,
+    sample_id       bigint REFERENCES sample(id),
+    station_id      bigint REFERENCES station(id),
+    bloom_report_id bigint REFERENCES event(bloom_report_id),
+    case_id         bigint REFERENCES hab_case(case_id),
+    match_method    text,        -- sampleid | station_date | spatial_temporal | name | manual
+    confidence      numeric,     -- 0..1
+    distance_m      numeric,
+    reviewed_by     text,
+    reviewed_at     timestamptz,
+    created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+-- sample.station_id references station (defined above); add the FK once, idempotently.
+DO $$ BEGIN
+    ALTER TABLE sample ADD CONSTRAINT sample_station_fk
+        FOREIGN KEY (station_id) REFERENCES station(id);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- A CEDEN/Bend sample is uniquely identified by its BG_ID, so loading is idempotent.
+CREATE UNIQUE INDEX IF NOT EXISTS sample_bg_id_uq ON sample (bg_id) WHERE bg_id IS NOT NULL;

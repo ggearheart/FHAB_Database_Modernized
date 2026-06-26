@@ -61,9 +61,15 @@ pytest -q
 flat files load into the normalized model and re-export with matching row counts and
 published headers. The lifecycle (`report → event → case`, `response`/`advisory`,
 3-level analyte taxonomy incl. genetic `mcyE` / cyanotoxin) and PostGIS geometry are
-exercised by the test suite.
+exercised by the test suite (22 tests).
 
-**Next:** load the HUC-12 watershed layer + point-in-polygon derivation (`GEO-4`),
+The **Bend→CEDEN ingestion** is also built: `fhab.ceden` loads a Bend_CEDEN_workflow output
+pair (FieldResults + WaterChemistry) into `station`/`sample`/`result`, **filling the analyte
+values that are blank in the FHAB data**, and links samples to FHAB events/cases where they
+coincide. Load with `init_db.py --ceden FIELD_CSV CHEMISTRY_CSV`.
+
+**Next:** enrich `station.geom` from a CEDEN/SWAMP station registry (enables spatial
+linking), load the HUC-12 watershed layer + point-in-polygon derivation (`GEO-4`),
 Geoconnex PID minting (`GEO-1`), full-fidelity export of all published columns, and the
 external Tier 1–3 ingestion path.
 

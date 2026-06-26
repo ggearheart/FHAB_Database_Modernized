@@ -1,0 +1,17 @@
+StationCode,StationName,SampleDate,SampleTime,ProjectCode,LabAgencyCode,LabSampleID,LabBatch,BG_ID,Analyte,Result,ResQualCode,Units,Fraction,MDL,RL,MethodName,MatrixName,SampleTypeCode,QACode,ComplianceCode,LabSubmitDate,LabCompletionDate
+201MUD500,Muddy Hollow Creek,06/02/2026,09:15,SWB_RCMP_2026,BendGenetics,2606050,943,WB6630,Anatoxin-a,0.15,ND,ng/g,Total,0.1,0.15,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/10/2026
+201MUD500,Muddy Hollow Creek,06/02/2026,09:15,SWB_RCMP_2026,BendGenetics,2606050,943,WB6630,Microcystin,0.2,ND,ng/g,Total,0.1,0.2,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/10/2026
+201MUD500,Muddy Hollow Creek,06/02/2026,09:15,SWB_RCMP_2026,BendGenetics,2606050,943,WB6630,Cylindrospermopsin,0.05,ND,ng/g,Total,0.03,0.05,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/10/2026
+201MUD500,Muddy Hollow Creek,06/02/2026,09:15,SWB_RCMP_2026,BendGenetics,2606050,943,WB6630,Saxitoxin,0.02,ND,ng/g,Total,0.01,0.02,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/10/2026
+201PNG050,Teixeira,06/02/2026,12:45,SWB_RCMP_2026,BendGenetics,26060500,943,WB6631,Anatoxin-a,0.15,ND,ng/g,Total,0.1,0.15,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/10/2026
+201PNG050,Teixeira,06/02/2026,12:45,SWB_RCMP_2026,BendGenetics,26060500,943,WB6631,Microcystin,0.2,ND,ng/g,Total,0.1,0.2,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/10/2026
+201PNG050,Teixeira,06/02/2026,12:45,SWB_RCMP_2026,BendGenetics,26060500,943,WB6631,Cylindrospermopsin,0.05,ND,ng/g,Total,0.03,0.05,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/10/2026
+201PNG050,Teixeira,06/02/2026,12:45,SWB_RCMP_2026,BendGenetics,26060500,943,WB6631,Saxitoxin,0.02,ND,ng/g,Total,0.01,0.02,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/10/2026
+201LAG335,Big Carson Creek Tributary,06/01/2026,13:45,SWB_RCMP_2026,BendGenetics,260605000,943,WB6632,Anatoxin-a,0.15,ND,ng/g,Total,0.1,0.15,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/09/2026
+201LAG335,Big Carson Creek Tributary,06/01/2026,13:45,SWB_RCMP_2026,BendGenetics,260605000,943,WB6632,Microcystin,0.2,ND,ng/g,Total,0.1,0.2,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/09/2026
+201LAG335,Big Carson Creek Tributary,06/01/2026,13:45,SWB_RCMP_2026,BendGenetics,260605000,943,WB6632,Cylindrospermopsin,0.05,ND,ng/g,Total,0.03,0.05,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/09/2026
+201LAG335,Big Carson Creek Tributary,06/01/2026,13:45,SWB_RCMP_2026,BendGenetics,260605000,943,WB6632,Saxitoxin,0.02,ND,ng/g,Total,0.01,0.02,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/09/2026
+201AHO350,Arroyo Hondo Creek,06/03/2026,09:45,SWB_RCMP_2026,BendGenetics,2606050000,943,WB6633,Anatoxin-a,0.15,ND,ng/g,Total,0.1,0.15,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/09/2026
+201AHO350,Arroyo Hondo Creek,06/03/2026,09:45,SWB_RCMP_2026,BendGenetics,2606050000,943,WB6633,Microcystin,0.2,ND,ng/g,Total,0.1,0.2,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/09/2026
+201AHO350,Arroyo Hondo Creek,06/03/2026,09:45,SWB_RCMP_2026,BendGenetics,2606050000,943,WB6633,Cylindrospermopsin,0.05,ND,ng/g,Total,0.03,0.05,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/09/2026
+201AHO350,Arroyo Hondo Creek,06/03/2026,09:45,SWB_RCMP_2026,BendGenetics,2606050000,943,WB6633,Saxitoxin,0.02,ND,ng/g,Total,0.01,0.02,ELISA,samplealgae,Grab,None,Applicable,06/04/2026,06/09/2026

@@ -30,15 +30,33 @@ via `lookup/matrix_map.csv`, and handles non-detects (ND stored at the reporting
 All with `FractionName = Total`. **Key mapping:** `StationCode = CustomerSample`, and the
 Bend input carries a `SampleID` — these are the connectors for gap #2 (below).
 
+## Confirmed output structure (from a real run)
+
+The two CSVs the FHAB DB ingests (`src/fhab/ceden.py`):
+
+- **`CEDEN_FieldResults`** — `StationCode, StationName, SampleDate, SampleTime, ProjectCode,
+  MatrixName, SampleTypeCode, Collectors, EventCode, ProtocolCode, SampleComments`.
+  **No coordinates** — `StationCode` (e.g. `201MUD500`) is a CEDEN/SWAMP station code;
+  coordinates come from a CEDEN station registry.
+- **`CEDEN_WaterChemistry`** — `StationCode, StationName, SampleDate, SampleTime,
+  ProjectCode, LabAgencyCode, LabSampleID, LabBatch, BG_ID, Analyte, Result, ResQualCode,
+  Units, Fraction, MDL, RL, MethodName, MatrixName, SampleTypeCode, QACode, ComplianceCode,
+  LabSubmitDate, LabCompletionDate`. **`BG_ID`** (e.g. `WB6630`) is the per-sample key.
+
+Note these are `SWB_RCMP_2026` **routine monitoring** samples — fixed-station data that
+often has *no* corresponding FHAB bloom event. That validates the station-first design:
+the data is valuable as monitoring/station results on its own; event linkage is opportunistic.
+
 ## What's left: ingest into FHAB + connect locations (gap #2)
 
 The tool produces clean CEDEN-vocab output but, by design, **does no location matching** —
 it assumes `StationCode` is pre-identified. So the FHAB database's job is:
 
-1. **Ingest the tool's CEDEN output** (Chemistry_Results + FieldResults) — *not* re-parse
-   raw Bend. This **fills the blank `measurement_value`/`measurement_unit`** in FHAB
-   results with the real cyanotoxin/qPCR numbers.
-2. **Connect** each CEDEN station/sample to the correct FHAB **event/case** location.
+1. **Ingest the tool's CEDEN output** (FieldResults + WaterChemistry) — *not* re-parse raw
+   Bend. This **fills the blank `measurement_value`/`measurement_unit`** in FHAB results
+   with the real cyanotoxin/qPCR numbers. ✅ implemented in `fhab.ceden.load_ceden_output`.
+2. **Connect** each CEDEN station/sample to the correct FHAB **event/case** location, when
+   one exists.
 
 ```
  Bend CSVs ──►  [ Bend_CEDEN_workflow (R) ]  ──►  CEDEN 2.0 Chemistry_Results + FieldResults
@@ -146,17 +164,25 @@ gap we found in the loaded FHAB data.
 - **The station registry is the asset** — it serves Bend ingest, FHAB linkage, CEDEN
   submission, and the public map equally, with a persistent geoconnex identifier.
 
-## Open questions to confirm
+## Status
 
-1. **Integration point** — ingest the tool's **CEDEN output** files (recommended, clean
-   vocabulary) vs. the tool also writing a SampleID column through to the chemistry output
-   so the FHAB join can be by `SampleID` (CEDEN's native sample identity is
-   `StationCode` + `CollectionDateTime`)? A SampleID passthrough would make tier-1 matching
-   trivial.
-2. **Station authority** — seed `station` from an existing CEDEN/SWAMP station list for
-   these waterbodies, or mint stations (+ geoconnex PIDs) from the FieldResults as we go?
-3. **Where do FieldResults coordinates come from** — does the Bend input/COC carry sample
-   lat/long, or are coordinates assigned from the StationCode registry?
+✅ **Built and tested** (`fhab.ceden`, `tests/test_ceden.py`): ingests the FieldResults +
+WaterChemistry pair into `station` / `sample` / `result`, **filling the analyte values**,
+and runs the tiered linker. Verified against a real run (4 stations, 4 samples, 16 results,
+all values filled). Load with `init_db.py --ceden FIELD_CSV CHEMISTRY_CSV`.
+
+## Open questions / next steps
+
+1. **Station coordinates** ⭐ — FieldResults has no lat/long; `StationCode` (`201MUD500`) is
+   a CEDEN/SWAMP station code. To enable spatial linking (tier 3) we need to **enrich
+   `station.geom` from a CEDEN/SWAMP station registry** keyed by StationCode. Is there a
+   station list (with coordinates) to load, or should stations be geocoded another way?
+2. **Event linkage for routine data** — RCMP samples mostly won't match a bloom event;
+   that's expected. Confirm routine station results should still be retained (they are) and
+   only *opportunistically* linked when a bloom event coincides.
+3. **Tier-1 keying** — `BG_ID` is the per-sample key in the chemistry output. If FHAB field
+   records captured the same `BG_ID`/`LabSampleID`, store it on `sample` (we do) and add a
+   tier-1 exact match on it. Does the FHAB side currently capture the Bend `BG_ID`?
 
 ## References
 
