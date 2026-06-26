@@ -47,6 +47,14 @@ python scripts/fetch_reference_data.py
 python scripts/init_db.py --reset --load --export /tmp/fhab_export
 ```
 
+Enter a bloom report from the terminal as a user (exercises access control):
+
+```bash
+python scripts/enter_report.py --as jo@wb.ca.gov --ensure-role wb_staff \
+  --region "Region 5 - Central Valley" --waterbody "Test Pond" --county Sacramento \
+  --lat 38.58 --lon -121.49 --bloom-type cyanobacteria --description "Green scum near the ramp."
+```
+
 Run the tests (creates/uses a `fhab_test` database):
 
 ```bash
