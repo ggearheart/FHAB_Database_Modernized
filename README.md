@@ -60,6 +60,9 @@ full tiered framework is not yet built.
   redesign around the CRM lifecycle (under review; not yet applied).
 - [docs/GEOCONNEX.md](docs/GEOCONNEX.md) — persistent URL identifiers for HAB locations
   via Geoconnex, and HUC-12 watershed linkage.
+- [docs/LEGACY_SCHEMA_REVIEW.md](docs/LEGACY_SCHEMA_REVIEW.md) — analysis of the existing
+  (problematic) database that produces the open data: what it validates, what to adopt,
+  and the anti-patterns to fix.
 - [docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md) — how the current schema maps to those
   requirements and what's next.
 - [docs/SCHEMA.md](docs/SCHEMA.md) — the current (scaffold) data model.

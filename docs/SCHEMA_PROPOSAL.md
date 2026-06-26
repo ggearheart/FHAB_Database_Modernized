@@ -8,6 +8,12 @@ model built around the authoritative CA FHAB CRM lifecycle
 ([DATA_MODEL_CA_FHAB.md](DATA_MODEL_CA_FHAB.md)) and satisfying the requirements in
 [REQUIREMENTS.md](REQUIREMENTS.md).
 
+The spine below is **confirmed by the existing (legacy) database's relationships** — see
+[LEGACY_SCHEMA_REVIEW.md](LEGACY_SCHEMA_REVIEW.md). Our `event` maps to the legacy
+`tbl_BloomInfo` (the staff working bloom record), and our `report` to `tbl_BloomReport`
+(raw intake); the legacy `tbl_Response2` already links both case and bloom-info. That
+review also drives the additions in "Adopted from legacy review" below.
+
 Target engine: **PostgreSQL 15+ with PostGIS** — required for HUC-12 point-in-polygon
 derivation ([GEOCONNEX.md](GEOCONNEX.md) §4), spatial map serving, and cloud hosting
 (`MGT-6`).
@@ -274,6 +280,71 @@ CREATE TABLE result (
   `result`, reusing the analyte taxonomy.
 - A `review_status` enum + reviewer/comment on `report` satisfies `MGT-1/2`.
 
+## Adopted from legacy review
+
+Validated additions from [LEGACY_SCHEMA_REVIEW.md](LEGACY_SCHEMA_REVIEW.md) (illustrative):
+
+```sql
+-- Staff directory: case_lead / response_update_by / field_crew_lead reference this.
+CREATE TABLE personnel (
+    personnel_code text PRIMARY KEY,
+    first_name     text,
+    last_name      text,
+    email_address  text,
+    primary_role   text,
+    agency_code    text,
+    region_code    text,
+    ddw_district   text,
+    end_date       date          -- soft-expire (legacy LookUp pattern)
+);
+
+-- Illness reporting (public-health relevant; from tbl_BloomInfo/tbl_BloomReport).
+ALTER TABLE report ADD COLUMN illness_type text, ADD COLUMN illness_description text;
+ALTER TABLE event  ADD COLUMN illness_type text, ADD COLUMN illness_description text;
+
+-- Chain of custody + lab identity on samples/results.
+ALTER TABLE sample ADD COLUMN coc_id text;       -- chain-of-custody id
+ALTER TABLE result ADD COLUMN lab    text;        -- LabCode / lab identity
+
+-- Reference tables (subset of the ~40 legacy LookUp_* vocabularies; staff-editable,
+-- soft-expired via end_date — satisfies MGT-5). Many current enums become these.
+CREATE TABLE management_org (
+    agency_code  text PRIMARY KEY,
+    agency_name  text NOT NULL,
+    jurisdiction text,
+    end_date     date
+);
+-- e.g. lookup_waterbody_type, lookup_bloom_texture, lookup_analyte_level*, water_board_region,
+--      ddw_district, lookup_response_type, lookup_notification_type, …
+
+-- Multi-valued attributes as junction tables (not delimited text / parallel child tables):
+CREATE TABLE event_waterbody_use   (event_id bigint REFERENCES event(event_id), use_type text);
+CREATE TABLE event_bloom_texture   (event_id bigint REFERENCES event(event_id), bloom_texture text);
+CREATE TABLE report_attachment     (bloom_report_id bigint REFERENCES report(bloom_report_id),
+                                    filename text, description text);
+
+-- Notification / communication tracking (decomposed out of the legacy god-table),
+-- supporting the alert workflow (DIS-4):
+CREATE TABLE response_notification (
+    id                 bigserial PRIMARY KEY,
+    response_action_id bigint REFERENCES response(response_action_id),
+    notification_type  text,
+    notification_date  date,
+    notified_agencies  text,
+    communication_party text,
+    communication_task  text
+);
+```
+
+Also planned (not shown): `monitoring` and `mitigation` as response-linked actions
+(legacy `Monitoring_ID` / `Mitigation_ID`), and a `method` relationship on `analyte`
+(valid method per analyte-level combo, per `LookUp_Lab_AnalyteLevel*-Method`).
+
+**Anti-patterns this design avoids** (all present in the legacy DB): the overloaded
+`tbl_Response2` god-table, advisory fields duplicated across two tables, ~40 columns
+duplicated between report and bloom-info, and a separate child table per multi-valued
+attribute. See the legacy review for details.
+
 ## Migration / build approach
 
 1. Stand up Postgres + PostGIS (docker-compose for local dev).
@@ -296,10 +367,18 @@ CREATE TABLE result (
 
 ## Remaining open questions
 
-1. **Event ID exposure** — `event_id` is a new internal ID (not in today's flat files).
-   Should events get their own published flat file / geoconnex collection, or stay
-   internal and surface only via the existing report/case/response/result exports?
-2. **Advisory history** — append-only action rows (shown) vs. current-state + audit log?
-3. **`monitoring_site` vs `location`** — fold fixed Tier 3 sites into `location` with a
+1. **Does the public `Bloom_Report_ID` equal the legacy `BloomInfo_ID`?** ⭐ The
+   published `bloom-report.csv` carries `Case_ID` and advisory fields that live on
+   `tbl_BloomInfo`, not `tbl_BloomReport` — strongly suggesting the public "report" key
+   is the *working record* (our `event`), and `tbl_BloomReport` is the raw intake (our
+   `report`). This decides whether the public report key maps to `event` or `report`,
+   and therefore which entity preserves that integer ID. **Needs confirmation from
+   staff / the FLATFILE mapping.** (See [LEGACY_SCHEMA_REVIEW.md](LEGACY_SCHEMA_REVIEW.md)
+   insight #1.)
+2. **Event ID exposure** — should events get their own published flat file / geoconnex
+   collection, or surface only via the existing report/case/response/result exports?
+   (Partly answered by #1: `event` may already *be* the published "report".)
+3. **Advisory history** — append-only action rows (shown) vs. current-state + audit log?
+4. **`monitoring_site` vs `location`** — fold fixed Tier 3 sites into `location` with a
    flag, or keep a separate `monitoring_site` table (shown in diagram)?
-4. **pygeoapi** for landing pages, or a custom JSON-LD endpoint?
+5. **pygeoapi** for landing pages, or a custom JSON-LD endpoint?
