@@ -164,25 +164,39 @@ gap we found in the loaded FHAB data.
 - **The station registry is the asset** — it serves Bend ingest, FHAB linkage, CEDEN
   submission, and the public map equally, with a persistent geoconnex identifier.
 
+## Station registry & geocoding (built)
+
+The **CEDEN station lookup** (`StationCode → TargetLatitude/Longitude`, 39,580 stations)
+provides the coordinates FieldResults lacks. `scripts/fetch_ceden_stations.py` downloads and
+parses it into `data/raw/ceden_stations.csv`; `fhab.ceden.load_station_registry` loads it
+into the `station_registry` reference table; and `enrich_station_geom` sets `station.geom`
+by `station_code`. Once geocoded, the linker's **spatial+temporal tier** connects a sample
+to any FHAB event within 1 km and a 30-day window (verified: the Muddy Hollow Creek sample
+linked to a seeded event at 27.8 m, confidence 0.97).
+
+```bash
+python scripts/fetch_ceden_stations.py
+python scripts/init_db.py --ceden-stations data/raw/ceden_stations.csv \
+                          --ceden FieldResults.csv WaterChemistry.csv
+```
+
 ## Status
 
-✅ **Built and tested** (`fhab.ceden`, `tests/test_ceden.py`): ingests the FieldResults +
-WaterChemistry pair into `station` / `sample` / `result`, **filling the analyte values**,
-and runs the tiered linker. Verified against a real run (4 stations, 4 samples, 16 results,
-all values filled). Load with `init_db.py --ceden FIELD_CSV CHEMISTRY_CSV`.
+✅ **Built and tested** (`fhab.ceden`, `tests/test_ceden.py`, 9 tests): ingests the
+FieldResults + WaterChemistry pair into `station` / `sample` / `result`, **filling the
+analyte values**; geocodes stations from the CEDEN registry; and runs the tiered linker
+(spatial+temporal → name). Verified end to end against a real run.
 
 ## Open questions / next steps
 
-1. **Station coordinates** ⭐ — FieldResults has no lat/long; `StationCode` (`201MUD500`) is
-   a CEDEN/SWAMP station code. To enable spatial linking (tier 3) we need to **enrich
-   `station.geom` from a CEDEN/SWAMP station registry** keyed by StationCode. Is there a
-   station list (with coordinates) to load, or should stations be geocoded another way?
-2. **Event linkage for routine data** — RCMP samples mostly won't match a bloom event;
-   that's expected. Confirm routine station results should still be retained (they are) and
-   only *opportunistically* linked when a bloom event coincides.
-3. **Tier-1 keying** — `BG_ID` is the per-sample key in the chemistry output. If FHAB field
-   records captured the same `BG_ID`/`LabSampleID`, store it on `sample` (we do) and add a
-   tier-1 exact match on it. Does the FHAB side currently capture the Bend `BG_ID`?
+1. **Event linkage for routine data** — RCMP samples mostly won't match a bloom event;
+   that's expected (they're retained as station/monitoring data and linked only when a bloom
+   event coincides). Confirm that's the desired behavior.
+2. **Tier-1 keying** — `BG_ID` is the per-sample key in the chemistry output. If FHAB field
+   records captured the same `BG_ID`/`LabSampleID`, we can add a deterministic tier-1 exact
+   match (the fields are already stored on `sample`). Does the FHAB side capture `BG_ID`?
+3. **Datum normalization** — registry coordinates carry mixed datums (NAD83/WGS84/NR); for
+   ~meter-level matching this is negligible, but worth normalizing if tolerances tighten.
 
 ## References
 

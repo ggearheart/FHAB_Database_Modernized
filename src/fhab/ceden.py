@@ -150,6 +150,46 @@ class CedenLoader:
         self.report.counts["analytes"] = len(self._analytes)
 
 
+def load_station_registry(conn: psycopg.Connection, csv_path: Path) -> int:
+    """Load the CEDEN station lookup CSV into station_registry. Returns rows loaded."""
+    n = 0
+    with conn.cursor() as cur:
+        cur.execute("TRUNCATE station_registry")
+        for row in _rows(csv_path):
+            code = clean(row.get("StationCode"))
+            if code is None:
+                continue
+            cur.execute(
+                """INSERT INTO station_registry
+                     (station_code, station_name, latitude, longitude, datum, source)
+                   VALUES (%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (station_code) DO NOTHING""",
+                (code, clean(row.get("StationName")),
+                 parse_float(row.get("TargetLatitude")), parse_float(row.get("TargetLongitude")),
+                 clean(row.get("Datum")), clean(row.get("StationSource"))),
+            )
+            n += 1
+    conn.commit()
+    return n
+
+
+def enrich_station_geom(conn: psycopg.Connection) -> int:
+    """Set station.geom from the CEDEN station_registry by station_code. Returns updated count."""
+    n = conn.execute(
+        """
+        UPDATE station s
+        SET geom = ST_SetSRID(ST_MakePoint(r.longitude, r.latitude), 4326)
+        FROM station_registry r
+        WHERE s.station_code = r.station_code
+          AND r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+          AND s.geom IS NULL
+        RETURNING s.id
+        """
+    ).fetchall()
+    conn.commit()
+    return len(n)
+
+
 def link_samples(conn: psycopg.Connection) -> int:
     """Tiered matcher: connect CEDEN samples to FHAB events/cases (best-effort).
 
@@ -159,7 +199,36 @@ def link_samples(conn: psycopg.Connection) -> int:
     """
     conn.execute("DELETE FROM sample_link WHERE reviewed_by IS NULL")
 
+    # Tier 3 (spatial+temporal): station point within 1 km of an FHAB event location and
+    # sample date within 30 days. Runs first; names are the fallback for un-geocoded stations.
+    spatial = conn.execute(
+        """
+        WITH candidate AS (
+            SELECT s.id AS sample_id, s.station_id, e.bloom_report_id, e.case_id,
+                   ST_Distance(st.geom::geography, l.geom::geography) AS dist_m,
+                   abs(s.sample_date - e.observation_date) AS day_gap
+            FROM sample s
+            JOIN station st ON st.id = s.station_id AND st.geom IS NOT NULL
+            JOIN event e ON e.observation_date IS NOT NULL
+            JOIN location l ON l.id = e.location_id AND l.geom IS NOT NULL
+            WHERE s.sample_date IS NOT NULL
+              AND abs(s.sample_date - e.observation_date) <= 30
+              AND ST_DWithin(st.geom::geography, l.geom::geography, 1000)
+        ),
+        best AS (
+            SELECT DISTINCT ON (sample_id) * FROM candidate ORDER BY sample_id, dist_m, day_gap
+        )
+        INSERT INTO sample_link
+            (sample_id, station_id, bloom_report_id, case_id, match_method, confidence, distance_m)
+        SELECT sample_id, station_id, bloom_report_id, case_id, 'spatial_temporal',
+               greatest(0.4, 1.0 - dist_m/1000.0), dist_m
+        FROM best
+        RETURNING id
+        """
+    ).fetchall()
+
     # Tier 4 (name): station_name ~ waterbody name -> event at that waterbody within 30 days.
+    # Only for samples not already linked spatially.
     linked = conn.execute(
         """
         WITH candidate AS (
@@ -173,6 +242,7 @@ def link_samples(conn: psycopg.Connection) -> int:
             WHERE s.station_id IS NOT NULL AND s.sample_date IS NOT NULL
               AND e.observation_date IS NOT NULL
               AND abs(s.sample_date - e.observation_date) <= 30
+              AND s.id NOT IN (SELECT sample_id FROM sample_link WHERE sample_id IS NOT NULL)
         ),
         best AS (
             SELECT DISTINCT ON (sample_id) sample_id, station_id, bloom_report_id, case_id, day_gap
@@ -187,7 +257,7 @@ def link_samples(conn: psycopg.Connection) -> int:
         """
     ).fetchall()
     conn.commit()
-    return len(linked)
+    return len(spatial) + len(linked)
 
 
 def load_ceden_output(
@@ -198,6 +268,8 @@ def load_ceden_output(
     loader.load_field_results(field_csv)
     loader.load_water_chemistry(chemistry_csv)
     conn.commit()
+    # Enrich station geometry from the CEDEN registry (if loaded) so spatial linking works.
+    loader.report.counts["geocoded"] = enrich_station_geom(conn)
     if link:
         loader.report.counts["event_links"] = link_samples(conn)
     return loader.report

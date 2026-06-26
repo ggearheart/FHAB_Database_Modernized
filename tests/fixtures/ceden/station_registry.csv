@@ -1,0 +1,5 @@
+StationCode,StationName,StationSource,CoordinateSource,CoordinateNumber,TargetLatitude,TargetLongitude,Datum,LastUpdateDate
+201AHO350,"Arroyo Hondo Creek in Point Reyes National Seashore, 200m DS of confluence of two tribs",Reg 2,GPS,1,37.94495,-122.74306,NAD83,2016-07-29
+201LAG335,Big Carson Creek Tributary,Reg 2,MAP,1,37.992222,-122.66,WGS84,2013-11-04
+201MUD500,Muddy Hollow Creek ~0.3mi above Pt. Reyas Ntl. Seashore Rd.,DFW-ABL,NR,1,38.052323,-122.867276,NR,2016-07-08
+201PNG050,Teixeira,Reg 2,MAP,1,37.95451,-122.718,NAD83,2016-07-29

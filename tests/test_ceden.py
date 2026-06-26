@@ -2,11 +2,12 @@
 
 from pathlib import Path
 
-from fhab.ceden import load_ceden_output
+from fhab.ceden import load_ceden_output, load_station_registry
 
 CEDEN = Path(__file__).parent / "fixtures" / "ceden"
 FIELD = CEDEN / "CEDEN_FieldResults.csv"
 CHEM = CEDEN / "CEDEN_WaterChemistry.csv"
+REGISTRY = CEDEN / "station_registry.csv"
 
 
 def _count(conn, table):
@@ -80,3 +81,41 @@ def test_linker_leaves_unmatched_routine_samples_unlinked(conn):
     rep = load_ceden_output(conn, FIELD, CHEM)
     assert rep.counts["event_links"] == 0
     assert _count(conn, "sample") == 4  # still ingested as station/monitoring data
+
+
+def test_station_registry_enriches_geometry(conn):
+    n = load_station_registry(conn, REGISTRY)
+    assert n == 4
+    rep = load_ceden_output(conn, FIELD, CHEM)
+    assert rep.counts["geocoded"] == 4   # all 4 stations got coordinates from the registry
+    null_geom = conn.execute(
+        "SELECT count(*) AS n FROM station WHERE geom IS NULL").fetchone()["n"]
+    assert null_geom == 0
+
+
+def test_spatial_linker_connects_nearby_event(conn):
+    load_station_registry(conn, REGISTRY)
+    # Seed an FHAB event ~30 m from the Muddy Hollow Creek station, near the sample date.
+    wb = conn.execute(
+        "INSERT INTO waterbody (water_body_name) VALUES ('Some Creek') RETURNING id"
+    ).fetchone()["id"]
+    loc = conn.execute(
+        """INSERT INTO location (waterbody_id, geom)
+           VALUES (%s, ST_SetSRID(ST_MakePoint(-122.8675, 38.0525), 4326)) RETURNING id""",
+        (wb,),
+    ).fetchone()["id"]
+    conn.execute(
+        """INSERT INTO event (bloom_report_id, location_id, observation_date)
+           VALUES (900001, %s, %s::date)""",
+        (loc, "2026-06-03"),
+    )
+    conn.commit()
+
+    rep = load_ceden_output(conn, FIELD, CHEM)
+    assert rep.counts["event_links"] >= 1
+    link = conn.execute(
+        "SELECT match_method, distance_m FROM sample_link WHERE bloom_report_id = 900001"
+    ).fetchone()
+    assert link is not None
+    assert link["match_method"] == "spatial_temporal"
+    assert link["distance_m"] < 1000

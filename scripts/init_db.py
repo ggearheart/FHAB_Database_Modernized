@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fhab.ceden import load_ceden_output  # noqa: E402
+from fhab.ceden import load_ceden_output, load_station_registry  # noqa: E402
 from fhab.db import apply_schema, connect, reset_schema  # noqa: E402
 from fhab.export import export_all  # noqa: E402
 from fhab.loaders import load_open_data  # noqa: E402
@@ -20,6 +20,8 @@ def main() -> None:
     p.add_argument("--reset", action="store_true", help="Drop and recreate the schema first.")
     p.add_argument("--load", action="store_true", help="Load the published flat files after applying schema.")
     p.add_argument("--data-dir", default=str(REF_DIR), help="Directory of the four published CSVs.")
+    p.add_argument("--ceden-stations", metavar="CSV",
+                   help="Load the CEDEN station lookup registry (for station geocoding).")
     p.add_argument("--ceden", nargs=2, metavar=("FIELD_CSV", "CHEMISTRY_CSV"),
                    help="Load a Bend->CEDEN output pair (FieldResults, WaterChemistry).")
     p.add_argument("--export", metavar="DIR", help="Re-export the flat files into DIR.")
@@ -31,6 +33,8 @@ def main() -> None:
 
     if args.load:
         print(load_open_data(conn, args.data_dir).summary())
+    if args.ceden_stations:
+        print(f"station registry: {load_station_registry(conn, args.ceden_stations):,} rows")
     if args.ceden:
         print(load_ceden_output(conn, args.ceden[0], args.ceden[1]).summary())
     if args.export:

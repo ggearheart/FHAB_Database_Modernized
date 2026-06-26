@@ -202,6 +202,17 @@ CREATE TABLE IF NOT EXISTS result (
 
 -- ---------- Stations & CEDEN linkage (docs/BEND_CEDEN_WORKFLOW.md) ----------
 
+-- CEDEN station lookup list (StationCode -> coordinates); a reference registry used to
+-- enrich station.geom. Loaded from scripts/fetch_ceden_stations.py output.
+CREATE TABLE IF NOT EXISTS station_registry (
+    station_code text PRIMARY KEY,
+    station_name text,
+    latitude     double precision,
+    longitude    double precision,
+    datum        text,
+    source       text
+);
+
 -- Canonical monitoring station — the shared spine across Bend, CEDEN, and FHAB.
 CREATE TABLE IF NOT EXISTS station (
     id            bigserial PRIMARY KEY,
