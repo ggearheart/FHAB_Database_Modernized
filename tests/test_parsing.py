@@ -4,7 +4,6 @@ from datetime import date
 
 from fhab.parsing import (
     clean,
-    parse_advisory_category,
     parse_bool,
     parse_data_type,
     parse_date,
@@ -40,12 +39,6 @@ def test_parse_numbers():
     assert parse_int("") is None
     assert parse_float("4.2") == 4.2
     assert parse_float("xyz") is None
-
-
-def test_parse_advisory_category():
-    assert parse_advisory_category("Danger") == "danger"
-    assert parse_advisory_category("None") == "none"
-    assert parse_advisory_category("bogus") is None
 
 
 def test_parse_data_type():

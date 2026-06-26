@@ -100,6 +100,9 @@ pygeoapi (OGC API – Features) for the PID landing pages.
 - [docs/USER_ROLES.md](docs/USER_ROLES.md) — user roles & permissions for interface
   development: legacy State-staff roles plus IoW contributor roles and Water Body Managers,
   with a scoping model and Row-Level-Security schema sketch.
+- [docs/CASE_MANAGEMENT_RULES.md](docs/CASE_MANAGEMENT_RULES.md) — operational business rules
+  from the case-management User Manual (case/report/advisory rules, field & lab data,
+  waterbody naming) for the interface and validation.
 - [docs/BEND_CEDEN_WORKFLOW.md](docs/BEND_CEDEN_WORKFLOW.md) — how the
   [Bend_CEDEN_workflow](https://github.com/ggearheart/Bend_CEDEN_workflow) tool (Bend→CEDEN
   2.0 conversion) and the FHAB DB connect: ingesting the tool's CEDEN output to fill the

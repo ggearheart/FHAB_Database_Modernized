@@ -2,10 +2,19 @@
 
 **Status: design for interface development.** Defines who uses the modernized FHAB system
 and what each can do, so the UI and the database's access control can be built against a
-shared model. It covers the **legacy roles** (carried forward — inferred from the old
-system's `LookUp_Personnel.PrimaryRole`, agency/region/DDW scoping, and the data dictionary;
-to be confirmed against the training manual) **plus** the **Internet of Water-envisioned
-contributor roles** and a new **Water Body Manager** role.
+shared model. It covers the **legacy roles** (carried forward — grounded in the
+case-management *User Manual* and the old `LookUp_Personnel` structure) **plus** the
+**Internet of Water-envisioned contributor roles** and a new **Water Body Manager** role.
+
+> **What the manual showed.** The legacy FHAB web app had essentially **one authenticated
+> user type — FHAB / Water Board staff** (region-scoped via a region filter), who did the
+> whole workflow: review reports → assign to **cases** → record **responses**/advisories →
+> enter **field and lab data** → publish to the web map. The one distinct specialization was
+> the **Interagency HAB-related Illness Workgroup** (enters tissue results, investigates
+> suspected illness). Everyone else — responding organizations, water/land managers, DDW,
+> local public health, the public — were **report submitters and notification recipients**,
+> *not* logged-in users. The modernization's job is to turn those external parties into
+> first-class roles (contributors, managers) while keeping the staff workflow intact.
 
 ## Role catalog
 
@@ -17,11 +26,15 @@ role means different rows for different people.
 | Role | What they do |
 |------|--------------|
 | **Program Administrator (OIMA)** | Owns the FHAB Program: manages the data model, controlled vocabularies, users/roles, and public publishing. Statewide. |
-| **Water Board Staff (Regional)** | Triage reports, open/manage **cases**, conduct **responses**, recommend/post **advisories**, verify blooms. Scoped to their **Regional Board**. (A *Case Lead* is a Water Board Staff member assigned to a case.) |
-| **Field Staff** | Record field visits, field-visual and field-measurement **results**; collect **samples**. |
-| **Lab Analyst** | Enter/curate laboratory **results** (microscopy, genetic, cyanotoxin) against samples. |
-| **DDW Staff** | Division of Drinking Water review for drinking-water waterbodies; scoped to a **DDW district**. |
+| **Water Board Staff (Regional)** | The core role. Triage reports, open/manage **cases**, conduct **responses**, recommend/post **advisories**, verify blooms, **and enter field & lab data**. Scoped to their **Regional Board** (region filter). A *Case Lead* is a Water Board Staff member assigned to a case. |
+| **Illness Workgroup Staff** | The Interagency HAB-related Illness Workgroup. Enters tissue/illness **lab results** and investigates **suspected illness** reports. Sees sensitive illness/veterinary data that is withheld from other roles. |
 | **Data Viewer (internal)** | Read-only internal access across the lifecycle. |
+
+> In the legacy system, **field-data entry, lab-data entry, and DDW review were *functions*
+> performed by Water Board staff (or notification recipients), not separate login roles.**
+> The modern system *may* split out **Field Staff**, **Lab Analyst**, and **DDW Staff** as
+> distinct roles (scoped to data type / DDW district) if the program wants finer separation
+> of duties — listed here as optional refinements rather than legacy requirements.
 
 ### B. External contributors (IoW-envisioned — new)
 
@@ -54,10 +67,11 @@ Read is scoped (see below); blank = no access.
 |---|---|---|---|---|---|---|---|---|
 | Program Administrator | CRUVP X | CRUVP | CRUVP | CRUV X | CRU | R V | CRUD | CRUD |
 | Water Board Staff (Regional) | CRUV | CRUV | CRUVP | CRUV | CRU | R V | R | — |
-| Field Staff | R | R | R | CRU (field) | CR | — | R | — |
-| Lab Analyst | R | R | R | CRU (lab) | R | — | R | — |
-| DDW Staff | R | R | R (advise) | R | R | — | R | — |
+| Illness Workgroup Staff | R | R | R | CRU (tissue/illness) | R | — | R | — |
 | Data Viewer (internal) | R | R | R | R | R | R | R | — |
+| *Field Staff (optional)* | R | R | R | CRU (field) | CR | — | R | — |
+| *Lab Analyst (optional)* | R | R | R | CRU (lab) | R | — | R | — |
+| *DDW Staff (optional)* | R | R | R (advise) | R | R | — | R | — |
 | Tribal Government Admin | C R (own) | — | — | CRU (own) | CRU (own) | CRUV (own) | R | — (own contributors) |
 | Comm. Sci. Program Manager | C R (own) | — | — | CRU (own) | CRU (own) | CRUV (own) | R | — (own contributors) |
 | Comm. Sci. Volunteer | C (post) | — | — | C (own) | — | C R (own) | R | — |
@@ -131,14 +145,23 @@ CREATE TABLE user_role (
 RLS policies then key off `current_setting('fhab.user_id')` to resolve the user's roles +
 scopes at query time.
 
+## Resolved by the manual
+
+- **Legacy roles** — one authenticated staff role (region-scoped) + the Illness Workgroup;
+  "Case Lead" is an *assignment*, not a role. ✅
+- **PII / private data** — fields labeled "… notes" and reporter/illness/veterinary data are
+  **private and not published** ("only bold+underline fields are displayed to the public").
+  Withholding from non-staff roles is therefore a real requirement, not an assumption. ✅
+- **Publishing** — staff set "display report to map"; verification/publishing is a
+  staff function. ✅
+
 ## Open items
 
-1. **Confirm the exact legacy roles** against the training manual — names, and whether
-   "Case Lead", "QA Reviewer", or others were distinct roles vs. assignments. The list in
-   section A is inferred from the data and dictionary.
-2. **Verification authority** — is advisory *posting* (to the public map) limited to a
-   specific role/seniority beyond "Water Board Staff"?
-3. **Water Body Manager actions** — read-only + notes/signage-confirmation (assumed), or
-   should they be able to submit observations like a contributor?
-4. **Public PII** — confirm reporter contact info and veterinary/illness data are withheld
-   from non-staff roles (assumed yes).
+1. **Optional internal splits** — does the program want **Field Staff / Lab Analyst / DDW
+   Staff** as distinct login roles, or keep them as functions of Water Board Staff (legacy
+   behavior)?
+2. **Water Body Manager actions** — read-only + notes/signage-confirmation (assumed), or
+   able to submit observations like a contributor?
+3. **Contributor → case workflow** — when a Tribal/community submission arrives, does it
+   auto-create an unassigned report for staff triage (matching the legacy "Unassigned Bloom
+   Reports" queue), or land in a separate contributor area first?

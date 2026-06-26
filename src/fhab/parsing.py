@@ -72,18 +72,6 @@ def parse_float(value: str | None) -> float | None:
         return None
 
 
-def parse_advisory_category(value: str | None) -> str | None:
-    """Map published advisory text to the advisory_category enum, or None.
-
-    Note: 'none' is a *valid* category (no advisory), so we don't run it through
-    clean(), which would treat the literal string 'none' as missing.
-    """
-    if value is None:
-        return None
-    v = value.strip().lower()
-    return v if v in {"none", "caution", "warning", "danger"} else None
-
-
 def parse_data_type(value: str | None) -> str | None:
     """Map published Data_Type/RESULTS DATA TYPE to the data_type_enum, or None."""
     v = clean(value)

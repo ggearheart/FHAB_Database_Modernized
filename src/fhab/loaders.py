@@ -15,7 +15,6 @@ import psycopg
 
 from .parsing import (
     clean,
-    parse_advisory_category,
     parse_bool,
     parse_data_type,
     parse_date,
@@ -138,7 +137,6 @@ class Loader:
                 continue
             wb = self._waterbody_id(_g(row, "Case_Water_Body_Name", "Water_Body_Name"),
                                     _g(row, "County"))
-            status = clean(_g(row, "Case_Status"))
             self.conn.execute(
                 """INSERT INTO hab_case
                      (case_id, waterbody_id, case_water_body_name, case_class, case_status,
@@ -146,7 +144,7 @@ class Loader:
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                    ON CONFLICT (case_id) DO NOTHING""",
                 (cid, wb, clean(_g(row, "Case_Water_Body_Name")), clean(_g(row, "Case_Class")),
-                 status.lower() if status and status.lower() in ("open", "closed") else None,
+                 clean(_g(row, "Case_Status")),
                  clean(_g(row, "Case_Lead")), parse_int(_g(row, "Case_Year")),
                  parse_date(_g(row, "Case_Start_Date")), parse_date(_g(row, "Case_End_Date")),
                  parse_datetime(_g(row, "Case_DateTimeStamp"))),
@@ -222,7 +220,7 @@ class Loader:
                           display_advisory_on_map, advisory_date_of_recommendation, advisory_date)
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                        ON CONFLICT (advisory_id) DO NOTHING""",
-                    (aid, rid, parse_advisory_category(_g(row, "Advisory_Recommended")),
+                    (aid, rid, clean(_g(row, "Advisory_Recommended")),
                      parse_date(_g(row, "Advisory_Start_Date")), parse_date(_g(row, "Advisory_End_Date")),
                      clean(_g(row, "Advisory_Detail")), parse_float(_g(row, "Spatial_Extent_of_Advisory")),
                      clean(_g(row, "Extent_Unit_of_Measure")), parse_bool(_g(row, "DisplayAdvisoryToMap")),

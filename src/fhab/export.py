@@ -38,7 +38,7 @@ CASE_COLUMNS = [
     ("Case_Year", "c.case_year"),
     ("Case_Water_Body_Name", "c.case_water_body_name"),
     ("Case_Class", "c.case_class"),
-    ("Case_Status", "initcap(c.case_status::text)"),
+    ("Case_Status", "c.case_status"),
     ("Case_Lead", "c.case_lead"),
     ("Case_End_Date", "c.case_end_date"),
 ]
@@ -50,7 +50,7 @@ RESPONSE_COLUMNS = [
     ("Case_ID", "r.case_id"),
     ("Response_Type", "r.response_type"),
     ("Advisory_ID", "a.advisory_id"),
-    ("Advisory_Recommended", "initcap(a.advisory_recommended::text)"),
+    ("Advisory_Recommended", "a.advisory_recommended"),
     ("Advisory_Start_Date", "a.advisory_start_date"),
     ("Advisory_End_Date", "a.advisory_end_date"),
     ("DisplayAdvisoryToMap", "a.display_advisory_on_map"),

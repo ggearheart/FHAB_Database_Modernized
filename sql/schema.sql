@@ -13,13 +13,13 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- ---------- Enumerated types ----------
 
-DO $$ BEGIN
-    CREATE TYPE advisory_category AS ENUM ('none', 'caution', 'warning', 'danger');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-    CREATE TYPE case_status_enum AS ENUM ('open', 'closed');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- case_status and advisory_recommended are stored as text holding the verbatim published
+-- controlled values, which are richer than a 4-state enum (per the case-management manual):
+--   case_status: Open | Ongoing | Closed | Re-opened
+--   advisory_recommended: None | Caution | Warning | Danger | Algal mat alert sign |
+--     Algal mat general awareness sign | Visual observation | General awareness |
+--     NA - refer to Report Details
+-- Normalizing these into lookup tables is a planned refinement (docs/CASE_MANAGEMENT_RULES.md).
 
 DO $$ BEGIN
     CREATE TYPE event_status_enum AS ENUM ('suspected', 'confirmed', 'not_a_hab');
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS hab_case (
     waterbody_id       bigint REFERENCES waterbody(id),
     case_water_body_name text,
     case_class         text,
-    case_status        case_status_enum,
+    case_status        text,         -- Open | Ongoing | Closed | Re-opened
     case_lead          text,
     case_year          int,
     case_start_date    date,
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS response (
 CREATE TABLE IF NOT EXISTS advisory (
     advisory_id                bigint PRIMARY KEY,
     response_action_id         bigint REFERENCES response(response_action_id),
-    advisory_recommended       advisory_category,
+    advisory_recommended       text,  -- None | Caution | Warning | Danger | Algal mat … | etc.
     advisory_start_date        date,
     advisory_end_date          date,
     advisory_detail            text,
