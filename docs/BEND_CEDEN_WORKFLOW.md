@@ -1,191 +1,165 @@
 # Workflow: Bend lab data → CEDEN 2.0 → FHAB events
 
-**Status: recommendation / design.** How to ingest the Bend Genetics lab data (the
-cyanotoxin and qPCR/genetic results that currently fill the *blank* `Measurement_Value`
-fields in the FHAB results — see [DATA_MODEL_CA_FHAB.md](DATA_MODEL_CA_FHAB.md)) so it can
-(1) be restructured for **CEDEN 2.0** (station + chemistry vocabulary) and (2) be
-**connected to the right FHAB event/case location** — both retrospectively and going
-forward.
+**Status: recommendation / design.** How to get the Bend Genetics lab results (the
+cyanotoxin and qPCR/genetic values that are *blank* in the FHAB `Measurement_Value` —
+see [DATA_MODEL_CA_FHAB.md](DATA_MODEL_CA_FHAB.md)) into CEDEN 2.0 **and** connected to the
+right FHAB event/case — both retrospectively and going forward.
 
-## The problem in one picture
+## What already exists: the conversion tool (gap #1 — built)
 
-Three systems describe the same real-world thing (a sample collected at a place on a date)
-but key it differently:
+The [`Bend_CEDEN_workflow`](https://github.com/ggearheart/Bend_CEDEN_workflow) R tool
+already solves the **vocabulary/structure gap**. It takes Bend Genetics CSVs and emits
+CEDEN 2.0 tables:
+
+- `CEDEN_WaterChemistry_*` — **Chemistry_Results** (long format), columns include
+  `#StationCode`, `CollectionDateTime` (MM/DD/YYYY HH:MM), `MatrixCode`, `MethodName`,
+  `AnalyteName`, `FractionName`, `TestType`, `ResultTypeCode`, `Result`, `UnitName`,
+  `ResQualCode`, `MDL`.
+- `CEDEN_FieldResults_*` — **station visits / field metadata**.
+
+It pivots wide→long, maps analytes/units/methods via `lookup/analyte_map.csv`, maps matrix
+via `lookup/matrix_map.csv`, and handles non-detects (ND stored at the reporting limit with
+`ResQualCode = "ND"`). Its CEDEN analyte vocabulary (which the FHAB DB should mirror):
+
+| Class | CEDEN `AnalyteName` | Method | Matrix |
+|-------|---------------------|--------|--------|
+| Cyanotoxin (ELISA) | Microcystin, Anatoxin-a, Cylindrospermopsin, Saxitoxin | ELISA | water (µg/L), benthic (ng/g) |
+| Genetic (qPCR) | mcyE gene, cyrA gene, sxtA gene, Anabaena circinalis 16S rRNA gene, Cyanobacteria 16S rRNA gene | qPCR | water/benthic (copies/mL, copies/g) |
+| Pigment | Chlorophyll a, Pheophytin a | Spectrophotometry | water (µg/L) |
+
+All with `FractionName = Total`. **Key mapping:** `StationCode = CustomerSample`, and the
+Bend input carries a `SampleID` — these are the connectors for gap #2 (below).
+
+## What's left: ingest into FHAB + connect locations (gap #2)
+
+The tool produces clean CEDEN-vocab output but, by design, **does no location matching** —
+it assumes `StationCode` is pre-identified. So the FHAB database's job is:
+
+1. **Ingest the tool's CEDEN output** (Chemistry_Results + FieldResults) — *not* re-parse
+   raw Bend. This **fills the blank `measurement_value`/`measurement_unit`** in FHAB
+   results with the real cyanotoxin/qPCR numbers.
+2. **Connect** each CEDEN station/sample to the correct FHAB **event/case** location.
 
 ```
-   BEND (lab values)              FHAB (case management)          CEDEN 2.0 (state exchange)
-   ─────────────────              ──────────────────────          ─────────────────────────
-   sample location, date     ?    event / case location           Station (StationCode)
-   analyte, result, unit  ───┼──► result (value currently blank)   Chemistry (AnalyteName,
-   COC / sample id            ?    sample (coc_id, sample_id)        Result, Unit, Method…)
+ Bend CSVs ──►  [ Bend_CEDEN_workflow (R) ]  ──►  CEDEN 2.0 Chemistry_Results + FieldResults
+                  gap #1: vocab + structure            │
+                                                        ▼
+                                          [ FHAB DB loader (this repo) ]
+                                          fill result values  +  connect to event/case
+                                                        │  gap #2
+                            ┌───────────────────────────┴───────────────────────────┐
+                            ▼                                                         ▼
+                  station registry (StationCode + geoconnex PID)        sample_link → event/case
 ```
 
-The two gaps the workflow must close:
-- **Vocabulary/structure gap** — Bend's analyte names, units, and methods must be mapped to
-  CEDEN's controlled vocabulary and split into the CEDEN **Station** + **Chemistry**
-  structure (CEDEN enforces this via its Data Checker; each Analyte+Matrix requires a
-  specific Unit for comparability).
-- **Location/identity gap** — a Bend *sampling location* must be tied to the FHAB
-  *event/case location* so the lab values land on the correct bloom record.
+## Connecting locations — the keys already exist
 
-## Core recommendation: a canonical **station** as the shared spine
-
-Don't connect Bend↔FHAB point-to-point. Introduce one **canonical station registry** that
-all three systems reference. This turns a fuzzy spatial-match problem into a deterministic
-key join — *going forward*, and a one-time backfill *retrospectively*.
-
-A `station` carries the identifiers each system needs:
-
-- **`station_code`** — the CEDEN StationCode (the CEDEN join key).
-- **`geoconnex_uri`** — the persistent web identifier ([GEOCONNEX.md](GEOCONNEX.md)); the
-  durable cross-system handle that survives schema/URL changes.
-- **`geom` / `huc12`** — PostGIS point + its watershed (point-in-polygon, `GEO-4`).
-- **`waterbody_id`** — link to the FHAB waterbody.
-
-Both a Bend sample and an FHAB event resolve to a `station`. The station is the hub:
-*CEDEN chemistry rows hang off `station_code`; FHAB events/samples hang off the same
-station; Bend results arrive carrying (ideally) the station and the chain-of-custody id.*
-
-### Two keys do the connecting
-
-1. **Station** (`station_code` / `geoconnex_uri`) — connects *locations*.
-2. **Chain-of-custody / sample id** (`coc_id`, `sample_id`) — connects *individual
-   samples/results*. Our `sample` table already has `coc_id` and `sample_id`; if Bend
-   carries the same COC the field crew assigned, a Bend result joins an existing FHAB
-   sample **exactly**, with no guessing.
-
-## Retrospective vs. going forward
-
-**Going forward (the durable fix).** Make the connection *by construction*:
-- Publish the station registry to Bend and to FHAB field crews so everyone references the
-  same `station_code` (and/or geoconnex PID) at sample time.
-- Require Bend submissions to carry the **COC/sample id** that the FHAB field record uses.
-- Then ingestion is a deterministic key join; no fuzzy matching needed.
-
-**Retrospectively (the backfill).** Historical Bend data won't have clean keys, so run a
-**tiered matcher** and persist every decision with provenance + confidence:
+Because the Bend data carries `SampleID` and `CustomerSample`(→`StationCode`), the
+connection leads with **deterministic keys**, not fuzzy matching:
 
 | Tier | Rule | Confidence |
 |------|------|-----------|
-| 1 | Exact `coc_id` / `sample_id` match to an FHAB sample | exact |
-| 2 | Same `station_code` (if Bend already has one) | high |
-| 3 | **Spatial + temporal**: Bend point within *N* m of an FHAB event/station (`ST_DWithin` on geography) **and** sample date within a window | scored by distance/date |
-| 4 | Waterbody / station-name fuzzy match as tiebreaker | low |
+| 1 | `SampleID` / COC matches an FHAB `sample.sample_id` / `coc_id` | exact |
+| 2 | `StationCode` (= CustomerSample) + `CollectionDateTime` matches a known station + FHAB sample date | high |
+| 3 | **Spatial + temporal**: station point (from FieldResults coords) within *N* m of an FHAB event/location `ST_DWithin` **and** date within a window | scored |
+| 4 | Waterbody / station-name fuzzy match | low |
 | 5 | No confident match → **human review queue** | — |
 
-Matches are written to a crosswalk table (not applied silently), so the process is
-auditable, re-runnable, and improves as the review queue is worked.
+Every link is written with method + confidence to a crosswalk (`sample_link`), never applied
+silently — auditable and re-runnable.
+
+### Canonical station registry — the durable spine
+
+A `station` registry keyed by **`station_code`** (the CEDEN StationCode / CustomerSample)
+and carrying a **geoconnex PID** ([GEOCONNEX.md](GEOCONNEX.md)) + PostGIS point + HUC-12 is
+the shared identifier across Bend, CEDEN, and FHAB.
+
+- **Going forward:** publish the registry so the Water Board field crew enters a known
+  `StationCode` (= CustomerSample) that resolves straight to an FHAB station. The COC's
+  `SampleID` ties the individual result to the FHAB sample. Connection by construction.
+- **Retrospectively:** run the tiered matcher to seed `station` and `sample_link` from
+  historical CEDEN output; work the review queue for the low-confidence tail.
 
 ## Schema additions (proposed, sketch DDL)
 
-Builds on the implemented schema ([sql/schema.sql](../sql/schema.sql)).
+Builds on the implemented schema ([sql/schema.sql](../sql/schema.sql)). The FHAB DB
+ingests **CEDEN-vocabulary** rows, so it does not need its own analyte crosswalk — the tool
+owns that. It does need a station registry, a CEDEN ingest target, and link/result fields.
 
 ```sql
--- Canonical monitoring station — the shared spine across Bend, FHAB, and CEDEN.
 CREATE TABLE station (
     id            bigserial PRIMARY KEY,
-    station_code  text UNIQUE,                 -- CEDEN StationCode
+    station_code  text UNIQUE,                 -- CEDEN StationCode (= Bend CustomerSample)
     station_name  text,
     waterbody_id  bigint REFERENCES waterbody(id),
     geom          geometry(Point, 4326),
-    datum         text,
     huc12         char(12) REFERENCES huc12(huc12),
-    geoconnex_uri text UNIQUE                   -- https://geoconnex.us/ca-fhab/sites/{id}
+    geoconnex_uri text UNIQUE
 );
 ALTER TABLE sample ADD COLUMN station_id bigint REFERENCES station(id);
 
--- Raw Bend submissions land here first (idempotent by batch + source row id).
-CREATE TABLE bend_staging (
-    id           bigserial PRIMARY KEY,
-    batch_id     text,
-    source_row   jsonb,                         -- preserve every original column
-    loaded_at    timestamptz DEFAULT now()
-);
+-- CEDEN chemistry result fields the Bend tool emits but the FHAB result lacks today.
+ALTER TABLE result ADD COLUMN res_qual_code text;   -- '=', 'ND', '<', …
+ALTER TABLE result ADD COLUMN fraction_name text;   -- 'Total'
+ALTER TABLE result ADD COLUMN mdl numeric;          -- method detection limit
+-- analyte already has (analysis_type, analyte_class, analyte); align values to CEDEN
+-- AnalyteName/MethodName so ingestion is a direct upsert.
 
--- Bend vocabulary -> CEDEN controlled vocabulary (curated; unmapped rows flagged).
-CREATE TABLE analyte_crosswalk (
-    id              bigserial PRIMARY KEY,
-    source_system   text DEFAULT 'bend',
-    source_analyte  text, source_unit text, source_method text,
-    ceden_analyte   text, ceden_unit text, ceden_method text,
-    ceden_matrix    text, ceden_fraction text,
-    status          text DEFAULT 'pending',     -- pending | mapped | needs_review
-    UNIQUE (source_system, source_analyte, source_unit, source_method)
-);
-
--- Crosswalk: a Bend sample -> a station and (optionally) an FHAB event/case, with how.
+-- Crosswalk: a CEDEN station/sample -> FHAB event/case, with how + how sure.
 CREATE TABLE sample_link (
     id              bigserial PRIMARY KEY,
-    bend_staging_id bigint REFERENCES bend_staging(id),
+    sample_id       bigint REFERENCES sample(id),
     station_id      bigint REFERENCES station(id),
     bloom_report_id bigint REFERENCES event(bloom_report_id),
     case_id         bigint REFERENCES hab_case(case_id),
-    match_method    text,                        -- coc | station | spatial_temporal | name | manual
-    confidence      numeric,                     -- 0..1
+    match_method    text,                        -- sampleid | station_date | spatial_temporal | name | manual
+    confidence      numeric,
     distance_m      numeric,
     reviewed_by     text,
     reviewed_at     timestamptz
 );
 ```
 
-## The pipeline (both directions)
+## Proposed FHAB-side loader
 
-```
-Bend file ─► bend_staging ─► resolve location → station ─► map vocab → CEDEN
-                                   │                              │
-                                   ▼                              ▼
-                       sample (station_id, coc_id) ─► result (value FILLED)
-                                   │                              │
-                 link sample → event/case (sample_link)     export Stations + Chemistry
-                 (tiered matcher + review queue)             (CEDEN 2.0 vocab, validated)
-```
+`fhab.ceden.load_ceden_output(conn, chemistry_csv, field_csv)`:
 
-1. **Stage** — load Bend files into `bend_staging` (raw JSON preserved; idempotent per
-   batch). Never lose a source column.
-2. **Resolve station** — match/insert the sampling location into `station` (COC → station
-   → spatial). Assign `geoconnex_uri` + `huc12`.
-3. **Map vocabulary** — apply `analyte_crosswalk`; route unmapped analyte/unit/method
-   combos to curation. This is also where qPCR/genetic markers (`mcyE`, etc.) and
-   cyanotoxins (microcystins, anatoxin-a, cylindrospermopsin, saxitoxin) get their CEDEN
-   analyte/method codes — flag any that lack a clean CEDEN equivalent.
-4. **Normalize into FHAB** — create `sample` (with `station_id`, `coc_id`) and `result`
-   rows, **filling the previously-blank `measurement_value`/`measurement_unit`** with the
-   real Bend values. This directly closes the gap we found in the loaded data.
-5. **Connect to event/case** — write `sample_link` (tiered matcher); confident links
-   attach the sample to its FHAB event/case; the rest go to the review queue.
-6. **Export CEDEN 2.0** — emit a **Stations** file (`station_code`, name, lat/long,
-   datum) and a **Chemistry** file (station_code, sample date, project/agency, matrix,
-   method, analyte, fraction, result, qual code, unit) conforming to CEDEN 2.0 vocabulary;
-   validate against CEDEN business rules / Data Checker before submission.
+1. **FieldResults → station** — get-or-create `station` per `StationCode`; set geometry
+   from the visit coordinates; derive `huc12` (point-in-polygon) and mint the geoconnex PID.
+2. **Chemistry_Results → sample + result** — per row: resolve `station`; get-or-create a
+   `sample` (`station_id`, `sample_date` from `CollectionDateTime`, `coc_id`/`SampleID`);
+   upsert the `analyte` by CEDEN `AnalyteName`/`MethodName`/matrix; insert the `result`
+   with `Result`, `UnitName`, `ResQualCode`, `FractionName`, `MDL` — **filling the value**.
+3. **Link** — write `sample_link` via the tiered matcher; confident links attach to the
+   FHAB event/case, the rest to review.
 
-## Design principles (entity resolution)
+This is idempotent (re-loading a CEDEN batch converges) and directly closes the blank-value
+gap we found in the loaded FHAB data.
 
-- **Deterministic keys before probabilistic.** COC/sample id and `station_code` first;
-  spatial/temporal/name matching only to fill gaps.
-- **Persist provenance + confidence; never silently overwrite.** Every link records *how*
-  and *how sure*; a human can audit and correct.
-- **Idempotent and re-runnable.** Re-loading a batch or re-running the matcher converges,
-  it doesn't duplicate.
-- **Curate vocabulary once, reuse forever.** The crosswalk grows monotonically; mapped
-  combos never need re-review.
-- **Station registry is the asset.** Once built, it serves Bend ingest, FHAB linkage,
-  CEDEN submission, and the public map equally.
+## Design principles
+
+- **Reuse, don't duplicate.** The R tool owns Bend→CEDEN vocabulary; the FHAB DB consumes
+  CEDEN vocabulary. One source of truth per concern.
+- **Deterministic keys before probabilistic.** `SampleID` and `StationCode` first; spatial
+  matching only fills gaps.
+- **Persist provenance + confidence; never overwrite silently.** Re-runnable, auditable.
+- **The station registry is the asset** — it serves Bend ingest, FHAB linkage, CEDEN
+  submission, and the public map equally, with a persistent geoconnex identifier.
 
 ## Open questions to confirm
 
-1. **Does current Bend data carry the FHAB COC/`Sample_ID` or any `StationCode`?** If yes,
-   most retrospective linking is a deterministic join and tiers 3–5 are a small tail. If
-   no, spatial+temporal matching does the heavy lifting and the review queue matters more.
-2. **CEDEN analyte coverage** — do Bend's cyanotoxin and qPCR analytes all have CEDEN
-   controlled-vocabulary entries, or do some need new analyte/method codes coordinated
-   with the CEDEN/SWAMP data center?
-3. **Station authority** — is there an existing CEDEN station list for these waterbodies to
-   seed the registry, or do we mint stations (and geoconnex PIDs) as we go?
+1. **Integration point** — ingest the tool's **CEDEN output** files (recommended, clean
+   vocabulary) vs. the tool also writing a SampleID column through to the chemistry output
+   so the FHAB join can be by `SampleID` (CEDEN's native sample identity is
+   `StationCode` + `CollectionDateTime`)? A SampleID passthrough would make tier-1 matching
+   trivial.
+2. **Station authority** — seed `station` from an existing CEDEN/SWAMP station list for
+   these waterbodies, or mint stations (+ geoconnex PIDs) from the FieldResults as we go?
+3. **Where do FieldResults coordinates come from** — does the Bend input/COC carry sample
+   lat/long, or are coordinates assigned from the StationCode registry?
 
 ## References
 
-- CEDEN data templates & lookup lists: <https://ceden.waterboards.ca.gov/data-templates.html>,
-  <https://ceden.org/ceden_namescodes.shtml>
-- CEDEN chemistry results (published): <https://data.ca.gov/dataset/surface-water-chemistry-results-ceden-augmentation>
-- Related design: [GEOCONNEX.md](GEOCONNEX.md) (persistent station identifiers),
-  [SCHEMA_PROPOSAL.md](SCHEMA_PROPOSAL.md) (sample/result model).
+- The tool: <https://github.com/ggearheart/Bend_CEDEN_workflow> · <https://ggearheart.github.io/Bend_CEDEN_workflow/>
+- CEDEN templates & lookup lists: <https://ceden.waterboards.ca.gov/data-templates.html>
+- Related design: [GEOCONNEX.md](GEOCONNEX.md), [SCHEMA_PROPOSAL.md](SCHEMA_PROPOSAL.md)
