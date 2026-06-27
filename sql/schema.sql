@@ -178,6 +178,24 @@ CREATE TABLE IF NOT EXISTS analyte (
     UNIQUE (analysis_type, analyte_class, analyte)
 );
 
+-- Common HAB analytes seeded so the result-entry dropdown is populated on a fresh database
+-- (the CEDEN / open-data loaders add more as they ingest).
+INSERT INTO analyte (analysis_type, analyte_class, analyte, default_unit) VALUES
+  ('Cyanotoxin', 'Microcystins', 'Microcystin', 'ug/L'),
+  ('Cyanotoxin', 'Anatoxins', 'Anatoxin-a', 'ug/L'),
+  ('Cyanotoxin', 'Cylindrospermopsin', 'Cylindrospermopsin', 'ug/L'),
+  ('Cyanotoxin', 'Saxitoxin', 'Saxitoxin', 'ug/L'),
+  ('Genetic', 'Toxin gene', 'mcyE gene', 'copies/mL'),
+  ('Genetic', 'Cyanobacteria', 'Cyanobacteria 16S rRNA gene', 'copies/mL'),
+  ('Microscopy', 'Taxa', 'Dominant taxon', NULL),
+  ('Pigment', 'Chlorophyll', 'Chlorophyll a', 'ug/L'),
+  ('Field Measurement', 'Physical', 'Water temperature', 'C'),
+  ('Field Measurement', 'Physical', 'pH', 'pH'),
+  ('Field Measurement', 'Physical', 'Dissolved oxygen', 'mg/L'),
+  ('Field Measurement', 'Physical', 'Turbidity', 'NTU'),
+  ('Field Measurement', 'Physical', 'Secchi depth', 'm')
+ON CONFLICT (analysis_type, analyte_class, analyte) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS sample (
     id              bigserial PRIMARY KEY,
     bloom_report_id bigint REFERENCES event(bloom_report_id),
@@ -190,6 +208,7 @@ CREATE TABLE IF NOT EXISTS sample (
     site            text,
     sample_date     date,
     sample_time     time,
+    collected_by    text,        -- field crew / collector
     owner_org       text,        -- contributor org that owns this sample (NULL = State)
     coc_id          text,        -- chain of custody (adopted from legacy review)
     -- CEDEN / Bend sample identity (populated from the Bend->CEDEN workflow).

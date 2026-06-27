@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Report {{ ev.bloom_report_id }}{% endblock %}
+{% block body %}
+<h1>Report {{ ev.bloom_report_id }} — {{ ev.water_body_name or 'Unnamed waterbody' }}</h1>
+<p class="muted">{{ ev.regional_water_board or '—' }}{% if ev.county %} · {{ ev.county }} County{% endif %} ·
+  status: {{ ev.event_status }}</p>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Report &amp; field verification</h1>
+  <p class="muted">Edit observed details after a field visit, and record the outcome.</p>
+  <form method="post" action="{{ url_for('edit_report', brid=ev.bloom_report_id) }}">
+    <div class="row">
+      <div><label>Observation date</label><input name="date" type="date" value="{{ ev.observation_date or '' }}"></div>
+      <div><label>Outcome / determination</label>
+        <select name="determination_code">
+          <option value="">— not recorded —</option>
+          {% for d in determinations %}<option value="{{ d.code }}" {% if ev.determination_code==d.code %}selected{% endif %}>{{ d.label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Bloom type</label><input name="bloom_type" value="{{ ev.bloom_type or '' }}"></div>
+      <div><label>Bloom size</label><input name="bloom_size" value="{{ ev.bloom_size or '' }}"></div>
+    </div>
+    <div class="row">
+      <div><label>Bloom location</label><input name="bloom_location" value="{{ ev.bloom_location or '' }}"></div>
+      <div><label>Bloom texture</label><input name="bloom_texture" value="{{ ev.bloom_texture or '' }}"></div>
+    </div>
+    <div class="row">
+      <div><label>Surface water condition</label><input name="surface_water_condition" value="{{ ev.surface_water_condition or '' }}"></div>
+      <div><label>Weather condition</label><input name="weather_condition" value="{{ ev.weather_condition or '' }}"></div>
+    </div>
+    <label>Description / notes</label>
+    <textarea name="bloom_description" rows="2">{{ ev.bloom_description or '' }}</textarea>
+    <p></p>
+    <button>Save report</button>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Field &amp; lab results <span class="muted">({{ results|length }})</span></h1>
+  <table>
+    <tr><th>Type</th><th>Analyte</th><th>Result</th><th>Qual</th><th>Method</th><th>Sample date</th><th>Sample ID</th></tr>
+    {% for r in results %}
+    <tr>
+      <td>{{ r.data_type or '—' }}</td>
+      <td>{{ r.analyte or (r.taxa or '—') }}</td>
+      <td>{% if r.measurement_value is not none %}{{ r.measurement_value }} {{ r.measurement_unit or '' }}{% else %}—{% endif %}</td>
+      <td>{{ r.res_qual_code or '' }}</td>
+      <td>{{ r.method or '—' }}</td>
+      <td>{{ r.sample_date or '—' }}</td>
+      <td>{{ r.sample_id or '—' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">No samples or results recorded yet.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Add a sample / result</h1>
+  <p class="muted">Record a field measurement, field observation, or lab analysis for this report.</p>
+  <form method="post" action="{{ url_for('add_report_result', brid=ev.bloom_report_id) }}">
+    <div class="row">
+      <div><label>Data type *</label>
+        <select name="data_type" required>{% for t in data_types %}<option>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div><label>Analyte / parameter</label>
+        <select name="analyte_id">
+          <option value="">— none —</option>
+          {% for a in analytes %}<option value="{{ a.id }}">{{ a.analysis_type }} — {{ a.analyte }}{% if a.default_unit %} ({{ a.default_unit }}){% endif %}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Result value</label><input name="measurement_value"></div>
+      <div><label>Unit</label><input name="measurement_unit" placeholder="e.g. ug/L"></div>
+      <div><label>Qualifier</label>
+        <select name="res_qual_code"><option value="">=</option><option value="ND">ND</option><option value="&lt;">&lt;</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Method</label><input name="method" placeholder="ELISA, qPCR, …"></div>
+      <div><label>Sample date</label><input name="sample_date" type="date"></div>
+    </div>
+    <div class="row">
+      <div><label>Sample ID</label><input name="sample_label"></div>
+      <div><label>Site</label><input name="site"></div>
+      <div><label>Collected by</label><input name="collected_by"></div>
+    </div>
+    <p></p>
+    <button>Add result</button>
+  </form>
+</div>
+
+<p><a href="{{ url_for('reports') }}">← back to reports</a></p>
+{% endblock %}

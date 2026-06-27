@@ -74,6 +74,38 @@ def test_staff_enters_report_in_region(app_client, conn):
     assert n == 1
 
 
+def test_report_detail_page_and_add_result(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    app_client.post("/reports/new", data={"waterbody": "Detail Pond", "region": R5},
+                    follow_redirects=True)
+    rid = conn.execute(
+        "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
+        "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name='Detail Pond'"
+    ).fetchone()["bloom_report_id"]
+
+    # Detail page renders.
+    r = app_client.get(f"/reports/{rid}")
+    assert r.status_code == 200 and b"Field &amp; lab results" in r.data
+
+    # Edit the report (field verification).
+    r = app_client.post(f"/reports/{rid}/edit",
+                        data={"bloom_type": "cyanobacteria", "determination_code": "confirmed_hab"},
+                        follow_redirects=True)
+    assert b"Report updated" in r.data
+
+    # Add a lab result.
+    analyte_id = conn.execute("SELECT id FROM analyte WHERE analyte='Anatoxin-a'").fetchone()["id"]
+    r = app_client.post(f"/reports/{rid}/results",
+                        data={"data_type": "Laboratory", "analyte_id": str(analyte_id),
+                              "measurement_value": "3.2", "measurement_unit": "ug/L"},
+                        follow_redirects=True)
+    assert b"Result added" in r.data
+    n = conn.execute(
+        "SELECT count(*) c FROM result r JOIN sample s ON s.id=r.sample_id WHERE s.bloom_report_id=%s",
+        (rid,)).fetchone()["c"]
+    assert n == 1
+
+
 def test_staff_sets_report_determination(app_client, conn):
     _login(app_client, "staff@wb.ca.gov", "staffpw")
     app_client.post("/reports/new", data={"waterbody": "Outcome Pond", "region": R5},

@@ -8,7 +8,7 @@
     <tr><th>Report ID</th><th>Water body</th><th>Region</th><th>Observed</th><th>Outcome / determination</th></tr>
     {% for r in rows %}
     <tr>
-      <td>{{ r.bloom_report_id }}</td>
+      <td><a href="{{ url_for('report_detail', brid=r.bloom_report_id) }}">{{ r.bloom_report_id }}</a></td>
       <td>{{ r.water_body_name or '—' }}</td>
       <td>{{ r.regional_water_board or '—' }}</td>
       <td>{{ r.observation_date or '—' }}</td>

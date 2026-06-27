@@ -7,6 +7,7 @@ contributor files data owned by their org, and anyone without write permission i
 
 from __future__ import annotations
 
+import uuid
 from datetime import date
 
 import psycopg
@@ -89,3 +90,57 @@ def enter_report(
         conn.commit()
 
     return bloom_report_id
+
+
+def update_report(conn: psycopg.Connection, user_id: int, bloom_report_id: int, *,
+                  observation_date: str | date | None = None, bloom_type: str | None = None,
+                  bloom_size: str | None = None, bloom_location: str | None = None,
+                  bloom_texture: str | None = None, surface_water_condition: str | None = None,
+                  weather_condition: str | None = None, bloom_description: str | None = None,
+                  determination: str | None = None) -> None:
+    """Edit a report's summary / field-verification info, as `user_id` (under RLS)."""
+    with acting_as(conn, user_id):
+        conn.execute(
+            """UPDATE event SET
+                 observation_date = %s, bloom_type = %s, bloom_size = %s, bloom_location = %s,
+                 bloom_texture = %s, surface_water_condition = %s, weather_condition = %s,
+                 bloom_description = %s, determination_code = %s
+               WHERE bloom_report_id = %s""",
+            (observation_date or None, bloom_type, bloom_size, bloom_location, bloom_texture,
+             surface_water_condition, weather_condition, bloom_description, determination,
+             bloom_report_id),
+        )
+        conn.commit()
+
+
+def add_result(conn: psycopg.Connection, user_id: int, bloom_report_id: int, *,
+               data_type: str, sample_date: str | date | None = None,
+               analyte_id: int | None = None, measurement_value: float | None = None,
+               measurement_unit: str | None = None, method: str | None = None,
+               res_qual_code: str | None = None, taxa: str | None = None,
+               collected_by: str | None = None, sample_label: str | None = None,
+               site: str | None = None) -> str:
+    """Record a sample + result (field verification or lab) on a report, as `user_id`.
+
+    Returns the new result's unique id. Uses currval (not RETURNING) so it works even when
+    a staffer files for another region.
+    """
+    ruid = uuid.uuid4().hex
+    with acting_as(conn, user_id):
+        conn.execute(
+            """INSERT INTO sample (bloom_report_id, sample_date, sample_id, site, collected_by)
+               VALUES (%s, %s, %s, %s, %s)""",
+            (bloom_report_id, sample_date or None, sample_label, site, collected_by),
+        )
+        sample_id = conn.execute(
+            "SELECT currval(pg_get_serial_sequence('sample', 'id')) AS id").fetchone()["id"]
+        conn.execute(
+            """INSERT INTO result
+                 (result_id_unique, sample_id, analyte_id, data_type, method,
+                  measurement_value, measurement_unit, res_qual_code, taxa, results_date)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (ruid, sample_id, analyte_id, data_type, method, measurement_value,
+             measurement_unit, res_qual_code, taxa, sample_date or None),
+        )
+        conn.commit()
+    return ruid

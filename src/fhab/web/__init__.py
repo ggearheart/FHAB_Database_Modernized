@@ -16,7 +16,7 @@ from flask import (Flask, flash, g, redirect, render_template, request, session,
 from ..auth import (acting_as, authenticate, create_user, grant_role, list_roles_for,
                     revoke_role, set_password, user_regions)
 from ..db import DEFAULT_DSN, connect
-from ..reports import enter_report
+from ..reports import add_result, enter_report, update_report
 
 
 def create_app(dsn: str | None = None) -> Flask:
@@ -71,6 +71,13 @@ def create_app(dsn: str | None = None) -> Flask:
     def _determinations():
         return db().execute(
             "SELECT code, label FROM report_determination ORDER BY sort_order").fetchall()
+
+    def _analytes():
+        return db().execute(
+            "SELECT id, analysis_type, analyte, default_unit FROM analyte "
+            "WHERE analyte IS NOT NULL ORDER BY analysis_type, analyte").fetchall()
+
+    DATA_TYPES = ["Field Visual", "Field Measurement", "Laboratory"]
 
     # ---- routes ----
     @app.route("/login", methods=["GET", "POST"])
@@ -131,6 +138,85 @@ def create_app(dsn: str | None = None) -> Flask:
             conn.rollback()
             flash("Could not update: " + str(exc).splitlines()[0], "error")
         return redirect(url_for("reports"))
+
+    @app.route("/reports/<int:brid>")
+    @login_required
+    def report_detail(brid):
+        conn = db()
+        with acting_as(conn, session["uid"]):
+            ev = conn.execute(
+                """SELECT e.bloom_report_id, e.observation_date, e.report_type, e.event_status,
+                          e.determination_code, e.bloom_type, e.bloom_size, e.bloom_location,
+                          e.bloom_texture, e.surface_water_condition, e.weather_condition,
+                          e.bloom_description, w.water_body_name, w.regional_water_board, w.county
+                   FROM event e
+                   LEFT JOIN location l ON l.id = e.location_id
+                   LEFT JOIN waterbody w ON w.id = l.waterbody_id
+                   WHERE e.bloom_report_id = %s""", (brid,)).fetchone()
+            if not ev:
+                flash("Report not found or not visible to your role.", "error")
+                return redirect(url_for("reports"))
+            results = conn.execute(
+                """SELECT r.data_type, r.measurement_value, r.measurement_unit, r.method,
+                          r.res_qual_code, r.taxa, s.sample_date, s.sample_id, s.site,
+                          s.collected_by, an.analyte, an.analysis_type
+                   FROM result r JOIN sample s ON s.id = r.sample_id
+                   LEFT JOIN analyte an ON an.id = r.analyte_id
+                   WHERE s.bloom_report_id = %s ORDER BY s.sample_date DESC NULLS LAST""",
+                (brid,)).fetchall()
+        return render_template("report_detail.html", ev=ev, results=results,
+                               determinations=_determinations(), analytes=_analytes(),
+                               data_types=DATA_TYPES)
+
+    @app.route("/reports/<int:brid>/edit", methods=["POST"])
+    @login_required
+    def edit_report(brid):
+        conn, f = db(), request.form
+        try:
+            update_report(
+                conn, session["uid"], brid,
+                observation_date=(f.get("date") or "").strip() or None,
+                bloom_type=(f.get("bloom_type") or "").strip() or None,
+                bloom_size=(f.get("bloom_size") or "").strip() or None,
+                bloom_location=(f.get("bloom_location") or "").strip() or None,
+                bloom_texture=(f.get("bloom_texture") or "").strip() or None,
+                surface_water_condition=(f.get("surface_water_condition") or "").strip() or None,
+                weather_condition=(f.get("weather_condition") or "").strip() or None,
+                bloom_description=(f.get("bloom_description") or "").strip() or None,
+                determination=(f.get("determination_code") or "").strip() or None,
+            )
+            flash("Report updated.", "ok")
+        except psycopg.errors.InsufficientPrivilege:
+            conn.rollback(); flash("Access denied: you may not edit that report.", "error")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not update: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("report_detail", brid=brid))
+
+    @app.route("/reports/<int:brid>/results", methods=["POST"])
+    @login_required
+    def add_report_result(brid):
+        conn, f = db(), request.form
+        try:
+            add_result(
+                conn, session["uid"], brid,
+                data_type=f["data_type"],
+                sample_date=(f.get("sample_date") or "").strip() or None,
+                analyte_id=int(f["analyte_id"]) if f.get("analyte_id") else None,
+                measurement_value=_f(f.get("measurement_value")),
+                measurement_unit=(f.get("measurement_unit") or "").strip() or None,
+                method=(f.get("method") or "").strip() or None,
+                res_qual_code=(f.get("res_qual_code") or "").strip() or None,
+                taxa=(f.get("taxa") or "").strip() or None,
+                collected_by=(f.get("collected_by") or "").strip() or None,
+                sample_label=(f.get("sample_label") or "").strip() or None,
+                site=(f.get("site") or "").strip() or None,
+            )
+            flash("Result added.", "ok")
+        except psycopg.errors.InsufficientPrivilege:
+            conn.rollback(); flash("Access denied: you may not add results to that report.", "error")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not add result: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("report_detail", brid=brid))
 
     @app.route("/reports/new", methods=["GET", "POST"])
     @login_required

@@ -4,7 +4,7 @@ import psycopg
 import pytest
 
 from fhab.auth import create_user, grant_role
-from fhab.reports import enter_report
+from fhab.reports import add_result, enter_report, update_report
 
 R5 = "Region 5 - Central Valley"
 
@@ -44,6 +44,36 @@ def test_report_records_determination(conn):
     code = conn.execute(
         "SELECT determination_code FROM event WHERE bloom_report_id=%s", (rid,)).fetchone()
     assert code["determination_code"] == "confirmed_hab"
+
+
+def test_update_report_edits_fields(conn):
+    staff = create_user(conn, "ed@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    rid = enter_report(conn, staff, water_body_name="Edit Pond", region=R5)
+    update_report(conn, staff, rid, bloom_type="cyanobacteria", determination="confirmed_hab",
+                  bloom_description="Verified in the field.")
+    row = conn.execute(
+        "SELECT bloom_type, determination_code, bloom_description FROM event WHERE bloom_report_id=%s",
+        (rid,)).fetchone()
+    assert row["bloom_type"] == "cyanobacteria"
+    assert row["determination_code"] == "confirmed_hab"
+
+
+def test_add_result_records_sample_and_result(conn):
+    staff = create_user(conn, "lab@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    rid = enter_report(conn, staff, water_body_name="Lab Pond", region=R5)
+    analyte_id = conn.execute(
+        "SELECT id FROM analyte WHERE analyte='Microcystin' LIMIT 1").fetchone()["id"]
+    add_result(conn, staff, rid, data_type="Laboratory", analyte_id=analyte_id,
+               measurement_value=12.5, measurement_unit="ug/L", method="ELISA",
+               sample_label="S-001", sample_date="2026-06-20")
+    row = conn.execute(
+        """SELECT r.data_type, r.measurement_value, an.analyte, s.sample_id
+           FROM result r JOIN sample s ON s.id=r.sample_id JOIN analyte an ON an.id=r.analyte_id
+           WHERE s.bloom_report_id=%s""", (rid,)).fetchone()
+    assert row["data_type"] == "Laboratory"
+    assert float(row["measurement_value"]) == 12.5
+    assert row["analyte"] == "Microcystin"
+    assert row["sample_id"] == "S-001"
 
 
 def test_determination_vocabulary_seeded(conn):
