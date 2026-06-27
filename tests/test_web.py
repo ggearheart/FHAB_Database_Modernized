@@ -74,6 +74,27 @@ def test_staff_enters_report_in_region(app_client, conn):
     assert n == 1
 
 
+def test_upload_lab_results_for_event(app_client, conn):
+    import io
+    from pathlib import Path
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    app_client.post("/reports/new", data={"waterbody": "Upload Lake", "region": R5}, follow_redirects=True)
+    rid = conn.execute(
+        "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
+        "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name='Upload Lake'"
+    ).fetchone()["bloom_report_id"]
+
+    chem = Path(__file__).parent / "fixtures" / "ceden" / "CEDEN_WaterChemistry.csv"
+    data = {"chem_file": (io.BytesIO(chem.read_bytes()), "chem.csv")}
+    r = app_client.post(f"/reports/{rid}/lab-upload", data=data,
+                        content_type="multipart/form-data", follow_redirects=True)
+    assert b"Uploaded 16 lab result" in r.data
+    n = conn.execute(
+        "SELECT count(*) c FROM sample s JOIN result rs ON rs.sample_id=s.id "
+        "WHERE s.bloom_report_id=%s AND rs.data_type='Laboratory'", (rid,)).fetchone()["c"]
+    assert n == 16
+
+
 def test_post_advisory_shows_on_map(app_client, conn):
     _login(app_client, "staff@wb.ca.gov", "staffpw")
     app_client.post("/reports/new", data={"waterbody": "Advisory Pond", "region": R5,

@@ -119,3 +119,19 @@ def test_spatial_linker_connects_nearby_event(conn):
     assert link is not None
     assert link["match_method"] == "spatial_temporal"
     assert link["distance_m"] < 1000
+
+
+def test_load_chemistry_for_event_attaches_results(conn):
+    from fhab.auth import create_user, grant_role
+    from fhab.reports import enter_report
+    from fhab.ceden import load_chemistry_for_event
+    staff = create_user(conn, "labup@wb.ca.gov")
+    grant_role(conn, staff, "wb_staff", region="Region 5 - Central Valley")
+    rid = enter_report(conn, staff, water_body_name="Lab Upload Lake",
+                       region="Region 5 - Central Valley")
+    rep = load_chemistry_for_event(conn, rid, CHEM, staff)
+    assert rep.counts["samples"] == 4 and rep.counts["results"] == 16
+    n = conn.execute(
+        """SELECT count(*) c FROM result r JOIN sample s ON s.id=r.sample_id
+           WHERE s.bloom_report_id=%s AND r.data_type='Laboratory'""", (rid,)).fetchone()["c"]
+    assert n == 16

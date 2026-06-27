@@ -145,6 +145,15 @@
     <p></p>
     <button>Add result</button>
   </form>
+
+  <h1 style="font-size:1rem; margin-top:1.2rem">…or upload lab results (batch)</h1>
+  <p class="muted">Upload a CEDEN <strong>WaterChemistry</strong> CSV (the Bend→CEDEN tool's output).
+    Its samples and results are attached to this report using the CEDEN ingest logic.</p>
+  <form method="post" action="{{ url_for('upload_lab_results', brid=ev.bloom_report_id) }}" enctype="multipart/form-data"
+        style="display:flex; gap:.5rem; align-items:center">
+    <input type="file" name="chem_file" accept=".csv" required style="width:auto">
+    <button class="secondary">Upload lab results</button>
+  </form>
 </div>
 
 <p><a href="{{ url_for('reports') }}">← back to reports</a></p>

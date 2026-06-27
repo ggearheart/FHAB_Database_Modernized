@@ -19,6 +19,7 @@ from pathlib import Path
 
 import psycopg
 
+from .auth import acting_as
 from .parsing import clean, parse_date, parse_float
 
 # Method -> analysis_type, to align CEDEN analytes with the existing analyte taxonomy.
@@ -272,4 +273,58 @@ def load_ceden_output(
     loader.report.counts["geocoded"] = enrich_station_geom(conn)
     if link:
         loader.report.counts["event_links"] = link_samples(conn)
+    return loader.report
+
+
+def load_chemistry_for_event(conn: psycopg.Connection, bloom_report_id: int,
+                             chemistry_csv, user_id: int) -> CedenReport:
+    """Attach a CEDEN WaterChemistry CSV's samples + results directly to one event (report).
+
+    Reuses the CEDEN ingest logic (row parsing + analyte taxonomy), but instead of resolving
+    stations and spatially matching, it pins every sample to the given report. Runs as
+    `user_id`, so the staff-write RLS policy on sample/result applies. Idempotent on BG_ID.
+    """
+    loader = CedenLoader(conn)
+    samples: dict[str, int] = {}
+    n_results = 0
+    with acting_as(conn, user_id):
+        for row in _rows(chemistry_csv):
+            bg_id = clean(row.get("BG_ID"))
+            skey = bg_id or f"{row.get('StationCode')}|{row.get('SampleDate')}"
+            if skey not in samples:
+                srow = conn.execute(
+                    """INSERT INTO sample
+                         (bloom_report_id, sample_date, sample_time, sample_type, bg_id,
+                          lab_sample_id, lab_batch, project_code, lab_agency_code)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                       ON CONFLICT (bg_id) WHERE bg_id IS NOT NULL
+                         DO UPDATE SET bloom_report_id = EXCLUDED.bloom_report_id
+                       RETURNING id""",
+                    (bloom_report_id, parse_date(row.get("SampleDate")),
+                     _parse_time(row.get("SampleTime")), clean(row.get("SampleTypeCode")), bg_id,
+                     clean(row.get("LabSampleID")), clean(row.get("LabBatch")),
+                     clean(row.get("ProjectCode")), clean(row.get("LabAgencyCode"))),
+                ).fetchone()
+                samples[skey] = srow["id"]
+            analyte_id = loader._analyte_id(row.get("Analyte"), row.get("MethodName"))
+            ruid = f"{bg_id or skey}:{clean(row.get('Analyte'))}"
+            conn.execute(
+                """INSERT INTO result
+                     (result_id_unique, sample_id, analyte_id, data_type, method,
+                      measurement_value, measurement_unit, res_qual_code, fraction_name, mdl, rl,
+                      results_date)
+                   VALUES (%s,%s,%s,'Laboratory',%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT (result_id_unique) DO UPDATE SET
+                     measurement_value = EXCLUDED.measurement_value,
+                     res_qual_code = EXCLUDED.res_qual_code""",
+                (ruid, samples[skey], analyte_id, clean(row.get("MethodName")),
+                 parse_float(row.get("Result")), clean(row.get("Units")),
+                 clean(row.get("ResQualCode")), clean(row.get("Fraction")),
+                 parse_float(row.get("MDL")), parse_float(row.get("RL")),
+                 parse_date(row.get("LabCompletionDate"))),
+            )
+            n_results += 1
+        conn.commit()
+    loader.report.counts = {"samples": len(samples), "results": n_results,
+                            "analytes": len(loader._analytes)}
     return loader.report

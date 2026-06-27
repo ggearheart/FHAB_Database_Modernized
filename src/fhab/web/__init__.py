@@ -13,8 +13,11 @@ from functools import wraps
 import psycopg
 from flask import (Flask, flash, g, jsonify, redirect, render_template, request, session, url_for)
 
+import tempfile
+
 from ..auth import (acting_as, authenticate, create_user, grant_role, list_roles_for,
                     revoke_role, set_password, user_regions)
+from ..ceden import load_chemistry_for_event
 from ..db import DEFAULT_DSN, connect
 from ..reports import add_response, add_result, enter_report, update_report
 
@@ -356,6 +359,31 @@ def create_app(dsn: str | None = None) -> Flask:
             conn.rollback(); flash("Access denied: you may not add results to that report.", "error")
         except psycopg.Error as exc:
             conn.rollback(); flash("Could not add result: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("report_detail", brid=brid))
+
+    @app.route("/reports/<int:brid>/lab-upload", methods=["POST"])
+    @staff_required
+    def upload_lab_results(brid):
+        conn = db()
+        upload = request.files.get("chem_file")
+        if not upload or not upload.filename:
+            flash("Choose a CEDEN WaterChemistry CSV to upload.", "error")
+            return redirect(url_for("report_detail", brid=brid))
+        tmp = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        try:
+            upload.save(tmp.name)
+            tmp.close()
+            rep = load_chemistry_for_event(conn, brid, tmp.name, session["uid"])
+            flash(f"Uploaded {rep.counts['results']} lab result(s) across "
+                  f"{rep.counts['samples']} sample(s).", "ok")
+        except psycopg.errors.InsufficientPrivilege:
+            conn.rollback(); flash("Access denied: only staff may upload lab results.", "error")
+        except Exception as exc:  # noqa: BLE001 - surface parse/load errors to the user
+            conn.rollback()
+            flash("Upload failed (expecting a CEDEN WaterChemistry CSV): "
+                  + str(exc).splitlines()[0], "error")
+        finally:
+            os.unlink(tmp.name)
         return redirect(url_for("report_detail", brid=brid))
 
     @app.route("/reports/new", methods=["GET", "POST"])
