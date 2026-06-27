@@ -14,7 +14,7 @@ services:
     plan: free
     buildCommand: pip install -e ".[deploy]"
     # deploy_setup applies the schema (enabling PostGIS) and ensures the admin account; idempotent.
-    startCommand: python scripts/deploy_setup.py && gunicorn --bind 0.0.0.0:$PORT --workers 2 wsgi:app
+    startCommand: python scripts/deploy_setup.py && gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 wsgi:app
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"

@@ -58,7 +58,7 @@ fetch('{{ url_for("reports_geojson") }}').then(r => r.json()).then(fc => {
         + `Observed: ${p.obs || '—'}<br>`
         + `Outcome: ${p.det_label || 'not recorded'}<br>`
         + (p.advisory ? `Advisory: <b>${p.advisory}</b><br>` : '')
-        + `Case: ${p.case_id || '—'} · Responses: ${p.responses} · Results: ${p.results}`
+        + `Case: ${p.case_id || '—'}`
       );
     }
   }).addTo(map);

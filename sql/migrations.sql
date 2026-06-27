@@ -57,3 +57,9 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS sample_bg_id_uq ON sample (bg_id) WHERE bg_id IS NOT NULL;
+
+-- Speeds up the map's per-event advisory lookup and the report detail joins.
+CREATE INDEX IF NOT EXISTS response_event_idx ON response (bloom_report_id);
+CREATE INDEX IF NOT EXISTS sample_event_idx ON sample (bloom_report_id);
+CREATE INDEX IF NOT EXISTS advisory_response_idx ON advisory (response_action_id);
+CREATE INDEX IF NOT EXISTS location_geom_gix ON location USING gist (geom);

@@ -283,27 +283,27 @@ def create_app(dsn: str | None = None) -> Flask:
     def reports_geojson():
         conn = db()
         with acting_as(conn, session["uid"]):
+            # Kept lean for the free-tier DB: one lateral for the displayed advisory, no
+            # per-row count subqueries (the detail page carries the full picture).
             rows = conn.execute(
                 """SELECT e.bloom_report_id, ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon,
                           w.water_body_name, w.regional_water_board, e.observation_date::text AS obs,
                           e.event_status, e.determination_code, rd.label AS det_label, e.case_id,
-                          (SELECT count(*) FROM response r WHERE r.bloom_report_id = e.bloom_report_id) AS responses,
-                          (SELECT count(*) FROM sample s JOIN result rs ON rs.sample_id = s.id
-                             WHERE s.bloom_report_id = e.bloom_report_id) AS results,
-                          (SELECT a.advisory_recommended FROM response r
-                             JOIN advisory a ON a.response_action_id = r.response_action_id
-                             WHERE r.bloom_report_id = e.bloom_report_id AND a.display_advisory_on_map
-                             ORDER BY a.advisory_start_date DESC NULLS LAST LIMIT 1) AS advisory
+                          adv.advisory_recommended AS advisory
                    FROM event e
-                   JOIN location l ON l.id = e.location_id
+                   JOIN location l ON l.id = e.location_id AND l.geom IS NOT NULL
                    LEFT JOIN waterbody w ON w.id = l.waterbody_id
                    LEFT JOIN report_determination rd ON rd.code = e.determination_code
-                   WHERE l.geom IS NOT NULL
+                   LEFT JOIN LATERAL (
+                       SELECT a.advisory_recommended
+                       FROM response r JOIN advisory a ON a.response_action_id = r.response_action_id
+                       WHERE r.bloom_report_id = e.bloom_report_id AND a.display_advisory_on_map
+                       ORDER BY a.advisory_start_date DESC NULLS LAST LIMIT 1
+                   ) adv ON true
                    ORDER BY e.bloom_report_id DESC LIMIT 2000"""
             ).fetchall()
         props = ("bloom_report_id", "water_body_name", "regional_water_board", "obs",
-                 "event_status", "determination_code", "det_label", "case_id",
-                 "responses", "results", "advisory")
+                 "event_status", "determination_code", "det_label", "case_id", "advisory")
         features = [{
             "type": "Feature",
             "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]},

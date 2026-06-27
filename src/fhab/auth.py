@@ -94,10 +94,15 @@ def acting_as(conn: psycopg.Connection, user_id: int | None):
     try:
         yield conn
     finally:
-        # A failed write may leave the transaction aborted; clear it before resetting.
+        # Best-effort cleanup. Must never raise or it would mask the original error and (on a
+        # busy/aborted connection) crash the request. Roll back any in-flight/failed transaction
+        # first — a no-op after a successful read or an explicit commit — then reset session state.
         try:
-            conn.execute("RESET ROLE")
-        except psycopg.Error:
             conn.rollback()
-            conn.execute("RESET ROLE")
-        conn.execute("SELECT set_config('fhab.user_id', '', false)")
+        except Exception:  # noqa: BLE001
+            pass
+        for stmt in ("RESET ROLE", "SELECT set_config('fhab.user_id', '', false)"):
+            try:
+                conn.execute(stmt)
+            except Exception:  # noqa: BLE001
+                pass
