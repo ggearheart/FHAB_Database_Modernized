@@ -14,6 +14,7 @@ FHAB event/case. See docs/BEND_CEDEN_WORKFLOW.md.
 from __future__ import annotations
 
 import csv
+import gzip
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -40,8 +41,16 @@ class CedenReport:
         )
 
 
+def _open_text(path):
+    """Open a CSV path for reading, transparently handling .gz."""
+    path = Path(path)
+    if path.suffix == ".gz":
+        return gzip.open(path, mode="rt", newline="", encoding="utf-8-sig")
+    return path.open(newline="", encoding="utf-8-sig")
+
+
 def _rows(path: Path) -> list[dict]:
-    with Path(path).open(newline="", encoding="utf-8-sig") as fh:
+    with _open_text(path) as fh:
         return list(csv.DictReader(fh))
 
 
@@ -189,6 +198,22 @@ def enrich_station_geom(conn: psycopg.Connection) -> int:
     ).fetchall()
     conn.commit()
     return len(n)
+
+
+def ensure_station_registry(conn: psycopg.Connection, csv_path) -> dict:
+    """Load the CEDEN station registry once if it's empty, then enrich station geoms.
+
+    Idempotent and cheap to call on every boot: if the registry already has rows it does
+    nothing. `csv_path` may be a plain or .gz CSV. Returns a small summary dict.
+    """
+    have = conn.execute("SELECT count(*) AS n FROM station_registry").fetchone()["n"]
+    if have:
+        return {"loaded": 0, "enriched": 0, "already": have}
+    if not Path(csv_path).exists():
+        return {"loaded": 0, "enriched": 0, "missing": str(csv_path)}
+    loaded = load_station_registry(conn, csv_path)
+    enriched = enrich_station_geom(conn)
+    return {"loaded": loaded, "enriched": enriched}
 
 
 def link_samples(conn: psycopg.Connection) -> int:

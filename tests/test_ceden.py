@@ -93,6 +93,27 @@ def test_station_registry_enriches_geometry(conn):
     assert null_geom == 0
 
 
+def test_ensure_station_registry_idempotent_and_gz(conn, tmp_path):
+    import gzip
+    from fhab.ceden import ensure_station_registry
+
+    # Loads on an empty registry...
+    s1 = ensure_station_registry(conn, REGISTRY)
+    assert s1["loaded"] == 4
+    # ...and is a no-op the second time (matcher arming is cheap to call every boot).
+    s2 = ensure_station_registry(conn, REGISTRY)
+    assert s2.get("already") == 4 and s2["loaded"] == 0
+
+    # A .gz registry loads transparently (the form committed for Render).
+    conn.execute("TRUNCATE station_registry")
+    conn.commit()
+    gz = tmp_path / "reg.csv.gz"
+    with open(REGISTRY, "rb") as src, gzip.open(gz, "wb") as dst:
+        dst.write(src.read())
+    s3 = ensure_station_registry(conn, str(gz))
+    assert s3["loaded"] == 4
+
+
 def test_spatial_linker_connects_nearby_event(conn):
     load_station_registry(conn, REGISTRY)
     # Seed an FHAB event ~30 m from the Muddy Hollow Creek station, near the sample date.
