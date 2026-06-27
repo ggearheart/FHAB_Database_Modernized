@@ -106,6 +106,35 @@ def test_report_detail_page_and_add_result(app_client, conn):
     assert n == 1
 
 
+def test_batch_update_outcomes(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    # Two reports in Region 5.
+    ids = []
+    for name in ("Batch A", "Batch B"):
+        app_client.post("/reports/new", data={"waterbody": name, "region": R5}, follow_redirects=True)
+        ids.append(conn.execute(
+            "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
+            "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name=%s", (name,)
+        ).fetchone()["bloom_report_id"])
+
+    assert app_client.get("/batch").status_code == 200
+    r = app_client.post("/batch", data={"report_ids": [str(i) for i in ids],
+                                        "determination_code": "no_bloom"}, follow_redirects=True)
+    assert b"Updated outcome for 2 report" in r.data
+    codes = {row["determination_code"] for row in conn.execute(
+        "SELECT determination_code FROM event WHERE bloom_report_id = ANY(%s)", (ids,)).fetchall()}
+    assert codes == {"no_bloom"}
+
+
+def test_non_staff_cannot_batch(app_client, conn):
+    pub = create_user(conn, "viewer@public.org"); grant_role(conn, pub, "public")
+    from fhab.auth import set_password
+    set_password(conn, pub, "pw")
+    _login(app_client, "viewer@public.org", "pw")
+    r = app_client.get("/batch", follow_redirects=True)
+    assert b"Staff access required" in r.data
+
+
 def test_map_page_and_geojson(app_client, conn):
     _login(app_client, "staff@wb.ca.gov", "staffpw")
     # A report with a point in Region 5.

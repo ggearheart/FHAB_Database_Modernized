@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Batch outcomes{% endblock %}
+{% block body %}
+<h1>Batch update report outcomes</h1>
+<div class="card">
+  <p class="muted">Select reports and set their final outcome in one action — e.g. resolve all
+    reports in a case. Updates respect your role and region.</p>
+  <form method="get" style="display:flex; gap:.4rem; align-items:flex-end; margin-bottom:.4rem">
+    <div><label>Filter by Case ID</label><input name="case" value="{{ case_filter }}" style="width:160px"></div>
+    <button class="secondary">Filter</button>
+    {% if case_filter %}<a class="muted" href="{{ url_for('batch_determination') }}" style="align-self:center">clear</a>{% endif %}
+  </form>
+
+  <form method="post">
+    <input type="hidden" name="case" value="{{ case_filter }}">
+    <div style="display:flex; gap:.6rem; align-items:flex-end; margin:.4rem 0">
+      <div><label>Set outcome to</label>
+        <select name="determination_code">
+          <option value="">— not recorded —</option>
+          {% for d in determinations %}<option value="{{ d.code }}">{{ d.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <button>Apply to selected</button>
+    </div>
+    <table>
+      <tr>
+        <th><input type="checkbox" onclick="for(const c of document.querySelectorAll('input[name=report_ids]')) c.checked=this.checked"></th>
+        <th>Report ID</th><th>Water body</th><th>Region</th><th>Case</th><th>Current outcome</th>
+      </tr>
+      {% for r in rows %}
+      <tr>
+        <td><input type="checkbox" name="report_ids" value="{{ r.bloom_report_id }}"></td>
+        <td><a href="{{ url_for('report_detail', brid=r.bloom_report_id) }}">{{ r.bloom_report_id }}</a></td>
+        <td>{{ r.water_body_name or '—' }}</td>
+        <td>{{ r.regional_water_board or '—' }}</td>
+        <td>{{ r.case_id or '—' }}</td>
+        <td>{{ r.determination_code or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">No reports.</td></tr>
+      {% endfor %}
+    </table>
+  </form>
+</div>
+{% endblock %}

@@ -57,6 +57,19 @@ def create_app(dsn: str | None = None) -> Flask:
             return f(*a, **k)
         return w
 
+    STAFF_WRITER_ROLES = {"program_admin", "wb_staff", "field_staff", "lab_analyst",
+                          "illness_workgroup", "ddw_staff"}
+
+    def staff_required(f):
+        @wraps(f)
+        @login_required
+        def w(*a, **k):
+            if not STAFF_WRITER_ROLES & set(session.get("roles", [])):
+                flash("Staff access required.", "error")
+                return redirect(url_for("dashboard"))
+            return f(*a, **k)
+        return w
+
     def _f(v):
         try:
             return float(v) if v not in (None, "") else None
@@ -180,6 +193,49 @@ def create_app(dsn: str | None = None) -> Flask:
         return render_template("report_detail.html", ev=ev, results=results, responses=responses,
                                case=case, determinations=_determinations(), analytes=_analytes(),
                                data_types=DATA_TYPES)
+
+    @app.route("/batch", methods=["GET", "POST"])
+    @staff_required
+    def batch_determination():
+        conn = db()
+        if request.method == "POST":
+            ids = [int(x) for x in request.form.getlist("report_ids") if x.isdigit()]
+            code = (request.form.get("determination_code") or "").strip() or None
+            if ids:
+                try:
+                    with acting_as(conn, session["uid"]):
+                        for brid in ids:
+                            conn.execute(
+                                "UPDATE event SET determination_code = %s WHERE bloom_report_id = %s",
+                                (code, brid))
+                        conn.commit()
+                    flash(f"Updated outcome for {len(ids)} report(s).", "ok")
+                except psycopg.Error as exc:
+                    conn.rollback()
+                    flash("Could not update: " + str(exc).splitlines()[0], "error")
+            else:
+                flash("No reports selected.", "error")
+            return redirect(url_for("batch_determination", case=request.form.get("case") or None))
+
+        case_filter = (request.args.get("case") or "").strip()
+        conn = db()
+        with acting_as(conn, session["uid"]):
+            if case_filter.isdigit():
+                rows = conn.execute(
+                    """SELECT e.bloom_report_id, w.water_body_name, w.regional_water_board,
+                              e.determination_code, e.case_id
+                       FROM event e LEFT JOIN location l ON l.id = e.location_id
+                       LEFT JOIN waterbody w ON w.id = l.waterbody_id
+                       WHERE e.case_id = %s ORDER BY e.bloom_report_id""", (int(case_filter),)).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT e.bloom_report_id, w.water_body_name, w.regional_water_board,
+                              e.determination_code, e.case_id
+                       FROM event e LEFT JOIN location l ON l.id = e.location_id
+                       LEFT JOIN waterbody w ON w.id = l.waterbody_id
+                       ORDER BY e.bloom_report_id DESC LIMIT 200""").fetchall()
+        return render_template("batch.html", rows=rows, determinations=_determinations(),
+                               case_filter=case_filter)
 
     @app.route("/map")
     @login_required

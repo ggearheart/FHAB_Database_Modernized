@@ -14,6 +14,11 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+window.addEventListener('load', function () {
+if (typeof L === 'undefined') {
+  document.getElementById('count').textContent = 'Map library failed to load — check your connection and reload.';
+  return;
+}
 const COLORS = {
   confirmed_hab:'#c0392b', red_tide:'#b35900', non_hab_algae:'#2e8b57',
   spill:'#7d3c98', other_wq:'#2874a6', no_bloom:'#7f8c8d', under_investigation:'#f1c40f'
@@ -59,6 +64,7 @@ fetch('{{ url_for("reports_geojson") }}').then(r => r.json()).then(fc => {
   }).addTo(map);
   document.getElementById('count').textContent = `${fc.features.length} report(s) shown (your role/region).`;
   if (fc.features.length) map.fitBounds(layer.getBounds().pad(0.1));
+});
 });
 </script>
 {% endblock %}
