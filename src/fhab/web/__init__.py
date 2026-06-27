@@ -79,6 +79,19 @@ def create_app(dsn: str | None = None) -> Flask:
         except ValueError:
             return None
 
+    def _record_activity(brid, action):
+        """Best-effort log that the current user worked on a report (never breaks the request)."""
+        try:
+            db().execute(
+                "INSERT INTO report_activity (user_id, bloom_report_id, action) VALUES (%s,%s,%s)",
+                (session.get("uid"), brid, action))
+            db().commit()
+        except Exception:  # noqa: BLE001
+            try:
+                db().rollback()
+            except Exception:  # noqa: BLE001
+                pass
+
     def _regions():
         return [r["regional_water_board"] for r in db().execute(
             "SELECT DISTINCT regional_water_board FROM waterbody "
@@ -123,7 +136,30 @@ def create_app(dsn: str | None = None) -> Flask:
     @app.route("/")
     @login_required
     def dashboard():
-        return render_template("dashboard.html", regions=user_regions(db(), session["uid"]))
+        conn = db()
+        recent = conn.execute(
+            """SELECT t.bloom_report_id, t.at, t.action, t.water_body_name, t.determination_code
+               FROM (
+                   SELECT DISTINCT ON (a.bloom_report_id) a.bloom_report_id, a.at, a.action,
+                          w.water_body_name, e.determination_code
+                   FROM report_activity a
+                   JOIN event e ON e.bloom_report_id = a.bloom_report_id
+                   LEFT JOIN location l ON l.id = e.location_id
+                   LEFT JOIN waterbody w ON w.id = l.waterbody_id
+                   WHERE a.user_id = %s
+                   ORDER BY a.bloom_report_id, a.at DESC
+               ) t ORDER BY t.at DESC LIMIT 5""", (session["uid"],)).fetchall()
+        return render_template("dashboard.html", regions=user_regions(conn, session["uid"]),
+                               recent=recent)
+
+    @app.route("/reports/go")
+    @login_required
+    def report_go():
+        brid = (request.args.get("brid") or "").strip()
+        if brid.isdigit():
+            return redirect(url_for("report_detail", brid=int(brid)))
+        flash("Enter a report ID to update.", "error")
+        return redirect(url_for("dashboard"))
 
     @app.route("/reports")
     @login_required
@@ -151,6 +187,7 @@ def create_app(dsn: str | None = None) -> Flask:
                     "UPDATE event SET determination_code = %s WHERE bloom_report_id = %s",
                     (code, brid))
                 conn.commit()
+            _record_activity(brid, "set outcome")
             flash(f"Outcome updated for report {brid}.", "ok")
         except psycopg.errors.InsufficientPrivilege:
             conn.rollback()
@@ -218,6 +255,7 @@ def create_app(dsn: str | None = None) -> Flask:
                 advisory_end_date=(f.get("advisory_end_date") or "").strip() or None,
                 display_advisory_on_map=bool(f.get("display_advisory_on_map")),
             )
+            _record_activity(brid, "recorded response")
             flash("Response recorded.", "ok")
         except psycopg.errors.InsufficientPrivilege:
             conn.rollback()
@@ -381,6 +419,7 @@ def create_app(dsn: str | None = None) -> Flask:
                 bloom_description=(f.get("bloom_description") or "").strip() or None,
                 determination=(f.get("determination_code") or "").strip() or None,
             )
+            _record_activity(brid, "edited report")
             flash("Report updated.", "ok")
         except psycopg.errors.InsufficientPrivilege:
             conn.rollback(); flash("Access denied: you may not edit that report.", "error")
@@ -407,6 +446,7 @@ def create_app(dsn: str | None = None) -> Flask:
                 sample_label=(f.get("sample_label") or "").strip() or None,
                 site=(f.get("site") or "").strip() or None,
             )
+            _record_activity(brid, "added result")
             flash("Result added.", "ok")
         except psycopg.errors.InsufficientPrivilege:
             conn.rollback(); flash("Access denied: you may not add results to that report.", "error")
@@ -427,6 +467,7 @@ def create_app(dsn: str | None = None) -> Flask:
             upload.save(tmp.name)
             tmp.close()
             rep = load_chemistry_for_event(conn, brid, tmp.name, session["uid"])
+            _record_activity(brid, "uploaded lab results")
             flash(f"Uploaded {rep.counts['results']} lab result(s) across "
                   f"{rep.counts['samples']} sample(s).", "ok")
         except psycopg.errors.InsufficientPrivilege:
@@ -464,6 +505,7 @@ def create_app(dsn: str | None = None) -> Flask:
                     description=(f.get("description") or "").strip() or None,
                     determination=(f.get("determination_code") or "").strip() or None,
                 )
+                _record_activity(rid, "entered report")
                 flash(f"Report entered — Bloom_Report_ID {rid}.", "ok")
                 return redirect(url_for("reports"))
             except psycopg.errors.InsufficientPrivilege:

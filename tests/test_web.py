@@ -179,6 +179,29 @@ def test_batch_filters_by_outcome(app_client, conn):
     assert b"Algae Pond" not in r.data
 
 
+def test_dashboard_shows_recent_worked_reports(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    # Work on two reports.
+    for name in ("Recent A", "Recent B"):
+        app_client.post("/reports/new", data={"waterbody": name, "region": R5}, follow_redirects=True)
+    r = app_client.get("/")
+    assert b"Reports you&#39;ve worked on" in r.data or b"Reports you've worked on" in r.data
+    assert b"Recent A" in r.data and b"Recent B" in r.data
+
+
+def test_update_report_quick_action(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    app_client.post("/reports/new", data={"waterbody": "Quick Pond", "region": R5}, follow_redirects=True)
+    rid = conn.execute(
+        "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
+        "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name='Quick Pond'"
+    ).fetchone()["bloom_report_id"]
+    r = app_client.get(f"/reports/go?brid={rid}")
+    assert r.status_code == 302 and f"/reports/{rid}" in r.headers["Location"]
+    r = app_client.get("/reports/go?brid=", follow_redirects=True)
+    assert b"Enter a report ID" in r.data
+
+
 def test_batch_ceden_upload(app_client, conn):
     import io
     from pathlib import Path

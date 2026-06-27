@@ -14,5 +14,28 @@
   {% if 'program_admin' in session.roles %}
     <a class="btn secondary" href="{{ url_for('admin_users') }}">Manage accounts</a>
   {% endif %}
+  <form action="{{ url_for('report_go') }}" method="get"
+        style="display:inline-flex; gap:.4rem; margin-left:.4rem; vertical-align:middle">
+    <input name="brid" placeholder="Report ID" style="width:110px" inputmode="numeric">
+    <button class="secondary">Update a report</button>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Reports you've worked on</h1>
+  <table>
+    <tr><th>Report ID</th><th>Water body</th><th>Last action</th><th>Outcome</th><th>When</th></tr>
+    {% for r in recent %}
+    <tr>
+      <td><a href="{{ url_for('report_detail', brid=r.bloom_report_id) }}">{{ r.bloom_report_id }}</a></td>
+      <td>{{ r.water_body_name or '—' }}</td>
+      <td>{{ r.action or '—' }}</td>
+      <td>{{ r.determination_code or '—' }}</td>
+      <td class="muted">{{ r.at.strftime('%Y-%m-%d %H:%M') if r.at else '—' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">No reports yet — enter or update a report to see it here.</td></tr>
+    {% endfor %}
+  </table>
 </div>
 {% endblock %}

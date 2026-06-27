@@ -45,6 +45,16 @@ CREATE TABLE IF NOT EXISTS user_role (
 );
 CREATE INDEX IF NOT EXISTS user_role_user_idx ON user_role(user_id);
 
+-- Per-user activity log on reports (for "reports you've worked on").
+CREATE TABLE IF NOT EXISTS report_activity (
+    id              bigserial PRIMARY KEY,
+    user_id         bigint REFERENCES app_user(id) ON DELETE CASCADE,
+    bloom_report_id bigint,
+    action          text,
+    at              timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS report_activity_user_idx ON report_activity(user_id, at DESC);
+
 -- ---------- Role catalog (seed) ----------
 
 INSERT INTO role (code, name, category, description) VALUES
