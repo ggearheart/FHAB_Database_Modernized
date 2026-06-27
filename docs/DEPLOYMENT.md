@@ -50,8 +50,11 @@ account management runs as the app user directly (gated to `program_admin` in th
 1. **Dedicated, least-privilege DB role.** Have the web app log in as a *non-owning* role
    (member of `fhab_app`, with DML only on `app_user`/`user_role`/`role`) so RLS is always on
    with no owner-bypass path. Reserve the owning/superuser role for migrations and loaders.
-2. **Migrations.** `schema.sql` is create-only; adopt a migration tool (Alembic / sqitch /
-   plain versioned SQL) so a live database evolves without resets.
+2. **Migrations.** `apply_schema` runs `sql/migrations.sql` (idempotent
+   `ALTER TABLE … ADD COLUMN IF NOT EXISTS`) after `schema.sql`, so a redeploy brings an
+   existing database up to date without a reset. This is a lightweight scheme — for heavy
+   schema changes (renames, type changes, backfills) adopt a real migration tool
+   (Alembic / sqitch).
 3. **Auth.** Replace local passwords with SSO/SAML against Water Boards identity; enforce
    `SESSION_COOKIE_SECURE`, `HttpOnly`, and `SameSite`; rotate `SECRET_KEY` via secrets.
 4. **Backups, monitoring, and a paid tier** (the free Render Postgres expires and sleeps).

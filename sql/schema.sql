@@ -305,11 +305,5 @@ CREATE TABLE IF NOT EXISTS sample_link (
     created_at      timestamptz NOT NULL DEFAULT now()
 );
 
--- sample.station_id references station (defined above); add the FK once, idempotently.
-DO $$ BEGIN
-    ALTER TABLE sample ADD CONSTRAINT sample_station_fk
-        FOREIGN KEY (station_id) REFERENCES station(id);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
--- A CEDEN/Bend sample is uniquely identified by its BG_ID, so loading is idempotent.
-CREATE UNIQUE INDEX IF NOT EXISTS sample_bg_id_uq ON sample (bg_id) WHERE bg_id IS NOT NULL;
+-- The sample.station_id FK and the bg_id unique index live in migrations.sql, so they run
+-- after those columns are guaranteed to exist (safe on databases predating those columns).

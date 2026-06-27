@@ -9,6 +9,7 @@ import psycopg
 
 SQL_DIR = Path(__file__).resolve().parents[2] / "sql"
 SCHEMA_PATH = SQL_DIR / "schema.sql"
+MIGRATIONS_PATH = SQL_DIR / "migrations.sql"
 ACCESS_CONTROL_PATH = SQL_DIR / "access_control.sql"
 
 # Connection string: FHAB_DATABASE_URL or DATABASE_URL (e.g. on Render), else a local
@@ -26,8 +27,14 @@ def connect(dsn: str | None = None) -> psycopg.Connection:
 
 
 def apply_schema(conn: psycopg.Connection, schema_path: Path = SCHEMA_PATH) -> None:
-    """Apply the schema and access-control layer. Idempotent."""
+    """Apply the schema, forward migrations, and access-control layer. Idempotent.
+
+    Runs schema.sql (CREATE … IF NOT EXISTS), then migrations.sql (ADD COLUMN IF NOT EXISTS,
+    bringing an existing database up to date), then access_control.sql.
+    """
     conn.execute(schema_path.read_text())
+    conn.commit()
+    conn.execute(MIGRATIONS_PATH.read_text())
     conn.commit()
     conn.execute(ACCESS_CONTROL_PATH.read_text())
     conn.commit()
