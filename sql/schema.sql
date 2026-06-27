@@ -32,6 +32,26 @@ DO $$ BEGIN
     );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- ---------- Report determination (outcome) lookup ----------
+-- What a report turned out to be, set by staff after investigation. Staff-editable.
+CREATE TABLE IF NOT EXISTS report_determination (
+    code        text PRIMARY KEY,
+    label       text NOT NULL,
+    description text,
+    sort_order  int NOT NULL DEFAULT 0
+);
+
+INSERT INTO report_determination (code, label, description, sort_order) VALUES
+  ('under_investigation', 'Under investigation', 'Outcome not yet determined.', 1),
+  ('confirmed_hab',       'Confirmed HAB (cyanobacteria)', 'Confirmed cyanobacterial harmful algal bloom.', 2),
+  ('red_tide',            'Red tide (marine bloom)', 'Marine algal bloom / red tide.', 3),
+  ('non_hab_algae',       'Non-HAB algae', 'Nuisance/non-toxic algae (e.g. azolla, green algae, other).', 4),
+  ('spill',               'Spill / discharge', 'Potential spill or discharge to surface water.', 5),
+  ('other_wq',            'Other water-quality issue', 'Other water-quality concern, not an algal bloom.', 6),
+  ('no_bloom',            'No bloom / not an issue', 'No bloom present; not a water-quality concern.', 7)
+ON CONFLICT (code) DO UPDATE SET label = EXCLUDED.label, description = EXCLUDED.description,
+                                 sort_order = EXCLUDED.sort_order;
+
 -- ---------- Reference / hydrography ----------
 
 -- CA Water Boards "HUC Watersheds" feature service (HUC12 layer; USGS WBD republish).
@@ -94,6 +114,7 @@ CREATE TABLE IF NOT EXISTS event (
     case_id                  bigint REFERENCES hab_case(case_id),
     location_id              bigint REFERENCES location(id),
     event_status             event_status_enum NOT NULL DEFAULT 'suspected',
+    determination_code       text REFERENCES report_determination(code),  -- outcome (NULL = not recorded)
     report_type              text,
     observation_date         date,
     bloom_date_created       timestamptz,

@@ -31,6 +31,7 @@ def enter_report(
     bloom_texture: str | None = None,
     description: str | None = None,
     owner_org: str | None = None,
+    determination: str | None = None,
     bloom_report_id: int | None = None,
 ) -> int:
     """Create a report (waterbody + location + event) as `user_id`. Returns the report id.
@@ -79,10 +80,11 @@ def enter_report(
             """INSERT INTO event
                  (bloom_report_id, location_id, report_type, observation_date, bloom_type,
                   bloom_size, bloom_location, bloom_texture, bloom_description, owner_org,
-                  event_status)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'suspected')""",
+                  determination_code, event_status)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'suspected')""",
             (bloom_report_id, loc_id, report_type, observation_date or date.today(),
-             bloom_type, bloom_size, bloom_location, bloom_texture, description, owner_org),
+             bloom_type, bloom_size, bloom_location, bloom_texture, description, owner_org,
+             determination),
         )
         conn.commit()
 

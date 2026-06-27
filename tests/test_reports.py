@@ -37,6 +37,20 @@ def test_staff_enters_report_on_behalf_of_other_region(conn):
     assert region == R5
 
 
+def test_report_records_determination(conn):
+    staff = create_user(conn, "det@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    rid = enter_report(conn, staff, water_body_name="Determination Pond", region=R5,
+                       determination="confirmed_hab")
+    code = conn.execute(
+        "SELECT determination_code FROM event WHERE bloom_report_id=%s", (rid,)).fetchone()
+    assert code["determination_code"] == "confirmed_hab"
+
+
+def test_determination_vocabulary_seeded(conn):
+    codes = {r["code"] for r in conn.execute("SELECT code FROM report_determination").fetchall()}
+    assert {"confirmed_hab", "red_tide", "non_hab_algae", "spill", "other_wq"} <= codes
+
+
 def test_public_user_cannot_enter_report(conn):
     pub = create_user(conn, "p@public.org"); grant_role(conn, pub, "public")
     with pytest.raises(psycopg.Error):

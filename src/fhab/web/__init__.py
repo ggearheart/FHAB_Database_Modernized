@@ -68,6 +68,10 @@ def create_app(dsn: str | None = None) -> Flask:
             "SELECT DISTINCT regional_water_board FROM waterbody "
             "WHERE regional_water_board IS NOT NULL ORDER BY 1").fetchall()]
 
+    def _determinations():
+        return db().execute(
+            "SELECT code, label FROM report_determination ORDER BY sort_order").fetchall()
+
     # ---- routes ----
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -100,13 +104,33 @@ def create_app(dsn: str | None = None) -> Flask:
         with acting_as(conn, session["uid"]):
             rows = conn.execute(
                 """SELECT e.bloom_report_id, w.water_body_name, w.regional_water_board,
-                          e.observation_date, e.event_status, e.report_type
+                          e.observation_date, e.event_status, e.report_type, e.determination_code
                    FROM event e
                    LEFT JOIN location l ON l.id = e.location_id
                    LEFT JOIN waterbody w ON w.id = l.waterbody_id
                    ORDER BY e.bloom_report_id DESC LIMIT 100"""
             ).fetchall()
-        return render_template("reports.html", rows=rows)
+        return render_template("reports.html", rows=rows, determinations=_determinations())
+
+    @app.route("/reports/<int:brid>/determination", methods=["POST"])
+    @login_required
+    def set_determination(brid):
+        conn = db()
+        code = (request.form.get("determination_code") or "").strip() or None
+        try:
+            with acting_as(conn, session["uid"]):
+                conn.execute(
+                    "UPDATE event SET determination_code = %s WHERE bloom_report_id = %s",
+                    (code, brid))
+                conn.commit()
+            flash(f"Outcome updated for report {brid}.", "ok")
+        except psycopg.errors.InsufficientPrivilege:
+            conn.rollback()
+            flash("Access denied: you may not update that report.", "error")
+        except psycopg.Error as exc:
+            conn.rollback()
+            flash("Could not update: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("reports"))
 
     @app.route("/reports/new", methods=["GET", "POST"])
     @login_required
@@ -119,7 +143,7 @@ def create_app(dsn: str | None = None) -> Flask:
             cross = bool(region and regs and region not in regs)
             if cross and not f.get("confirm_cross"):
                 return render_template("new_report.html", form=f, regions=_regions(),
-                                       cross_warn=(regs, region))
+                                       determinations=_determinations(), cross_warn=(regs, region))
             try:
                 rid = enter_report(
                     conn, session["uid"],
@@ -131,6 +155,7 @@ def create_app(dsn: str | None = None) -> Flask:
                     bloom_type=(f.get("bloom_type") or "").strip() or None,
                     bloom_size=(f.get("bloom_size") or "").strip() or None,
                     description=(f.get("description") or "").strip() or None,
+                    determination=(f.get("determination_code") or "").strip() or None,
                 )
                 flash(f"Report entered — Bloom_Report_ID {rid}.", "ok")
                 return redirect(url_for("reports"))
@@ -140,7 +165,8 @@ def create_app(dsn: str | None = None) -> Flask:
             except psycopg.Error as exc:
                 conn.rollback()
                 flash("Could not enter report: " + str(exc).splitlines()[0], "error")
-        return render_template("new_report.html", form={}, regions=_regions(), cross_warn=None)
+        return render_template("new_report.html", form={}, regions=_regions(),
+                               determinations=_determinations(), cross_warn=None)
 
     @app.route("/admin/users")
     @admin_required

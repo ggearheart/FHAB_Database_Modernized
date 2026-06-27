@@ -35,6 +35,17 @@
       <div><label>Bloom type</label><input name="bloom_type" value="{{ form.bloom_type or '' }}"></div>
       <div><label>Bloom size</label><input name="bloom_size" value="{{ form.bloom_size or '' }}"></div>
     </div>
+    <div class="row">
+      <div>
+        <label>Outcome / determination</label>
+        <select name="determination_code">
+          {% for d in determinations %}
+          <option value="{{ d.code }}" {% if form.determination_code==d.code or (not form.determination_code and d.code=='under_investigation') %}selected{% endif %}>{{ d.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div></div>
+    </div>
     <label>Description</label>
     <textarea name="description" rows="3">{{ form.description or '' }}</textarea>
 

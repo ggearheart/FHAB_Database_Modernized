@@ -74,6 +74,22 @@ def test_staff_enters_report_in_region(app_client, conn):
     assert n == 1
 
 
+def test_staff_sets_report_determination(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    app_client.post("/reports/new", data={"waterbody": "Outcome Pond", "region": R5},
+                    follow_redirects=True)
+    rid = conn.execute(
+        "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
+        "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name='Outcome Pond'"
+    ).fetchone()["bloom_report_id"]
+    r = app_client.post(f"/reports/{rid}/determination",
+                        data={"determination_code": "non_hab_algae"}, follow_redirects=True)
+    assert b"Outcome updated" in r.data
+    code = conn.execute(
+        "SELECT determination_code FROM event WHERE bloom_report_id=%s", (rid,)).fetchone()
+    assert code["determination_code"] == "non_hab_algae"
+
+
 def test_cross_region_requires_confirmation(app_client, conn):
     _login(app_client, "staff@wb.ca.gov", "staffpw")
     # Region-5 staffer files for Region 1 without confirming -> warning, not created.

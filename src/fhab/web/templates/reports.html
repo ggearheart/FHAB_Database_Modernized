@@ -5,18 +5,27 @@
 <div class="card">
   <p class="muted">Filtered by your role and region via database access control.</p>
   <table>
-    <tr><th>Report ID</th><th>Water body</th><th>Region</th><th>Observed</th><th>Status</th><th>Type</th></tr>
+    <tr><th>Report ID</th><th>Water body</th><th>Region</th><th>Observed</th><th>Outcome / determination</th></tr>
     {% for r in rows %}
     <tr>
       <td>{{ r.bloom_report_id }}</td>
       <td>{{ r.water_body_name or '—' }}</td>
       <td>{{ r.regional_water_board or '—' }}</td>
       <td>{{ r.observation_date or '—' }}</td>
-      <td>{{ r.event_status }}</td>
-      <td>{{ r.report_type or '—' }}</td>
+      <td>
+        <form method="post" action="{{ url_for('set_determination', brid=r.bloom_report_id) }}" style="display:flex; gap:.3rem">
+          <select name="determination_code" style="width:auto" onchange="this.form.submit()">
+            <option value="">— not recorded —</option>
+            {% for d in determinations %}
+            <option value="{{ d.code }}" {% if r.determination_code==d.code %}selected{% endif %}>{{ d.label }}</option>
+            {% endfor %}
+          </select>
+          <button class="secondary" title="Save">Set</button>
+        </form>
+      </td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="muted">No reports visible to your role.</td></tr>
+    <tr><td colspan="5" class="muted">No reports visible to your role.</td></tr>
     {% endfor %}
   </table>
 </div>

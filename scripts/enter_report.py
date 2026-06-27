@@ -65,6 +65,7 @@ def main() -> None:
     p.add_argument("--bloom-location")
     p.add_argument("--bloom-texture")
     p.add_argument("--description")
+    p.add_argument("--determination", help="Outcome code (e.g. confirmed_hab, red_tide, non_hab_algae, spill).")
     p.add_argument("--owner-org", help="Owning organization (for contributor-submitted reports).")
     p.add_argument("--yes", "-y", action="store_true",
                    help="Skip the cross-region confirmation prompt.")
@@ -92,6 +93,7 @@ def main() -> None:
             report_type=args.report_type, bloom_type=args.bloom_type, bloom_size=args.bloom_size,
             bloom_location=args.bloom_location, bloom_texture=args.bloom_texture,
             description=args.description, owner_org=args.owner_org,
+            determination=args.determination,
         )
     except psycopg.errors.InsufficientPrivilege:
         sys.exit(f"Access denied: {args.email} may not file this report (role/region/owner policy).")
