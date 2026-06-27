@@ -11,6 +11,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 
 import psycopg
+from werkzeug.security import check_password_hash, generate_password_hash
 
 
 def create_user(conn: psycopg.Connection, email: str, full_name: str | None = None,
@@ -25,6 +26,37 @@ def create_user(conn: psycopg.Connection, email: str, full_name: str | None = No
     ).fetchone()
     conn.commit()
     return row["id"]
+
+
+def set_password(conn: psycopg.Connection, user_id: int, password: str) -> None:
+    """Set a user's password (hashed)."""
+    conn.execute("UPDATE app_user SET password_hash = %s WHERE id = %s",
+                 (generate_password_hash(password), user_id))
+    conn.commit()
+
+
+def authenticate(conn: psycopg.Connection, email: str, password: str) -> dict | None:
+    """Return the user row if email/password match and the account is active, else None."""
+    row = conn.execute(
+        "SELECT id, email, full_name, password_hash, is_active FROM app_user WHERE email = %s",
+        (email,),
+    ).fetchone()
+    if not row or not row["is_active"] or not row["password_hash"]:
+        return None
+    if not check_password_hash(row["password_hash"], password):
+        return None
+    return row
+
+
+def list_roles_for(conn: psycopg.Connection, user_id: int) -> list[str]:
+    """Role codes held by a user."""
+    return [r["role_code"] for r in conn.execute(
+        "SELECT role_code FROM user_role WHERE user_id = %s", (user_id,)).fetchall()]
+
+
+def revoke_role(conn: psycopg.Connection, user_id: int, role_code: str) -> None:
+    conn.execute("DELETE FROM user_role WHERE user_id = %s AND role_code = %s", (user_id, role_code))
+    conn.commit()
 
 
 def grant_role(conn: psycopg.Connection, user_id: int, role_code: str, *,

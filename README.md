@@ -55,6 +55,20 @@ python scripts/enter_report.py --as jo@wb.ca.gov --ensure-role wb_staff \
   --lat 38.58 --lon -121.49 --bloom-type cyanobacteria --description "Green scum near the ramp."
 ```
 
+### Staff web app
+
+A Flask app for role-based account management and report data entry. Data operations run
+through the database's Row-Level Security as the logged-in user; account management is gated
+to `program_admin`.
+
+```bash
+python scripts/seed_admin.py --email admin@fhab.local --password "change-me" --name "Admin"
+python scripts/serve.py --port 5000            # then open http://127.0.0.1:5000
+```
+
+Sign in, then: enter reports (with the cross-region confirmation), browse RLS-filtered reports,
+and — as an admin — create accounts and grant/revoke roles. See [src/fhab/web/](src/fhab/web).
+
 Run the tests (creates/uses a `fhab_test` database):
 
 ```bash

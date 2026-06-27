@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block body %}
+<h1>Welcome, {{ session.name }}</h1>
+<div class="card">
+  <strong>Your roles:</strong>
+  {% for r in session.roles %}<span class="pill">{{ r }}</span>{% else %}<span class="muted">none</span>{% endfor %}
+  {% if regions %}<div class="muted" style="margin-top:.5rem">Region(s): {{ regions|join(', ') }}</div>{% endif %}
+</div>
+<div class="card">
+  <h1 style="font-size:1.05rem">Quick actions</h1>
+  <a class="btn" href="{{ url_for('new_report') }}">Enter a new report</a>
+  <a class="btn secondary" href="{{ url_for('reports') }}">View reports</a>
+  {% if 'program_admin' in session.roles %}
+    <a class="btn secondary" href="{{ url_for('admin_users') }}">Manage accounts</a>
+  {% endif %}
+</div>
+{% endblock %}

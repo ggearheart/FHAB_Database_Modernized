@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FHAB Staff — {% block title %}{% endblock %}</title>
+  <style>
+    :root { --green:#1f7a4d; --ink:#1c2b27; --line:#d7e0dc; --bg:#f5f8f6; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; color:var(--ink); background:var(--bg); }
+    header { background:var(--green); color:#fff; padding:.6rem 1rem; display:flex; gap:1rem; align-items:center; }
+    header a { color:#fff; text-decoration:none; opacity:.92; }
+    header a:hover { opacity:1; text-decoration:underline; }
+    header .brand { font-weight:700; }
+    header .spacer { flex:1; }
+    main { max-width:920px; margin:1.4rem auto; padding:0 1rem; }
+    h1 { font-size:1.3rem; margin:.2rem 0 1rem; }
+    .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:1.1rem 1.2rem; margin-bottom:1rem; }
+    table { width:100%; border-collapse:collapse; }
+    th,td { text-align:left; padding:.5rem .6rem; border-bottom:1px solid var(--line); font-size:.93rem; }
+    th { color:#5b6b65; font-weight:600; }
+    label { display:block; font-size:.85rem; color:#5b6b65; margin:.6rem 0 .15rem; }
+    input,select,textarea { width:100%; padding:.45rem .55rem; border:1px solid var(--line); border-radius:6px; font:inherit; }
+    .row { display:flex; gap:1rem; } .row > div { flex:1; }
+    button,.btn { background:var(--green); color:#fff; border:0; border-radius:6px; padding:.5rem .9rem; font:inherit; cursor:pointer; text-decoration:none; display:inline-block; }
+    button.secondary { background:#6b7c76; }
+    .pill { display:inline-block; background:#e7efe9; color:#28523f; border-radius:999px; padding:.08rem .55rem; font-size:.78rem; margin:0 .15rem .15rem 0; }
+    .flash { padding:.6rem .9rem; border-radius:6px; margin-bottom:1rem; }
+    .flash.ok { background:#e3f4ea; color:#1c5e3c; } .flash.error { background:#fbe6e6; color:#9b2226; }
+    .warn { background:#fff6e0; border:1px solid #f0d68a; color:#7a5b00; padding:.7rem .9rem; border-radius:6px; margin:.6rem 0; }
+    .muted { color:#7a8a84; font-size:.85rem; }
+  </style>
+</head>
+<body>
+  {% if session.uid %}
+  <header>
+    <span class="brand">FHAB Staff</span>
+    <a href="{{ url_for('dashboard') }}">Dashboard</a>
+    <a href="{{ url_for('reports') }}">Reports</a>
+    <a href="{{ url_for('new_report') }}">New report</a>
+    {% if 'program_admin' in session.roles %}<a href="{{ url_for('admin_users') }}">Accounts</a>{% endif %}
+    <span class="spacer"></span>
+    <span class="muted" style="color:#dff0e7">{{ session.name }}</span>
+    <a href="{{ url_for('logout') }}">Sign out</a>
+  </header>
+  {% endif %}
+  <main>
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+    {% endwith %}
+    {% block body %}{% endblock %}
+  </main>
+</body>
+</html>

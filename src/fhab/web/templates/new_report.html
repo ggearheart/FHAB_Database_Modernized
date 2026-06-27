@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}New report{% endblock %}
+{% block body %}
+<h1>Enter a new bloom report</h1>
+<div class="card">
+  <form method="post">
+    <div class="row">
+      <div>
+        <label>Water body name *</label>
+        <input name="waterbody" required value="{{ form.waterbody or '' }}">
+      </div>
+      <div>
+        <label>County</label>
+        <input name="county" value="{{ form.county or '' }}">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Regional Water Board</label>
+        <select name="region">
+          <option value="">— select —</option>
+          {% for r in regions %}<option value="{{ r }}" {% if form.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Observation date</label>
+        <input name="date" type="date" value="{{ form.date or '' }}">
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Latitude</label><input name="lat" value="{{ form.lat or '' }}"></div>
+      <div><label>Longitude</label><input name="lon" value="{{ form.lon or '' }}"></div>
+    </div>
+    <div class="row">
+      <div><label>Bloom type</label><input name="bloom_type" value="{{ form.bloom_type or '' }}"></div>
+      <div><label>Bloom size</label><input name="bloom_size" value="{{ form.bloom_size or '' }}"></div>
+    </div>
+    <label>Description</label>
+    <textarea name="description" rows="3">{{ form.description or '' }}</textarea>
+
+    {% if cross_warn %}
+    <div class="warn">
+      <strong>Heads up:</strong> you are entering a report on behalf of a different Regional Board.<br>
+      Your region(s): {{ cross_warn[0]|join(', ') }} &nbsp;•&nbsp; Report region: {{ cross_warn[1] }}.
+      <label style="display:flex; align-items:center; gap:.5rem; margin-top:.5rem; color:inherit">
+        <input type="checkbox" name="confirm_cross" value="1" style="width:auto"> I confirm entering for a different region.
+      </label>
+    </div>
+    {% endif %}
+    <p></p>
+    <button type="submit">Submit report</button>
+  </form>
+</div>
+{% endblock %}

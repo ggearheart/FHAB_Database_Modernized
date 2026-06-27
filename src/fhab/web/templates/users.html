@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Accounts{% endblock %}
+{% block body %}
+<h1>Accounts &amp; roles</h1>
+
+<div class="card">
+  <table>
+    <tr><th>Email</th><th>Name</th><th>Roles</th><th>Active</th><th></th></tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.email }}</td>
+      <td>{{ u.full_name or '—' }}</td>
+      <td>
+        {% for r in u.roles %}
+          <form method="post" action="{{ url_for('admin_revoke', uid=u.id) }}" style="display:inline">
+            <input type="hidden" name="role" value="{{ r }}">
+            <button class="pill" title="Revoke" style="border:0; cursor:pointer">{{ r }} ✕</button>
+          </form>
+        {% else %}<span class="muted">none</span>{% endfor %}
+      </td>
+      <td>{{ 'yes' if u.is_active else 'no' }}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin_grant', uid=u.id) }}" style="display:flex; gap:.3rem">
+          <select name="role" style="width:auto">
+            {% for r in roles %}<option value="{{ r.code }}">{{ r.code }}</option>{% endfor %}
+          </select>
+          <input name="region" placeholder="region (opt)" style="width:140px">
+          <input name="org" placeholder="org (opt)" style="width:110px">
+          <button class="secondary">Grant</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Create account</h1>
+  <form method="post" action="{{ url_for('admin_create_user') }}">
+    <div class="row">
+      <div><label>Email *</label><input name="email" type="email" required></div>
+      <div><label>Full name</label><input name="full_name"></div>
+    </div>
+    <div class="row">
+      <div><label>Temporary password</label><input name="password" type="text"></div>
+      <div><label>Role</label>
+        <select name="role">
+          <option value="">— none —</option>
+          {% for r in roles %}<option value="{{ r.code }}">{{ r.name }} ({{ r.category }})</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Region scope (for wb_staff)</label>
+        <select name="region"><option value="">—</option>
+          {% for r in regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Org scope (for contributors)</label><input name="org"></div>
+    </div>
+    <p></p>
+    <button>Create account</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block body %}
+<div class="card" style="max-width:380px; margin:3rem auto;">
+  <h1>FHAB Staff sign in</h1>
+  <form method="post">
+    <label>Email</label>
+    <input name="email" type="email" autofocus required>
+    <label>Password</label>
+    <input name="password" type="password" required>
+    <p></p>
+    <button type="submit">Sign in</button>
+  </form>
+</div>
+{% endblock %}

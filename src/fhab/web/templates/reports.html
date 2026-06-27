@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block body %}
+<h1>Reports you can see <span class="muted">({{ rows|length }})</span></h1>
+<div class="card">
+  <p class="muted">Filtered by your role and region via database access control.</p>
+  <table>
+    <tr><th>Report ID</th><th>Water body</th><th>Region</th><th>Observed</th><th>Status</th><th>Type</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.bloom_report_id }}</td>
+      <td>{{ r.water_body_name or '—' }}</td>
+      <td>{{ r.regional_water_board or '—' }}</td>
+      <td>{{ r.observation_date or '—' }}</td>
+      <td>{{ r.event_status }}</td>
+      <td>{{ r.report_type or '—' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">No reports visible to your role.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

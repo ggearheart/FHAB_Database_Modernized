@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "fhab-web",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-lc", "FHAB_DATABASE_URL='dbname=fhab host=/tmp port=5432' exec python3 scripts/serve.py --port 5057"],
+      "port": 5057
+    }
+  ]
+}

@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS app_user (
     is_active      boolean NOT NULL DEFAULT true,
     created_at     timestamptz NOT NULL DEFAULT now()
 );
+-- Password for the staff web app (idempotent so existing databases pick it up).
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS password_hash text;
 
 CREATE TABLE IF NOT EXISTS role (
     code        text PRIMARY KEY,
