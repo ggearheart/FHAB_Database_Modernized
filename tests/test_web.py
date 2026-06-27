@@ -126,6 +126,18 @@ def test_batch_update_outcomes(app_client, conn):
     assert codes == {"no_bloom"}
 
 
+def test_batch_filters_by_outcome(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    from fhab.reports import enter_report
+    staff = conn.execute("SELECT id FROM app_user WHERE email='staff@wb.ca.gov'").fetchone()["id"]
+    enter_report(conn, staff, water_body_name="Confirmed Lake", region=R5, determination="confirmed_hab")
+    enter_report(conn, staff, water_body_name="Algae Pond", region=R5, determination="non_hab_algae")
+
+    r = app_client.get("/batch?outcome=confirmed_hab")
+    assert b"Confirmed Lake" in r.data
+    assert b"Algae Pond" not in r.data
+
+
 def test_non_staff_cannot_batch(app_client, conn):
     pub = create_user(conn, "viewer@public.org"); grant_role(conn, pub, "public")
     from fhab.auth import set_password

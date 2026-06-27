@@ -5,14 +5,22 @@
 <div class="card">
   <p class="muted">Select reports and set their final outcome in one action — e.g. resolve all
     reports in a case. Updates respect your role and region.</p>
-  <form method="get" style="display:flex; gap:.4rem; align-items:flex-end; margin-bottom:.4rem">
-    <div><label>Filter by Case ID</label><input name="case" value="{{ case_filter }}" style="width:160px"></div>
+  <form method="get" style="display:flex; gap:.6rem; align-items:flex-end; margin-bottom:.4rem">
+    <div><label>Filter by Case ID</label><input name="case" value="{{ case_filter }}" style="width:140px"></div>
+    <div><label>Filter by outcome</label>
+      <select name="outcome" style="width:auto">
+        <option value="">All outcomes</option>
+        <option value="__none__" {% if outcome_filter=='__none__' %}selected{% endif %}>Not recorded</option>
+        {% for d in determinations %}<option value="{{ d.code }}" {% if outcome_filter==d.code %}selected{% endif %}>{{ d.label }}</option>{% endfor %}
+      </select>
+    </div>
     <button class="secondary">Filter</button>
-    {% if case_filter %}<a class="muted" href="{{ url_for('batch_determination') }}" style="align-self:center">clear</a>{% endif %}
+    {% if case_filter or outcome_filter %}<a class="muted" href="{{ url_for('batch_determination') }}" style="align-self:center">clear</a>{% endif %}
   </form>
 
   <form method="post">
     <input type="hidden" name="case" value="{{ case_filter }}">
+    <input type="hidden" name="outcome" value="{{ outcome_filter }}">
     <div style="display:flex; gap:.6rem; align-items:flex-end; margin:.4rem 0">
       <div><label>Set outcome to</label>
         <select name="determination_code">

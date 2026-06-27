@@ -215,27 +215,30 @@ def create_app(dsn: str | None = None) -> Flask:
                     flash("Could not update: " + str(exc).splitlines()[0], "error")
             else:
                 flash("No reports selected.", "error")
-            return redirect(url_for("batch_determination", case=request.form.get("case") or None))
+            return redirect(url_for("batch_determination", case=request.form.get("case") or None,
+                                    outcome=request.form.get("outcome") or None))
 
         case_filter = (request.args.get("case") or "").strip()
+        outcome_filter = (request.args.get("outcome") or "").strip()
+        conds, params = [], []
+        if case_filter.isdigit():
+            conds.append("e.case_id = %s"); params.append(int(case_filter))
+        if outcome_filter == "__none__":
+            conds.append("e.determination_code IS NULL")
+        elif outcome_filter:
+            conds.append("e.determination_code = %s"); params.append(outcome_filter)
+        where = ("WHERE " + " AND ".join(conds)) if conds else ""
         conn = db()
         with acting_as(conn, session["uid"]):
-            if case_filter.isdigit():
-                rows = conn.execute(
-                    """SELECT e.bloom_report_id, w.water_body_name, w.regional_water_board,
-                              e.determination_code, e.case_id
-                       FROM event e LEFT JOIN location l ON l.id = e.location_id
-                       LEFT JOIN waterbody w ON w.id = l.waterbody_id
-                       WHERE e.case_id = %s ORDER BY e.bloom_report_id""", (int(case_filter),)).fetchall()
-            else:
-                rows = conn.execute(
-                    """SELECT e.bloom_report_id, w.water_body_name, w.regional_water_board,
-                              e.determination_code, e.case_id
-                       FROM event e LEFT JOIN location l ON l.id = e.location_id
-                       LEFT JOIN waterbody w ON w.id = l.waterbody_id
-                       ORDER BY e.bloom_report_id DESC LIMIT 200""").fetchall()
+            rows = conn.execute(
+                f"""SELECT e.bloom_report_id, w.water_body_name, w.regional_water_board,
+                           e.determination_code, e.case_id
+                    FROM event e LEFT JOIN location l ON l.id = e.location_id
+                    LEFT JOIN waterbody w ON w.id = l.waterbody_id
+                    {where}
+                    ORDER BY e.bloom_report_id DESC LIMIT 200""", params).fetchall()
         return render_template("batch.html", rows=rows, determinations=_determinations(),
-                               case_filter=case_filter)
+                               case_filter=case_filter, outcome_filter=outcome_filter)
 
     @app.route("/map")
     @login_required
