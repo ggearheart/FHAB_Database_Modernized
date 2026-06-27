@@ -19,7 +19,44 @@ from ..auth import (acting_as, authenticate, create_user, grant_role, list_roles
                     revoke_role, set_password, user_regions)
 from ..ceden import load_ceden_output, load_chemistry_for_event
 from ..db import DEFAULT_DSN, connect
+from ..geo import GEOCONNEX
 from ..reports import add_response, add_result, enter_report, update_report
+
+
+def report_locations(conn, brid):
+    """Every location source for a report: reporting point, CEDEN station(s), sample point(s),
+    each with its HUC-12 watershed and GeoConnex PID (proposed if not yet minted)."""
+    out = []
+    rep = conn.execute(
+        """SELECT ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon, l.huc12, l.landmark, e.geoconnex_uri
+           FROM event e JOIN location l ON l.id = e.location_id
+           WHERE e.bloom_report_id = %s AND l.geom IS NOT NULL""", (brid,)).fetchone()
+    if rep:
+        out.append({"kind": "Reporting location", "label": rep["landmark"] or "Report point",
+                    "lat": rep["lat"], "lon": rep["lon"], "huc12": (rep["huc12"] or "").strip() or None,
+                    "pid": rep["geoconnex_uri"] or f"{GEOCONNEX}/events/{brid}",
+                    "minted": bool(rep["geoconnex_uri"]), "color": "#2563eb"})
+    for st in conn.execute(
+        """SELECT DISTINCT st.id, st.station_code, st.station_name, ST_Y(st.geom) AS lat,
+                  ST_X(st.geom) AS lon, st.huc12, st.geoconnex_uri
+           FROM sample s JOIN station st ON st.id = s.station_id
+           WHERE s.bloom_report_id = %s AND st.geom IS NOT NULL
+           ORDER BY st.station_code""", (brid,)).fetchall():
+        label = (st["station_code"] or "")
+        if st["station_name"]:
+            label = f"{label} — {st['station_name']}".strip(" —")
+        out.append({"kind": "CEDEN station", "label": label or "Station",
+                    "lat": st["lat"], "lon": st["lon"], "huc12": (st["huc12"] or "").strip() or None,
+                    "pid": st["geoconnex_uri"] or f"{GEOCONNEX}/sites/{st['id']}",
+                    "minted": bool(st["geoconnex_uri"]), "color": "#2e8b57"})
+    for sl in conn.execute(
+        """SELECT DISTINCT l.id, ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon, l.huc12
+           FROM sample s JOIN location l ON l.id = s.location_id
+           WHERE s.bloom_report_id = %s AND l.geom IS NOT NULL""", (brid,)).fetchall():
+        out.append({"kind": "Sample location", "label": "Sample point",
+                    "lat": sl["lat"], "lon": sl["lon"], "huc12": (sl["huc12"] or "").strip() or None,
+                    "pid": None, "minted": False, "color": "#b35900"})
+    return out
 
 
 def create_app(dsn: str | None = None) -> Flask:
@@ -235,8 +272,10 @@ def create_app(dsn: str | None = None) -> Flask:
                     """SELECT case_id, case_class, case_status, case_lead, case_year,
                               case_start_date, case_end_date
                        FROM hab_case WHERE case_id = %s""", (ev["case_id"],)).fetchone()
+            locations = report_locations(conn, brid)
         return render_template("report_detail.html", ev=ev, results=results, responses=responses,
-                               case=case, determinations=_determinations(), analytes=_analytes(),
+                               case=case, locations=locations,
+                               determinations=_determinations(), analytes=_analytes(),
                                data_types=DATA_TYPES, recommended_advisories=_recommended_advisories(),
                                response_categories=RESPONSE_CATEGORIES)
 

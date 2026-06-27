@@ -179,6 +179,22 @@ def test_batch_filters_by_outcome(app_client, conn):
     assert b"Algae Pond" not in r.data
 
 
+def test_report_detail_shows_locations_and_geoconnex(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    app_client.post("/reports/new", data={"waterbody": "Loc Pond", "region": R5,
+                                          "lat": "38.6", "lon": "-121.5"}, follow_redirects=True)
+    rid = conn.execute(
+        "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
+        "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name='Loc Pond'"
+    ).fetchone()["bloom_report_id"]
+    r = app_client.get(f"/reports/{rid}")
+    assert b"Locations &amp; GeoConnex" in r.data
+    assert b"Reporting location" in r.data
+    # The proposed event PID shows even though it is not minted.
+    assert f"https://geoconnex.us/ca-fhab/events/{rid}".encode() in r.data
+    assert b"proposed" in r.data
+
+
 def test_dashboard_shows_recent_worked_reports(app_client, conn):
     _login(app_client, "staff@wb.ca.gov", "staffpw")
     # Work on two reports.

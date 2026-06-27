@@ -37,6 +37,57 @@
   </form>
 </div>
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<div class="card">
+  <h1 style="font-size:1.05rem">Locations &amp; GeoConnex</h1>
+  <p class="muted">Every location source for this report — reporting point, CEDEN station(s), and
+    sample point(s) — with its HUC-12 watershed and GeoConnex persistent identifier
+    (<em>proposed</em> if not yet minted).</p>
+  <table>
+    <tr><th>Source</th><th>Label</th><th>Lat</th><th>Lon</th><th>Watershed (HUC-12)</th><th>GeoConnex PID</th></tr>
+    {% for loc in locations %}
+    <tr>
+      <td><span style="display:inline-block;width:.7rem;height:.7rem;border-radius:50%;background:{{ loc.color }};margin-right:.35rem;vertical-align:middle"></span>{{ loc.kind }}</td>
+      <td>{{ loc.label or '—' }}</td>
+      <td>{{ '%.5f'|format(loc.lat) }}</td>
+      <td>{{ '%.5f'|format(loc.lon) }}</td>
+      <td>{% if loc.huc12 %}<a href="https://geoconnex.us/ref/hu12/{{ loc.huc12 }}" target="_blank">{{ loc.huc12 }}</a>{% else %}—{% endif %}</td>
+      <td>{% if loc.pid %}<a href="{{ loc.pid }}" target="_blank">{{ loc.pid }}</a>
+          <span class="pill" style="background:{{ '#e3f4ea' if loc.minted else '#fff6e0' }}">{{ 'minted' if loc.minted else 'proposed' }}</span>{% else %}—{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">No mapped locations for this report.</td></tr>
+    {% endfor %}
+  </table>
+  {% if locations %}
+  <div id="locmap" style="height:300px; margin-top:.8rem; border:1px solid var(--line); border-radius:6px"></div>
+  <script id="locdata" type="application/json">{{ locations|tojson }}</script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+  window.addEventListener('load', function () {
+    if (typeof L === 'undefined') return;
+    var locs = JSON.parse(document.getElementById('locdata').textContent);
+    var map = L.map('locmap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(map);
+    var pts = [];
+    locs.forEach(function (p) {
+      if (p.lat == null || p.lon == null) return;
+      L.circleMarker([p.lat, p.lon], { radius: 7, weight: 2, color: '#fff',
+          fillColor: p.color, fillOpacity: 0.95 })
+        .bindPopup('<b>' + p.kind + '</b><br>' + (p.label || '') + '<br>'
+          + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5)
+          + (p.pid ? '<br>PID: ' + p.pid + (p.minted ? '' : ' (proposed)') : ''))
+        .addTo(map);
+      pts.push([p.lat, p.lon]);
+    });
+    if (pts.length === 1) map.setView(pts[0], 14);
+    else if (pts.length > 1) map.fitBounds(pts, { padding: [30, 30], maxZoom: 15 });
+  });
+  </script>
+  {% endif %}
+</div>
+
 <div class="card">
   <h1 style="font-size:1.05rem">Field &amp; lab results <span class="muted">({{ results|length }})</span></h1>
   <table>
