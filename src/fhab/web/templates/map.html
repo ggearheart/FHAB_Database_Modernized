@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Map{% endblock %}
+{% block body %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<h1>Report map</h1>
+<div class="card" style="padding:0; overflow:hidden">
+  <div id="map" style="height:68vh; width:100%"></div>
+</div>
+<div class="card">
+  <strong>Outcome / determination</strong>
+  <div id="legend" class="muted" style="margin-top:.4rem; display:flex; flex-wrap:wrap; gap:.8rem"></div>
+  <p class="muted" id="count" style="margin-top:.5rem"></p>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const COLORS = {
+  confirmed_hab:'#c0392b', red_tide:'#b35900', non_hab_algae:'#2e8b57',
+  spill:'#7d3c98', other_wq:'#2874a6', no_bloom:'#7f8c8d', under_investigation:'#f1c40f'
+};
+const LABELS = {
+  confirmed_hab:'Confirmed HAB', red_tide:'Red tide', non_hab_algae:'Non-HAB algae',
+  spill:'Spill / discharge', other_wq:'Other WQ issue', no_bloom:'No bloom',
+  under_investigation:'Under investigation / not recorded'
+};
+const colorFor = p => COLORS[p.determination_code] || COLORS.under_investigation;
+
+const map = L.map('map').setView([37.5, -120.0], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'© OpenStreetMap contributors', maxZoom:18
+}).addTo(map);
+
+// legend
+const leg = document.getElementById('legend');
+Object.keys(LABELS).forEach(k => {
+  const el = document.createElement('span');
+  el.innerHTML = `<span style="display:inline-block;width:.7rem;height:.7rem;border-radius:50%;`
+    + `background:${COLORS[k]};margin-right:.3rem;vertical-align:middle"></span>${LABELS[k]}`;
+  leg.appendChild(el);
+});
+
+fetch('{{ url_for("reports_geojson") }}').then(r => r.json()).then(fc => {
+  const layer = L.geoJSON(fc, {
+    pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+      radius:6, weight:1, color:'#fff', fillColor:colorFor(f.properties), fillOpacity:0.9
+    }),
+    onEachFeature: (f, lyr) => {
+      const p = f.properties;
+      lyr.bindPopup(
+        `<b><a href="/reports/${p.bloom_report_id}">Report ${p.bloom_report_id}</a></b><br>`
+        + `${p.water_body_name || '—'}<br>`
+        + `<span style="color:#777">${p.regional_water_board || ''}</span><br>`
+        + `Observed: ${p.obs || '—'}<br>`
+        + `Outcome: ${p.det_label || 'not recorded'}<br>`
+        + (p.advisory ? `Advisory: <b>${p.advisory}</b><br>` : '')
+        + `Case: ${p.case_id || '—'} · Responses: ${p.responses} · Results: ${p.results}`
+      );
+    }
+  }).addTo(map);
+  document.getElementById('count').textContent = `${fc.features.length} report(s) shown (your role/region).`;
+  if (fc.features.length) map.fitBounds(layer.getBounds().pad(0.1));
+});
+</script>
+{% endblock %}

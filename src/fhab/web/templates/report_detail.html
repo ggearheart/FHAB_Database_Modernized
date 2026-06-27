@@ -58,6 +58,31 @@
 </div>
 
 <div class="card">
+  <h1 style="font-size:1.05rem">Responses &amp; case</h1>
+  {% if case %}
+  <p>Part of <strong>Case {{ case.case_id }}</strong>{% if case.case_class %} ({{ case.case_class }}){% endif %} —
+     status {{ case.case_status or '—' }}{% if case.case_lead %}, lead {{ case.case_lead }}{% endif %}{% if case.case_year %}, {{ case.case_year }}{% endif %}.</p>
+  {% else %}
+  <p class="muted">Not assigned to a case.</p>
+  {% endif %}
+  <table>
+    <tr><th>Response</th><th>Category / type</th><th>Advisory</th><th>Posted</th><th>Start</th><th>End</th></tr>
+    {% for r in responses %}
+    <tr>
+      <td>{{ r.response_action_id }}</td>
+      <td>{{ r.response_category or '—' }}{% if r.response_type %} / {{ r.response_type }}{% endif %}</td>
+      <td>{{ r.advisory_recommended or '—' }}</td>
+      <td>{{ 'yes' if r.display_advisory_on_map else '—' }}</td>
+      <td>{{ r.advisory_start_date or '—' }}</td>
+      <td>{{ r.advisory_end_date or '—' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">No responses or advisories recorded yet.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
   <h1 style="font-size:1.05rem">Add a sample / result</h1>
   <p class="muted">Record a field measurement, field observation, or lab analysis for this report.</p>
   <form method="post" action="{{ url_for('add_report_result', brid=ev.bloom_report_id) }}">

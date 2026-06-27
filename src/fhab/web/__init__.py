@@ -11,7 +11,7 @@ import os
 from functools import wraps
 
 import psycopg
-from flask import (Flask, flash, g, redirect, render_template, request, session, url_for)
+from flask import (Flask, flash, g, jsonify, redirect, render_template, request, session, url_for)
 
 from ..auth import (acting_as, authenticate, create_user, grant_role, list_roles_for,
                     revoke_role, set_password, user_regions)
@@ -148,7 +148,8 @@ def create_app(dsn: str | None = None) -> Flask:
                 """SELECT e.bloom_report_id, e.observation_date, e.report_type, e.event_status,
                           e.determination_code, e.bloom_type, e.bloom_size, e.bloom_location,
                           e.bloom_texture, e.surface_water_condition, e.weather_condition,
-                          e.bloom_description, w.water_body_name, w.regional_water_board, w.county
+                          e.bloom_description, e.case_id,
+                          w.water_body_name, w.regional_water_board, w.county
                    FROM event e
                    LEFT JOIN location l ON l.id = e.location_id
                    LEFT JOIN waterbody w ON w.id = l.waterbody_id
@@ -164,9 +165,59 @@ def create_app(dsn: str | None = None) -> Flask:
                    LEFT JOIN analyte an ON an.id = r.analyte_id
                    WHERE s.bloom_report_id = %s ORDER BY s.sample_date DESC NULLS LAST""",
                 (brid,)).fetchall()
-        return render_template("report_detail.html", ev=ev, results=results,
-                               determinations=_determinations(), analytes=_analytes(),
+            responses = conn.execute(
+                """SELECT r.response_action_id, r.response_category, r.response_type,
+                          a.advisory_recommended, a.advisory_start_date, a.advisory_end_date,
+                          a.display_advisory_on_map
+                   FROM response r LEFT JOIN advisory a ON a.response_action_id = r.response_action_id
+                   WHERE r.bloom_report_id = %s ORDER BY r.response_action_id""", (brid,)).fetchall()
+            case = None
+            if ev["case_id"]:
+                case = conn.execute(
+                    """SELECT case_id, case_class, case_status, case_lead, case_year,
+                              case_start_date, case_end_date
+                       FROM hab_case WHERE case_id = %s""", (ev["case_id"],)).fetchone()
+        return render_template("report_detail.html", ev=ev, results=results, responses=responses,
+                               case=case, determinations=_determinations(), analytes=_analytes(),
                                data_types=DATA_TYPES)
+
+    @app.route("/map")
+    @login_required
+    def report_map():
+        return render_template("map.html")
+
+    @app.route("/api/reports.geojson")
+    @login_required
+    def reports_geojson():
+        conn = db()
+        with acting_as(conn, session["uid"]):
+            rows = conn.execute(
+                """SELECT e.bloom_report_id, ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon,
+                          w.water_body_name, w.regional_water_board, e.observation_date::text AS obs,
+                          e.event_status, e.determination_code, rd.label AS det_label, e.case_id,
+                          (SELECT count(*) FROM response r WHERE r.bloom_report_id = e.bloom_report_id) AS responses,
+                          (SELECT count(*) FROM sample s JOIN result rs ON rs.sample_id = s.id
+                             WHERE s.bloom_report_id = e.bloom_report_id) AS results,
+                          (SELECT a.advisory_recommended FROM response r
+                             JOIN advisory a ON a.response_action_id = r.response_action_id
+                             WHERE r.bloom_report_id = e.bloom_report_id AND a.display_advisory_on_map
+                             ORDER BY a.advisory_start_date DESC NULLS LAST LIMIT 1) AS advisory
+                   FROM event e
+                   JOIN location l ON l.id = e.location_id
+                   LEFT JOIN waterbody w ON w.id = l.waterbody_id
+                   LEFT JOIN report_determination rd ON rd.code = e.determination_code
+                   WHERE l.geom IS NOT NULL
+                   ORDER BY e.bloom_report_id DESC LIMIT 2000"""
+            ).fetchall()
+        props = ("bloom_report_id", "water_body_name", "regional_water_board", "obs",
+                 "event_status", "determination_code", "det_label", "case_id",
+                 "responses", "results", "advisory")
+        features = [{
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]},
+            "properties": {k: r[k] for k in props},
+        } for r in rows]
+        return jsonify({"type": "FeatureCollection", "features": features})
 
     @app.route("/reports/<int:brid>/edit", methods=["POST"])
     @login_required

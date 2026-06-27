@@ -37,6 +37,7 @@
     <span class="brand">FHAB Staff</span>
     <a href="{{ url_for('dashboard') }}">Dashboard</a>
     <a href="{{ url_for('reports') }}">Reports</a>
+    <a href="{{ url_for('report_map') }}">Map</a>
     <a href="{{ url_for('new_report') }}">New report</a>
     {% if 'program_admin' in session.roles %}<a href="{{ url_for('admin_users') }}">Accounts</a>{% endif %}
     <span class="spacer"></span>

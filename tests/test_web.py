@@ -106,6 +106,39 @@ def test_report_detail_page_and_add_result(app_client, conn):
     assert n == 1
 
 
+def test_map_page_and_geojson(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    # A report with a point in Region 5.
+    app_client.post("/reports/new", data={"waterbody": "Map Pond", "region": R5,
+                                          "lat": "38.6", "lon": "-121.5"}, follow_redirects=True)
+    assert app_client.get("/map").status_code == 200
+
+    import json
+    fc = json.loads(app_client.get("/api/reports.geojson").data)
+    assert fc["type"] == "FeatureCollection"
+    names = {f["properties"]["water_body_name"] for f in fc["features"]}
+    assert "Map Pond" in names
+    feat = next(f for f in fc["features"] if f["properties"]["water_body_name"] == "Map Pond")
+    assert feat["geometry"]["type"] == "Point"
+    assert -125 < feat["geometry"]["coordinates"][0] < -110  # lon
+
+
+def test_geojson_is_rls_filtered(app_client, conn):
+    # A Region-1 report shouldn't appear for a Region-5 staffer (no published advisory).
+    wb = conn.execute(
+        "INSERT INTO waterbody (water_body_name, regional_water_board) VALUES ('R1 Secret', %s) RETURNING id",
+        (R1,)).fetchone()["id"]
+    loc = conn.execute(
+        "INSERT INTO location (waterbody_id, geom) VALUES (%s, ST_SetSRID(ST_MakePoint(-124,41),4326)) RETURNING id",
+        (wb,)).fetchone()["id"]
+    conn.execute("INSERT INTO event (bloom_report_id, location_id) VALUES (88001, %s)", (loc,))
+    conn.commit()
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    import json
+    fc = json.loads(app_client.get("/api/reports.geojson").data)
+    assert "R1 Secret" not in {f["properties"]["water_body_name"] for f in fc["features"]}
+
+
 def test_staff_sets_report_determination(app_client, conn):
     _login(app_client, "staff@wb.ca.gov", "staffpw")
     app_client.post("/reports/new", data={"waterbody": "Outcome Pond", "region": R5},
