@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Batch {{ batch.id }}{% endblock %}
+{% block body %}
+<h1>Lab batch {{ batch.id }} <span class="muted">{{ batch.filename or '' }}</span></h1>
+<p class="muted">{{ batch.n_groups }} sample groups · {{ batch.n_results }} results ·
+  matching {{ batch.match_radius_m }} m / ±{{ batch.match_days }} days.
+  <a href="{{ url_for('lab_reconcile') }}">← all batches</a></p>
+
+<div class="card">
+  <form method="post" action="{{ url_for('lab_batch_auto', bid=batch.id) }}">
+    <p class="muted" style="margin-top:0">Auto-link the groups whose top candidate is both
+      confident and unambiguous; review the rest by hand below.</p>
+    <button>Auto-link high-confidence groups</button>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Sample groups</h1>
+  <table>
+    <tr><th>Station</th><th>Sample date</th><th>Results</th><th>Geocoded?</th><th>Status</th><th></th></tr>
+    {% for s in samples %}
+    <tr>
+      <td>{{ s.station_code or '—' }}</td>
+      <td>{{ s.sample_date or '—' }}</td>
+      <td>{{ s.n_results }}</td>
+      <td>{% if s.has_geom %}<span class="pill" style="background:#e3f4ea">yes</span>{% else %}<span class="pill" style="background:#fbe6e6">no coords</span>{% endif %}</td>
+      <td>{% if s.status=='linked' %}<span class="pill" style="background:#e3f4ea">linked → R{{ s.linked_event or '?' }}</span>
+          {% elif s.status=='skipped' %}<span class="pill" style="background:#eee">set aside</span>
+          {% else %}<span class="pill" style="background:#fff6e0">to review</span>{% endif %}</td>
+      <td><a class="btn" style="padding:.3rem .7rem" href="{{ url_for('lab_stage', bid=batch.id, sid=s.id) }}">Reconcile</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">No staged sample groups.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

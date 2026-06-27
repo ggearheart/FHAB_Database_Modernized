@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Lab batch reconciliation{% endblock %}
+{% block body %}
+<h1>Lab batch reconciliation</h1>
+<div class="card">
+  <p class="muted">Upload a full <strong>CEDEN chemistry template</strong> (StationCode + Sample
+    Date is the only link to an event). The file is <em>staged</em> — nothing is attached to live
+    reports until you confirm each sample group. The matcher suggests candidate reports within the
+    distance/date windows below; you can widen them per batch.</p>
+  <form method="post" enctype="multipart/form-data">
+    <div class="row">
+      <div><label>CEDEN chemistry CSV *</label><input type="file" name="batch_file" accept=".csv" required></div>
+      <div><label>Match radius (m)</label><input name="radius_m" value="2000" inputmode="numeric"></div>
+      <div><label>Match window (± days)</label><input name="days" value="14" inputmode="numeric"></div>
+    </div>
+    <p></p>
+    <button>Stage batch</button>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Recent batches</h1>
+  <table>
+    <tr><th>Batch</th><th>File</th><th>Uploaded</th><th>Window</th><th>Groups</th><th>Linked</th><th>To review</th></tr>
+    {% for b in batches %}
+    <tr>
+      <td><a href="{{ url_for('lab_batch', bid=b.id) }}">{{ b.id }}</a></td>
+      <td>{{ b.filename or '—' }}</td>
+      <td>{{ b.uploaded_at.strftime('%Y-%m-%d %H:%M') if b.uploaded_at else '—' }}</td>
+      <td>{{ b.match_radius_m }} m / ±{{ b.match_days }} d</td>
+      <td>{{ b.n_groups }}</td>
+      <td>{{ b.linked }}</td>
+      <td>{{ b.unmatched }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">No batches staged yet.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

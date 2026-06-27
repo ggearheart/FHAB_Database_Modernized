@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Reconcile sample{% endblock %}
+{% block body %}
+<h1>Reconcile sample group</h1>
+<p class="muted">Station <strong>{{ ss.station_code or '—' }}</strong>
+  {%- if ss.station_name %} ({{ ss.station_name }}){% endif %} ·
+  sampled {{ ss.sample_date or '—' }} ·
+  <a href="{{ url_for('lab_batch', bid=bid) }}">← back to batch {{ bid }}</a></p>
+
+{% if not ss.has_geom %}
+<div class="warn">This station has no coordinates, so no spatial candidates can be suggested.
+  Link it by report/case ID below, or create a report once the station is geocoded.</div>
+{% endif %}
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Lab results in this group <span class="muted">({{ results|length }})</span></h1>
+  <table>
+    <tr><th>Analyte</th><th>Method</th><th>Result</th><th>Qual</th><th>Unit</th></tr>
+    {% for r in results %}
+    <tr><td>{{ r.analyte_name or '—' }}</td><td>{{ r.method_name or '—' }}</td>
+        <td>{{ r.result or '—' }}</td><td>{{ r.res_qual_code or '' }}</td><td>{{ r.unit_name or '' }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<div class="card">
+  <h1 style="font-size:1.05rem">Candidate reports <span class="muted">({{ cands|length }})</span></h1>
+  {% if cands %}
+  <table>
+    <tr><th>Score</th><th>Report</th><th>Water body</th><th>Region</th><th>Observed</th><th>Distance</th><th>Date gap</th><th></th></tr>
+    {% for c in cands %}
+    <tr>
+      <td><strong>{{ '%.0f'|format(c.score*100) }}</strong></td>
+      <td><a href="{{ url_for('report_detail', brid=c.bloom_report_id) }}" target="_blank">R{{ c.bloom_report_id }}</a>{% if c.case_id %} · C{{ c.case_id }}{% endif %}</td>
+      <td>{{ c.water_body_name or '—' }}</td>
+      <td>{{ c.region or '—' }}</td>
+      <td>{{ c.observation_date }}</td>
+      <td>{{ c.dist_m }} m</td>
+      <td>{{ c.day_gap }} d</td>
+      <td>
+        <form method="post" action="{{ url_for('lab_stage_link', sid=ss.id) }}" style="display:inline">
+          <input type="hidden" name="bid" value="{{ bid }}">
+          <input type="hidden" name="bloom_report_id" value="{{ c.bloom_report_id }}">
+          <button class="btn" style="padding:.3rem .7rem">Link</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">No candidate reports within the match window. Use a manual link or create a report from the station.</p>
+  {% endif %}
+
+  {% set pts = [] %}
+  {% if ss.lat is not none %}{% set _ = pts.append({'lat': ss.lat, 'lon': ss.lon, 'label': 'Station ' ~ (ss.station_code or ''), 'kind': 'Lab station', 'color': '#d33'}) %}{% endif %}
+  {% for c in cands %}{% if c.rep_lat is not none %}{% set _ = pts.append({'lat': c.rep_lat, 'lon': c.rep_lon, 'label': 'R' ~ c.bloom_report_id ~ ' — ' ~ (c.water_body_name or ''), 'kind': 'Candidate report', 'color': '#2563eb'}) %}{% endif %}{% endfor %}
+  {% if pts %}
+  <div id="locmap" style="height:300px; margin-top:.8rem; border:1px solid var(--line); border-radius:6px"></div>
+  <script id="locdata" type="application/json">{{ pts|tojson }}</script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+  window.addEventListener('load', function () {
+    if (typeof L === 'undefined') return;
+    var locs = JSON.parse(document.getElementById('locdata').textContent);
+    var map = L.map('locmap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(map);
+    var p = [];
+    locs.forEach(function (o) {
+      if (o.lat == null || o.lon == null) return;
+      L.circleMarker([o.lat, o.lon], { radius: 7, weight: 2, color: '#fff',
+          fillColor: o.color, fillOpacity: 0.95 })
+        .bindPopup('<b>' + o.kind + '</b><br>' + (o.label || '')).addTo(map);
+      p.push([o.lat, o.lon]);
+    });
+    if (p.length === 1) map.setView(p[0], 13);
+    else if (p.length > 1) map.fitBounds(p, { padding: [30, 30], maxZoom: 14 });
+  });
+  </script>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Manual link</h1>
+  <p class="muted">Attach this group's lab data to a specific report or case by ID (use this when the
+    right match isn't suggested, e.g. the station coordinates are off).</p>
+  <form method="post" action="{{ url_for('lab_stage_link', sid=ss.id) }}" style="display:flex; gap:.5rem; align-items:flex-end">
+    <input type="hidden" name="bid" value="{{ bid }}">
+    <div><label>Report ID</label><input name="bloom_report_id" style="width:120px" inputmode="numeric"></div>
+    <div><label>or Case ID</label><input name="case_id" style="width:120px" inputmode="numeric"></div>
+    <button class="secondary">Link</button>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">No matching report? Create one from this station</h1>
+  <p class="muted">Creates a new report/event at the station's location and sample date, then attaches
+    the lab data to it.</p>
+  <form method="post" action="{{ url_for('lab_stage_create_event', sid=ss.id) }}" style="display:flex; gap:.5rem; align-items:flex-end">
+    <input type="hidden" name="bid" value="{{ bid }}">
+    <div><label>Region</label>
+      <select name="region" style="width:auto"><option value="">— none —</option>
+        {% for r in regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="secondary">Create report &amp; link</button>
+  </form>
+  <form method="post" action="{{ url_for('lab_stage_skip', sid=ss.id) }}" style="margin-top:.6rem">
+    <input type="hidden" name="bid" value="{{ bid }}">
+    <button class="secondary" style="background:#9aa6a1">Set aside for now</button>
+  </form>
+</div>
+{% endblock %}

@@ -230,6 +230,19 @@ BEGIN
     END LOOP;
 END $$;
 
+-- Lab-batch staging: internal working data, readable/writable by any staff writer.
+DO $$
+DECLARE t text;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['lab_batch','lab_stage_sample','lab_stage_result'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('DROP POLICY IF EXISTS %1$I_all ON %1$I', t);
+        EXECUTE format(
+            'CREATE POLICY %1$I_all ON %1$I FOR ALL USING (fhab_is_staff_writer()) WITH CHECK (fhab_is_staff_writer())',
+            t);
+    END LOOP;
+END $$;
+
 -- ---------- Write policies (INSERT / UPDATE / DELETE) ----------
 -- Each writable table gets a predicate; the loop builds matching insert/update/delete
 -- policies. Staff edit within their region; contributors edit only their own org's rows;
@@ -268,7 +281,8 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO fhab_app;
 GRANT fhab_app TO current_user;
 -- Writes are allowed only on the tables that have write policies above.
 GRANT INSERT, UPDATE, DELETE ON
-    event, station, sample, result, hab_case, waterbody, location, response, advisory TO fhab_app;
+    event, station, sample, result, hab_case, waterbody, location, response, advisory,
+    lab_batch, lab_stage_sample, lab_stage_result TO fhab_app;
 -- analyte is reference vocabulary (no RLS); lab-result entry/upload may add new analytes.
 GRANT INSERT, UPDATE ON analyte TO fhab_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO fhab_app;

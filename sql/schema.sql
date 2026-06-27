@@ -305,5 +305,58 @@ CREATE TABLE IF NOT EXISTS sample_link (
     created_at      timestamptz NOT NULL DEFAULT now()
 );
 
+-- ---------- Lab-batch reconciliation (full CEDEN chemistry template) ----------
+-- Staging area for an uploaded batch that links to events only by StationCode + date.
+-- Nothing here touches live sample/result until a staffer (or an auto-match) confirms a link.
+CREATE TABLE IF NOT EXISTS lab_batch (
+    id             bigserial PRIMARY KEY,
+    filename       text,
+    uploaded_by    bigint,
+    uploaded_at    timestamptz NOT NULL DEFAULT now(),
+    match_radius_m integer NOT NULL DEFAULT 2000,   -- spatial window for candidate events
+    match_days     integer NOT NULL DEFAULT 14,     -- temporal window (+/- days)
+    n_groups       integer DEFAULT 0,
+    n_results      integer DEFAULT 0,
+    status         text NOT NULL DEFAULT 'open'      -- open | done
+);
+CREATE TABLE IF NOT EXISTS lab_stage_sample (
+    id             bigserial PRIMARY KEY,
+    batch_id       bigint NOT NULL REFERENCES lab_batch(id) ON DELETE CASCADE,
+    station_code   text,
+    location_code  text,
+    replicate      text,
+    sample_date    date,
+    sample_time    time,
+    sample_type    text,
+    lab_sample_id  text,
+    lab_batch_code text,
+    project_code   text,
+    agency_code    text,
+    station_id     bigint REFERENCES station(id),   -- resolved from station_code
+    status         text NOT NULL DEFAULT 'unmatched', -- unmatched | linked | skipped
+    linked_event   bigint REFERENCES event(bloom_report_id),
+    linked_case    bigint REFERENCES hab_case(case_id),
+    linked_sample  bigint REFERENCES sample(id),     -- the materialized live sample
+    decided_by     bigint,
+    decided_at     timestamptz
+);
+CREATE TABLE IF NOT EXISTS lab_stage_result (
+    id              bigserial PRIMARY KEY,
+    stage_sample_id bigint NOT NULL REFERENCES lab_stage_sample(id) ON DELETE CASCADE,
+    analyte_name    text,
+    method_name     text,
+    fraction_name   text,
+    unit_name       text,
+    result          text,
+    res_qual_code   text,
+    mdl             text,
+    rl              text,
+    qa_code         text,
+    dilution_factor text,
+    result_comments text
+);
+CREATE INDEX IF NOT EXISTS lab_stage_sample_batch_idx ON lab_stage_sample(batch_id);
+CREATE INDEX IF NOT EXISTS lab_stage_result_sample_idx ON lab_stage_result(stage_sample_id);
+
 -- The sample.station_id FK and the bg_id unique index live in migrations.sql, so they run
 -- after those columns are guaranteed to exist (safe on databases predating those columns).
