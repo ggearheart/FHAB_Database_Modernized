@@ -21,7 +21,9 @@ from ..reports import enter_report
 
 def create_app(dsn: str | None = None) -> Flask:
     app = Flask(__name__)
-    app.config["SECRET_KEY"] = os.environ.get("FHAB_SECRET", "dev-secret-change-me")
+    app.config["SECRET_KEY"] = (
+        os.environ.get("SECRET_KEY") or os.environ.get("FHAB_SECRET") or "dev-secret-change-me"
+    )
     app.config["DSN"] = dsn or DEFAULT_DSN
 
     # ---- connection per request ----

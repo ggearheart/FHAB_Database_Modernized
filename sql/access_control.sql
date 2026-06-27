@@ -252,6 +252,10 @@ END $$;
 
 GRANT USAGE ON SCHEMA public TO fhab_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO fhab_app;
+-- Let the connecting (non-superuser) database user switch into fhab_app for `acting_as`.
+-- On a managed Postgres the app user owns the tables (so bypasses RLS by default) but is not
+-- a superuser, so it needs explicit membership to SET ROLE fhab_app.
+GRANT fhab_app TO current_user;
 -- Writes are allowed only on the tables that have write policies above.
 GRANT INSERT, UPDATE, DELETE ON
     event, station, sample, result, hab_case, waterbody, location, response, advisory TO fhab_app;

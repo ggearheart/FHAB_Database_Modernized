@@ -1,0 +1,30 @@
+# Render blueprint: a Flask web service + a managed PostgreSQL (PostGIS) database.
+# Deploy: push to GitHub, then in Render → "New +" → "Blueprint" and pick this repo.
+# Set ADMIN_EMAIL and ADMIN_PASSWORD in the dashboard to bootstrap the first admin.
+
+databases:
+  - name: fhab-db
+    plan: free
+    postgresMajorVersion: "16"   # PostGIS is enabled by the schema (CREATE EXTENSION postgis)
+
+services:
+  - type: web
+    name: fhab-web
+    runtime: python
+    plan: free
+    buildCommand: pip install -e ".[deploy]"
+    # deploy_setup applies the schema (enabling PostGIS) and ensures the admin account; idempotent.
+    startCommand: python scripts/deploy_setup.py && gunicorn --bind 0.0.0.0:$PORT --workers 2 wsgi:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fhab-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true       # Render generates a strong secret
+      - key: ADMIN_EMAIL
+        sync: false               # set in the dashboard
+      - key: ADMIN_PASSWORD
+        sync: false               # set in the dashboard

@@ -11,9 +11,13 @@ SQL_DIR = Path(__file__).resolve().parents[2] / "sql"
 SCHEMA_PATH = SQL_DIR / "schema.sql"
 ACCESS_CONTROL_PATH = SQL_DIR / "access_control.sql"
 
-# Connection comes from the standard libpq env vars (PGHOST, PGDATABASE, …) or a single
-# FHAB_DATABASE_URL. Defaults suit a local dev cluster created by scripts/devdb.sh.
-DEFAULT_DSN = os.environ.get("FHAB_DATABASE_URL", "dbname=fhab")
+# Connection string: FHAB_DATABASE_URL or DATABASE_URL (e.g. on Render), else a local
+# default suited to the cluster created by scripts/devdb.sh. psycopg accepts URL form.
+DEFAULT_DSN = (
+    os.environ.get("FHAB_DATABASE_URL")
+    or os.environ.get("DATABASE_URL")
+    or "dbname=fhab"
+)
 
 
 def connect(dsn: str | None = None) -> psycopg.Connection:

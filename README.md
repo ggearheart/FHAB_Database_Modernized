@@ -69,6 +69,9 @@ python scripts/serve.py --port 5000            # then open http://127.0.0.1:5000
 Sign in, then: enter reports (with the cross-region confirmation), browse RLS-filtered reports,
 and — as an admin — create accounts and grant/revoke roles. See [src/fhab/web/](src/fhab/web).
 
+To host it on the web (managed PostGIS + gunicorn on Render), see
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and the [`render.yaml`](render.yaml) blueprint.
+
 Run the tests (creates/uses a `fhab_test` database):
 
 ```bash
