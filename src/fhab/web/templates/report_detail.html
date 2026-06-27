@@ -111,11 +111,15 @@
 <div class="card">
   <h1 style="font-size:1.05rem">Responses &amp; case</h1>
   {% if case %}
-  <p>Part of <strong>Case {{ case.case_id }}</strong>{% if case.case_class %} ({{ case.case_class }}){% endif %} —
+  <p>Part of <a href="{{ url_for('case_detail', cid=case.case_id) }}"><strong>Case {{ case.case_id }}</strong></a>{% if case.case_class %} ({{ case.case_class }}){% endif %} —
      status {{ case.case_status or '—' }}{% if case.case_lead %}, lead {{ case.case_lead }}{% endif %}{% if case.case_year %}, {{ case.case_year }}{% endif %}.</p>
   {% else %}
   <p class="muted">Not assigned to a case.</p>
   {% endif %}
+  <form method="post" action="{{ url_for('report_assign_case', brid=ev.bloom_report_id) }}" style="display:flex; gap:.4rem; align-items:center; margin-bottom:.6rem">
+    <input name="case_id" placeholder="Case ID" style="width:110px" inputmode="numeric" value="{{ case.case_id if case else '' }}">
+    <button class="secondary">{{ 'Reassign case' if case else 'Assign to case' }}</button>
+  </form>
   <table>
     <tr><th>Response</th><th>Category / type</th><th>Advisory</th><th>Posted</th><th>Start</th><th>End</th></tr>
     {% for r in responses %}

@@ -17,10 +17,37 @@ import tempfile
 
 from ..auth import (acting_as, authenticate, create_user, grant_role, list_roles_for,
                     revoke_role, set_password, user_regions)
-from ..ceden import load_ceden_output, load_chemistry_for_event
+from ..cases import (CASE_STATUSES, assign_report_to_case, create_case, update_case)
+from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_for_event)
 from ..db import DEFAULT_DSN, connect
 from ..geo import GEOCONNEX
 from ..reports import add_response, add_result, enter_report, update_report
+
+
+def case_locations(conn, case_id):
+    """All location sources across a case's reports, plus case-level CEDEN stations."""
+    out = []
+    for r in conn.execute(
+            "SELECT bloom_report_id FROM event WHERE case_id = %s ORDER BY bloom_report_id",
+            (case_id,)).fetchall():
+        for loc in report_locations(conn, r["bloom_report_id"]):
+            loc = dict(loc)
+            loc["label"] = f"R{r['bloom_report_id']}: {loc['label']}"
+            out.append(loc)
+    for st in conn.execute(
+            """SELECT DISTINCT st.id, st.station_code, st.station_name, ST_Y(st.geom) AS lat,
+                      ST_X(st.geom) AS lon, st.huc12, st.geoconnex_uri
+               FROM sample s JOIN station st ON st.id = s.station_id
+               WHERE s.case_id = %s AND s.bloom_report_id IS NULL AND st.geom IS NOT NULL""",
+            (case_id,)).fetchall():
+        label = (st["station_code"] or "")
+        if st["station_name"]:
+            label = f"{label} — {st['station_name']}".strip(" —")
+        out.append({"kind": "CEDEN station (case)", "label": label or "Station",
+                    "lat": st["lat"], "lon": st["lon"], "huc12": (st["huc12"] or "").strip() or None,
+                    "pid": st["geoconnex_uri"] or f"{GEOCONNEX}/sites/{st['id']}",
+                    "minted": bool(st["geoconnex_uri"]), "color": "#2e8b57"})
+    return out
 
 
 def report_locations(conn, brid):
@@ -555,6 +582,155 @@ def create_app(dsn: str | None = None) -> Flask:
                 flash("Could not enter report: " + str(exc).splitlines()[0], "error")
         return render_template("new_report.html", form={}, regions=_regions(),
                                determinations=_determinations(), cross_warn=None)
+
+    # ---------- Cases ----------
+    @app.route("/cases")
+    @login_required
+    def cases():
+        conn = db()
+        status_f = (request.args.get("status") or "").strip()
+        region_f = (request.args.get("region") or "").strip()
+        year_f = (request.args.get("year") or "").strip()
+        conds, params = [], []
+        if status_f:
+            conds.append("c.case_status = %s"); params.append(status_f)
+        if region_f:
+            conds.append("w.regional_water_board = %s"); params.append(region_f)
+        if year_f.isdigit():
+            conds.append("c.case_year = %s"); params.append(int(year_f))
+        where = ("WHERE " + " AND ".join(conds)) if conds else ""
+        with acting_as(conn, session["uid"]):
+            rows = conn.execute(
+                f"""SELECT c.case_id, c.case_water_body_name, c.case_status, c.case_lead,
+                           c.case_year, w.regional_water_board,
+                           (SELECT count(*) FROM event e WHERE e.case_id = c.case_id) AS reports
+                    FROM hab_case c LEFT JOIN waterbody w ON w.id = c.waterbody_id
+                    {where}
+                    ORDER BY c.case_year DESC NULLS LAST, c.case_id DESC LIMIT 200""", params).fetchall()
+        return render_template("cases.html", rows=rows, statuses=CASE_STATUSES, regions=_regions(),
+                               status_f=status_f, region_f=region_f, year_f=year_f)
+
+    @app.route("/cases/new", methods=["GET", "POST"])
+    @staff_required
+    def case_new():
+        conn, f = db(), request.form
+        if request.method == "POST":
+            try:
+                cid = create_case(
+                    conn, session["uid"],
+                    water_body_name=f["waterbody"].strip(),
+                    region=(f.get("region") or "").strip() or None,
+                    county=(f.get("county") or "").strip() or None,
+                    year=int(f["year"]) if f.get("year", "").isdigit() else None,
+                    case_class=(f.get("case_class") or "").strip() or None,
+                    case_lead=(f.get("case_lead") or "").strip() or None,
+                    status=(f.get("status") or "Open").strip())
+                flash(f"Case {cid} created.", "ok")
+                return redirect(url_for("case_detail", cid=cid))
+            except psycopg.errors.InsufficientPrivilege:
+                conn.rollback()
+                flash("Access denied: you may only create cases in your region.", "error")
+            except psycopg.Error as exc:
+                conn.rollback(); flash("Could not create case: " + str(exc).splitlines()[0], "error")
+        return render_template("case_new.html", regions=_regions(), statuses=CASE_STATUSES)
+
+    @app.route("/cases/<int:cid>")
+    @login_required
+    def case_detail(cid):
+        conn = db()
+        with acting_as(conn, session["uid"]):
+            case = conn.execute(
+                """SELECT c.*, w.regional_water_board, w.county AS wb_county
+                   FROM hab_case c LEFT JOIN waterbody w ON w.id = c.waterbody_id
+                   WHERE c.case_id = %s""", (cid,)).fetchone()
+            if not case:
+                flash("Case not found or not visible to your role.", "error")
+                return redirect(url_for("cases"))
+            reports = conn.execute(
+                """SELECT e.bloom_report_id, e.observation_date, e.determination_code,
+                          w.water_body_name,
+                          (SELECT a.advisory_recommended FROM response r
+                             JOIN advisory a ON a.response_action_id = r.response_action_id
+                             WHERE r.bloom_report_id = e.bloom_report_id AND a.display_advisory_on_map
+                             ORDER BY a.advisory_start_date DESC NULLS LAST LIMIT 1) AS advisory
+                   FROM event e LEFT JOIN location l ON l.id = e.location_id
+                   LEFT JOIN waterbody w ON w.id = l.waterbody_id
+                   WHERE e.case_id = %s ORDER BY e.bloom_report_id""", (cid,)).fetchall()
+            locations = case_locations(conn, cid)
+        return render_template("case_detail.html", case=case, reports=reports,
+                               locations=locations, statuses=CASE_STATUSES)
+
+    @app.route("/cases/<int:cid>/edit", methods=["POST"])
+    @staff_required
+    def case_edit(cid):
+        conn, f = db(), request.form
+        try:
+            update_case(conn, session["uid"], cid,
+                        status=(f.get("status") or "").strip() or None,
+                        case_lead=(f.get("case_lead") or "").strip() or None,
+                        case_class=(f.get("case_class") or "").strip() or None,
+                        year=int(f["year"]) if f.get("year", "").isdigit() else None)
+            flash("Case updated.", "ok")
+        except psycopg.errors.InsufficientPrivilege:
+            conn.rollback(); flash("Access denied: you may not edit that case.", "error")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not update case: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("case_detail", cid=cid))
+
+    @app.route("/cases/<int:cid>/assign", methods=["POST"])
+    @staff_required
+    def case_assign(cid):
+        conn = db()
+        brid = (request.form.get("brid") or "").strip()
+        if not brid.isdigit():
+            flash("Enter a report ID to assign.", "error")
+            return redirect(url_for("case_detail", cid=cid))
+        try:
+            assign_report_to_case(conn, session["uid"], int(brid), cid)
+            _record_activity(int(brid), f"assigned to case {cid}")
+            flash(f"Report {brid} assigned to case {cid}.", "ok")
+        except psycopg.errors.InsufficientPrivilege:
+            conn.rollback(); flash("Access denied: you may not assign that report.", "error")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not assign: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("case_detail", cid=cid))
+
+    @app.route("/cases/<int:cid>/lab-upload", methods=["POST"])
+    @staff_required
+    def case_lab_upload(cid):
+        conn = db()
+        upload = request.files.get("chem_file")
+        if not upload or not upload.filename:
+            flash("Choose a CEDEN WaterChemistry CSV to upload.", "error")
+            return redirect(url_for("case_detail", cid=cid))
+        tmp = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        try:
+            upload.save(tmp.name); tmp.close()
+            rep = load_chemistry_for_case(conn, cid, tmp.name, session["uid"])
+            flash(f"Uploaded {rep.counts['results']} lab result(s) across "
+                  f"{rep.counts['samples']} sample(s) to the case.", "ok")
+        except Exception as exc:  # noqa: BLE001
+            conn.rollback()
+            flash("Upload failed (expecting a CEDEN WaterChemistry CSV): "
+                  + str(exc).splitlines()[0], "error")
+        finally:
+            os.unlink(tmp.name)
+        return redirect(url_for("case_detail", cid=cid))
+
+    @app.route("/reports/<int:brid>/assign-case", methods=["POST"])
+    @staff_required
+    def report_assign_case(brid):
+        conn = db()
+        cid = (request.form.get("case_id") or "").strip()
+        try:
+            assign_report_to_case(conn, session["uid"], brid, int(cid) if cid.isdigit() else None)
+            _record_activity(brid, f"assigned to case {cid}" if cid else "unassigned from case")
+            flash("Case assignment updated." if cid else "Report unassigned from case.", "ok")
+        except psycopg.errors.InsufficientPrivilege:
+            conn.rollback(); flash("Access denied: you may not change that report's case.", "error")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not assign: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("report_detail", brid=brid))
 
     @app.route("/admin/users")
     @admin_required

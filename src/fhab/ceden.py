@@ -282,12 +282,13 @@ def load_ceden_output(
     return loader.report
 
 
-def load_chemistry_for_event(conn: psycopg.Connection, bloom_report_id: int,
-                             chemistry_csv, user_id: int) -> CedenReport:
-    """Attach a CEDEN WaterChemistry CSV's samples + results directly to one event (report).
+def _load_chemistry_pinned(conn: psycopg.Connection, user_id: int, chemistry_csv, *,
+                           bloom_report_id: int | None = None,
+                           case_id: int | None = None) -> CedenReport:
+    """Attach a CEDEN WaterChemistry CSV's samples + results to a report or a case.
 
-    Reuses the CEDEN ingest logic (row parsing + analyte taxonomy), but instead of resolving
-    stations and spatially matching, it pins every sample to the given report. Runs as
+    Reuses the CEDEN ingest logic (row parsing + analyte taxonomy) but, instead of resolving
+    stations and spatially matching, pins every sample to the given report or case. Runs as
     `user_id`, so the staff-write RLS policy on sample/result applies. Idempotent on BG_ID.
     """
     loader = CedenLoader(conn)
@@ -300,13 +301,14 @@ def load_chemistry_for_event(conn: psycopg.Connection, bloom_report_id: int,
             if skey not in samples:
                 srow = conn.execute(
                     """INSERT INTO sample
-                         (bloom_report_id, sample_date, sample_time, sample_type, bg_id,
+                         (bloom_report_id, case_id, sample_date, sample_time, sample_type, bg_id,
                           lab_sample_id, lab_batch, project_code, lab_agency_code)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                        ON CONFLICT (bg_id) WHERE bg_id IS NOT NULL
-                         DO UPDATE SET bloom_report_id = EXCLUDED.bloom_report_id
+                         DO UPDATE SET bloom_report_id = EXCLUDED.bloom_report_id,
+                                       case_id = EXCLUDED.case_id
                        RETURNING id""",
-                    (bloom_report_id, parse_date(row.get("SampleDate")),
+                    (bloom_report_id, case_id, parse_date(row.get("SampleDate")),
                      _parse_time(row.get("SampleTime")), clean(row.get("SampleTypeCode")), bg_id,
                      clean(row.get("LabSampleID")), clean(row.get("LabBatch")),
                      clean(row.get("ProjectCode")), clean(row.get("LabAgencyCode"))),
@@ -334,3 +336,13 @@ def load_chemistry_for_event(conn: psycopg.Connection, bloom_report_id: int,
     loader.report.counts = {"samples": len(samples), "results": n_results,
                             "analytes": len(loader._analytes)}
     return loader.report
+
+
+def load_chemistry_for_event(conn, bloom_report_id, chemistry_csv, user_id) -> CedenReport:
+    """Attach uploaded CEDEN lab results to one report (event)."""
+    return _load_chemistry_pinned(conn, user_id, chemistry_csv, bloom_report_id=bloom_report_id)
+
+
+def load_chemistry_for_case(conn, case_id, chemistry_csv, user_id) -> CedenReport:
+    """Attach uploaded CEDEN lab results to a whole case (not a single report)."""
+    return _load_chemistry_pinned(conn, user_id, chemistry_csv, case_id=case_id)

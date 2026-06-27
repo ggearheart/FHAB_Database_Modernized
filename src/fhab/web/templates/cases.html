@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Cases{% endblock %}
+{% block body %}
+<h1>Cases <span class="muted">({{ rows|length }})</span></h1>
+<div class="card">
+  <form method="get" style="display:flex; gap:.6rem; align-items:flex-end; margin-bottom:.6rem">
+    <div><label>Status</label>
+      <select name="status" style="width:auto">
+        <option value="">All</option>
+        {% for s in statuses %}<option value="{{ s }}" {% if status_f==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label>Region</label>
+      <select name="region" style="width:auto"><option value="">All</option>
+        {% for r in regions %}<option value="{{ r }}" {% if region_f==r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label>Year</label><input name="year" value="{{ year_f }}" style="width:90px"></div>
+    <button class="secondary">Filter</button>
+    <span style="flex:1"></span>
+    <a class="btn" href="{{ url_for('case_new') }}">New case</a>
+  </form>
+  <table>
+    <tr><th>Case</th><th>Water body</th><th>Region</th><th>Year</th><th>Status</th><th>Lead</th><th>Reports</th></tr>
+    {% for c in rows %}
+    <tr>
+      <td><a href="{{ url_for('case_detail', cid=c.case_id) }}">{{ c.case_id }}</a></td>
+      <td>{{ c.case_water_body_name or '—' }}</td>
+      <td>{{ c.regional_water_board or '—' }}</td>
+      <td>{{ c.case_year or '—' }}</td>
+      <td>{{ c.case_status or '—' }}</td>
+      <td>{{ c.case_lead or '—' }}</td>
+      <td>{{ c.reports }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">No cases.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}New case{% endblock %}
+{% block body %}
+<h1>Create a case</h1>
+<div class="card">
+  <p class="muted">A case groups reports for one waterbody. It cannot span Regional Boards, is for
+    one calendar year, and is created in your region. <a href="{{ url_for('cases') }}">← back to cases</a></p>
+  <form method="post">
+    <div class="row">
+      <div><label>Water body *</label><input name="waterbody" required></div>
+      <div><label>County</label><input name="county"></div>
+    </div>
+    <div class="row">
+      <div><label>Regional Water Board</label>
+        <select name="region"><option value="">— select —</option>
+          {% for r in regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Case year</label><input name="year" placeholder="e.g. 2026"></div>
+    </div>
+    <div class="row">
+      <div><label>Case class</label><input name="case_class" placeholder="e.g. Event Response"></div>
+      <div><label>Case lead</label><input name="case_lead"></div>
+      <div><label>Status</label>
+        <select name="status">{% for s in statuses %}<option>{{ s }}</option>{% endfor %}</select>
+      </div>
+    </div>
+    <p></p>
+    <button>Create case</button>
+  </form>
+</div>
+{% endblock %}

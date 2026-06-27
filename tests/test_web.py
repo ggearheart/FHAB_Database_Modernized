@@ -195,6 +195,44 @@ def test_report_detail_shows_locations_and_geoconnex(app_client, conn):
     assert b"proposed" in r.data
 
 
+def test_case_create_assign_and_view(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    # Create a case.
+    r = app_client.post("/cases/new", data={"waterbody": "Web Case Lake", "region": R5,
+                                            "year": "2026", "case_lead": "Staffer"},
+                        follow_redirects=True)
+    assert b"created" in r.data
+    cid = conn.execute("SELECT case_id FROM hab_case WHERE case_water_body_name='Web Case Lake'").fetchone()["case_id"]
+
+    # A report to assign.
+    app_client.post("/reports/new", data={"waterbody": "Web Case Lake", "region": R5}, follow_redirects=True)
+    rid = conn.execute(
+        "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
+        "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name='Web Case Lake'"
+    ).fetchone()["bloom_report_id"]
+
+    r = app_client.post(f"/cases/{cid}/assign", data={"brid": str(rid)}, follow_redirects=True)
+    assert b"assigned to case" in r.data
+    # The report now shows in the case detail.
+    r = app_client.get(f"/cases/{cid}")
+    assert str(rid).encode() in r.data
+    assert b"Reports in this case" in r.data
+
+
+def test_cases_list_visible(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    assert app_client.get("/cases").status_code == 200
+
+
+def test_non_staff_cannot_create_case(app_client, conn):
+    from fhab.auth import set_password
+    pub = create_user(conn, "v3@public.org"); grant_role(conn, pub, "public")
+    set_password(conn, pub, "pw")
+    _login(app_client, "v3@public.org", "pw")
+    r = app_client.get("/cases/new", follow_redirects=True)
+    assert b"Staff access required" in r.data
+
+
 def test_dashboard_shows_recent_worked_reports(app_client, conn):
     _login(app_client, "staff@wb.ca.gov", "staffpw")
     # Work on two reports.

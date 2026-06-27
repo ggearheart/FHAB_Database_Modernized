@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Case {{ case.case_id }}{% endblock %}
+{% block body %}
+<h1>Case {{ case.case_id }} — {{ case.case_water_body_name or 'Unnamed waterbody' }}</h1>
+<p class="muted">{{ case.regional_water_board or '—' }}
+  {%- if case.wb_county %} · {{ case.wb_county }} County{% endif %} · {{ case.case_year or '—' }}
+  · status {{ case.case_status or '—' }}</p>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Case details</h1>
+  <form method="post" action="{{ url_for('case_edit', cid=case.case_id) }}">
+    <div class="row">
+      <div><label>Status</label>
+        <select name="status">{% for s in statuses %}<option {% if case.case_status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+      </div>
+      <div><label>Case lead</label><input name="case_lead" value="{{ case.case_lead or '' }}"></div>
+    </div>
+    <div class="row">
+      <div><label>Case class</label><input name="case_class" value="{{ case.case_class or '' }}"></div>
+      <div><label>Case year</label><input name="year" value="{{ case.case_year or '' }}"></div>
+    </div>
+    <p class="muted">Close a case once all its reports have advisory = None (per the case-management guidance).</p>
+    <button>Save case</button>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Reports in this case <span class="muted">({{ reports|length }})</span></h1>
+  <table>
+    <tr><th>Report</th><th>Water body</th><th>Observed</th><th>Outcome</th><th>Advisory</th></tr>
+    {% for r in reports %}
+    <tr>
+      <td><a href="{{ url_for('report_detail', brid=r.bloom_report_id) }}">{{ r.bloom_report_id }}</a></td>
+      <td>{{ r.water_body_name or '—' }}</td>
+      <td>{{ r.observation_date or '—' }}</td>
+      <td>{{ r.determination_code or '—' }}</td>
+      <td>{{ r.advisory or '—' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">No reports assigned yet.</td></tr>
+    {% endfor %}
+  </table>
+  <form method="post" action="{{ url_for('case_assign', cid=case.case_id) }}" style="display:flex; gap:.4rem; margin-top:.6rem">
+    <input name="brid" placeholder="Report ID" style="width:120px" inputmode="numeric">
+    <button class="secondary">Assign report to this case</button>
+  </form>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<div class="card">
+  <h1 style="font-size:1.05rem">Locations across the case <span class="muted">({{ locations|length }})</span></h1>
+  {% if locations %}
+  <div id="locmap" style="height:320px; border:1px solid var(--line); border-radius:6px"></div>
+  <script id="locdata" type="application/json">{{ locations|tojson }}</script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+  window.addEventListener('load', function () {
+    if (typeof L === 'undefined') return;
+    var locs = JSON.parse(document.getElementById('locdata').textContent);
+    var map = L.map('locmap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(map);
+    var pts = [];
+    locs.forEach(function (p) {
+      if (p.lat == null || p.lon == null) return;
+      L.circleMarker([p.lat, p.lon], { radius: 7, weight: 2, color: '#fff',
+          fillColor: p.color, fillOpacity: 0.95 })
+        .bindPopup('<b>' + p.kind + '</b><br>' + (p.label || '') + '<br>'
+          + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5)
+          + (p.pid ? '<br>PID: ' + p.pid + (p.minted ? '' : ' (proposed)') : ''))
+        .addTo(map);
+      pts.push([p.lat, p.lon]);
+    });
+    if (pts.length === 1) map.setView(pts[0], 13);
+    else if (pts.length > 1) map.fitBounds(pts, { padding: [30, 30], maxZoom: 14 });
+  });
+  </script>
+  {% else %}
+  <p class="muted">No mapped locations for this case yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Upload case lab results (CEDEN)</h1>
+  <p class="muted">Attach a CEDEN WaterChemistry CSV to the whole case (data the manual associates
+    with the case rather than a single report).</p>
+  <form method="post" action="{{ url_for('case_lab_upload', cid=case.case_id) }}" enctype="multipart/form-data"
+        style="display:flex; gap:.5rem; align-items:center">
+    <input type="file" name="chem_file" accept=".csv" required style="width:auto">
+    <button class="secondary">Upload lab results</button>
+  </form>
+</div>
+
+<p><a href="{{ url_for('cases') }}">← back to cases</a></p>
+{% endblock %}
