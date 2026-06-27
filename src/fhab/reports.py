@@ -144,3 +144,47 @@ def add_result(conn: psycopg.Connection, user_id: int, bloom_report_id: int, *,
         )
         conn.commit()
     return ruid
+
+
+def add_response(conn: psycopg.Connection, user_id: int, bloom_report_id: int, *,
+                 response_category: str = "Advisory", response_type: str | None = None,
+                 updated_by: str | None = None, advisory_recommended: str | None = None,
+                 advisory_detail: str | None = None, advisory_start_date: str | date | None = None,
+                 advisory_end_date: str | date | None = None,
+                 display_advisory_on_map: bool = False) -> int:
+    """Record a response on a report and, if an advisory is recommended, post the advisory.
+
+    Returns the new response id. Only staff may do this (enforced by RLS), so contributors
+    cannot self-post advisories. An advisory is created only when `advisory_recommended` is set.
+    """
+    # Allocate ids with the privileged connection (sees all) before switching role.
+    rid = conn.execute(
+        "SELECT coalesce(max(response_action_id), 0) + 1 AS n FROM response").fetchone()["n"]
+    case_row = conn.execute(
+        "SELECT case_id FROM event WHERE bloom_report_id = %s", (bloom_report_id,)).fetchone()
+    case_id = case_row["case_id"] if case_row else None
+    aid = None
+    if advisory_recommended:
+        aid = conn.execute(
+            "SELECT coalesce(max(advisory_id), 0) + 1 AS n FROM advisory").fetchone()["n"]
+
+    with acting_as(conn, user_id):
+        conn.execute(
+            """INSERT INTO response
+                 (response_action_id, bloom_report_id, case_id, response_category,
+                  response_type, response_update_by, response_datetimestamp)
+               VALUES (%s,%s,%s,%s,%s,%s, now())""",
+            (rid, bloom_report_id, case_id, response_category, response_type, updated_by),
+        )
+        if advisory_recommended:
+            conn.execute(
+                """INSERT INTO advisory
+                     (advisory_id, response_action_id, advisory_recommended, advisory_detail,
+                      advisory_start_date, advisory_end_date, display_advisory_on_map,
+                      advisory_date_of_recommendation, advisory_date)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s, current_date, now())""",
+                (aid, rid, advisory_recommended, advisory_detail, advisory_start_date or None,
+                 advisory_end_date or None, display_advisory_on_map),
+            )
+        conn.commit()
+    return rid

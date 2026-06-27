@@ -52,6 +52,24 @@ INSERT INTO report_determination (code, label, description, sort_order) VALUES
 ON CONFLICT (code) DO UPDATE SET label = EXCLUDED.label, description = EXCLUDED.description,
                                  sort_order = EXCLUDED.sort_order;
 
+-- Recommended advisory vocabulary (drives the advisory dropdown and public-map symbology).
+CREATE TABLE IF NOT EXISTS recommended_advisory (
+    code       text PRIMARY KEY,
+    label      text NOT NULL,
+    sort_order int NOT NULL DEFAULT 0
+);
+INSERT INTO recommended_advisory (code, label, sort_order) VALUES
+  ('None', 'None (no advisory)', 1),
+  ('Caution', 'Caution', 2),
+  ('Warning', 'Warning', 3),
+  ('Danger', 'Danger', 4),
+  ('Algal mat alert sign', 'Algal mat alert', 5),
+  ('Algal mat general awareness sign', 'Algal mat general awareness', 6),
+  ('Visual observation', 'Visual observation', 7),
+  ('General awareness', 'General awareness', 8),
+  ('NA - refer to Report Details', 'NA — refer to report details', 9)
+ON CONFLICT (code) DO UPDATE SET label = EXCLUDED.label, sort_order = EXCLUDED.sort_order;
+
 -- ---------- Reference / hydrography ----------
 
 -- CA Water Boards "HUC Watersheds" feature service (HUC12 layer; USGS WBD republish).

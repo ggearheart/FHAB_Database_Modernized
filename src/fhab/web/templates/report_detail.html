@@ -80,6 +80,35 @@
     <tr><td colspan="6" class="muted">No responses or advisories recorded yet.</td></tr>
     {% endfor %}
   </table>
+
+  <h1 style="font-size:1rem; margin-top:1rem">Record a response / post an advisory</h1>
+  <p class="muted">Posting an advisory with “display on map” is what drives the public map.</p>
+  <form method="post" action="{{ url_for('add_report_response', brid=ev.bloom_report_id) }}">
+    <div class="row">
+      <div><label>Response category</label>
+        <select name="response_category">{% for c in response_categories %}<option>{{ c }}</option>{% endfor %}</select>
+      </div>
+      <div><label>Recommended advisory</label>
+        <select name="advisory_recommended">
+          <option value="">— no advisory —</option>
+          {% for a in recommended_advisories %}<option value="{{ a.code }}">{{ a.label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Advisory start</label><input name="advisory_start_date" type="date"></div>
+      <div><label>Advisory end</label><input name="advisory_end_date" type="date"></div>
+      <div><label>Display on public map</label>
+        <label style="display:flex; align-items:center; gap:.4rem; font-weight:normal; color:inherit; margin-top:.45rem">
+          <input type="checkbox" name="display_advisory_on_map" value="1" style="width:auto"> show this advisory on the map
+        </label>
+      </div>
+    </div>
+    <label>Advisory detail / notes</label>
+    <input name="advisory_detail" placeholder="e.g. Advisory based on visual and toxins">
+    <p></p>
+    <button>Record response</button>
+  </form>
 </div>
 
 <div class="card">

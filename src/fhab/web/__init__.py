@@ -16,7 +16,7 @@ from flask import (Flask, flash, g, jsonify, redirect, render_template, request,
 from ..auth import (acting_as, authenticate, create_user, grant_role, list_roles_for,
                     revoke_role, set_password, user_regions)
 from ..db import DEFAULT_DSN, connect
-from ..reports import add_result, enter_report, update_report
+from ..reports import add_response, add_result, enter_report, update_report
 
 
 def create_app(dsn: str | None = None) -> Flask:
@@ -90,7 +90,12 @@ def create_app(dsn: str | None = None) -> Flask:
             "SELECT id, analysis_type, analyte, default_unit FROM analyte "
             "WHERE analyte IS NOT NULL ORDER BY analysis_type, analyte").fetchall()
 
+    def _recommended_advisories():
+        return db().execute(
+            "SELECT code, label FROM recommended_advisory ORDER BY sort_order").fetchall()
+
     DATA_TYPES = ["Field Visual", "Field Measurement", "Laboratory"]
+    RESPONSE_CATEGORIES = ["Advisory", "Investigation", "Field response", "Notification"]
 
     # ---- routes ----
     @app.route("/login", methods=["GET", "POST"])
@@ -192,7 +197,32 @@ def create_app(dsn: str | None = None) -> Flask:
                        FROM hab_case WHERE case_id = %s""", (ev["case_id"],)).fetchone()
         return render_template("report_detail.html", ev=ev, results=results, responses=responses,
                                case=case, determinations=_determinations(), analytes=_analytes(),
-                               data_types=DATA_TYPES)
+                               data_types=DATA_TYPES, recommended_advisories=_recommended_advisories(),
+                               response_categories=RESPONSE_CATEGORIES)
+
+    @app.route("/reports/<int:brid>/responses", methods=["POST"])
+    @login_required
+    def add_report_response(brid):
+        conn, f = db(), request.form
+        try:
+            add_response(
+                conn, session["uid"], brid,
+                response_category=(f.get("response_category") or "Advisory").strip(),
+                updated_by=session.get("email"),
+                advisory_recommended=(f.get("advisory_recommended") or "").strip() or None,
+                advisory_detail=(f.get("advisory_detail") or "").strip() or None,
+                advisory_start_date=(f.get("advisory_start_date") or "").strip() or None,
+                advisory_end_date=(f.get("advisory_end_date") or "").strip() or None,
+                display_advisory_on_map=bool(f.get("display_advisory_on_map")),
+            )
+            flash("Response recorded.", "ok")
+        except psycopg.errors.InsufficientPrivilege:
+            conn.rollback()
+            flash("Access denied: only staff may record responses or post advisories.", "error")
+        except psycopg.Error as exc:
+            conn.rollback()
+            flash("Could not record response: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("report_detail", brid=brid))
 
     @app.route("/batch", methods=["GET", "POST"])
     @staff_required

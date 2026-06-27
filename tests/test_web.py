@@ -74,6 +74,26 @@ def test_staff_enters_report_in_region(app_client, conn):
     assert n == 1
 
 
+def test_post_advisory_shows_on_map(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    app_client.post("/reports/new", data={"waterbody": "Advisory Pond", "region": R5,
+                                          "lat": "38.5", "lon": "-121.4"}, follow_redirects=True)
+    rid = conn.execute(
+        "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
+        "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name='Advisory Pond'"
+    ).fetchone()["bloom_report_id"]
+
+    r = app_client.post(f"/reports/{rid}/responses",
+                        data={"response_category": "Advisory", "advisory_recommended": "Warning",
+                              "display_advisory_on_map": "1"}, follow_redirects=True)
+    assert b"Response recorded" in r.data
+
+    import json
+    fc = json.loads(app_client.get("/api/reports.geojson").data)
+    feat = next(f for f in fc["features"] if f["properties"]["bloom_report_id"] == rid)
+    assert feat["properties"]["advisory"] == "Warning"  # the posted advisory appears on the map
+
+
 def test_report_detail_page_and_add_result(app_client, conn):
     _login(app_client, "staff@wb.ca.gov", "staffpw")
     app_client.post("/reports/new", data={"waterbody": "Detail Pond", "region": R5},

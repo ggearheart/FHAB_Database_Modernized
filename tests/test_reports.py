@@ -4,7 +4,7 @@ import psycopg
 import pytest
 
 from fhab.auth import create_user, grant_role
-from fhab.reports import add_result, enter_report, update_report
+from fhab.reports import add_response, add_result, enter_report, update_report
 
 R5 = "Region 5 - Central Valley"
 
@@ -74,6 +74,44 @@ def test_add_result_records_sample_and_result(conn):
     assert float(row["measurement_value"]) == 12.5
     assert row["analyte"] == "Microcystin"
     assert row["sample_id"] == "S-001"
+
+
+def test_add_response_posts_advisory(conn):
+    staff = create_user(conn, "adv@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    rid = enter_report(conn, staff, water_body_name="Advisory Lake", region=R5)
+    rsp = add_response(conn, staff, rid, response_category="Advisory",
+                       advisory_recommended="Danger", display_advisory_on_map=True,
+                       advisory_detail="Toxins detected")
+    row = conn.execute(
+        """SELECT a.advisory_recommended, a.display_advisory_on_map, r.response_category
+           FROM response r JOIN advisory a ON a.response_action_id = r.response_action_id
+           WHERE r.response_action_id = %s""", (rsp,)).fetchone()
+    assert row["advisory_recommended"] == "Danger"
+    assert row["display_advisory_on_map"] is True
+    assert row["response_category"] == "Advisory"
+
+
+def test_response_without_advisory(conn):
+    staff = create_user(conn, "inv@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    rid = enter_report(conn, staff, water_body_name="Investigation Lake", region=R5)
+    rsp = add_response(conn, staff, rid, response_category="Investigation")
+    n_adv = conn.execute(
+        "SELECT count(*) c FROM advisory WHERE response_action_id=%s", (rsp,)).fetchone()["c"]
+    assert n_adv == 0  # no advisory created when none recommended
+
+
+def test_contributor_cannot_post_advisory(conn):
+    import psycopg
+    import pytest
+    user = create_user(conn, "c2@tribe.org"); grant_role(conn, user, "tribal_admin", org="TribeX")
+    # Seed an event owned by the contributor org so they can reference it.
+    wb = conn.execute("INSERT INTO waterbody (water_body_name) VALUES ('TC') RETURNING id").fetchone()["id"]
+    loc = conn.execute("INSERT INTO location (waterbody_id) VALUES (%s) RETURNING id", (wb,)).fetchone()["id"]
+    conn.execute("INSERT INTO event (bloom_report_id, location_id, owner_org) VALUES (95001,%s,'TribeX')", (loc,))
+    conn.commit()
+    with pytest.raises(psycopg.Error):
+        add_response(conn, user, 95001, advisory_recommended="Caution")
+    conn.rollback()
 
 
 def test_determination_vocabulary_seeded(conn):
