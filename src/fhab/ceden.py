@@ -262,13 +262,19 @@ def link_samples(conn: psycopg.Connection) -> int:
 
 
 def load_ceden_output(
-    conn: psycopg.Connection, field_csv: Path, chemistry_csv: Path, link: bool = True
+    conn: psycopg.Connection, field_csv: Path | None, chemistry_csv: Path, link: bool = True
 ) -> CedenReport:
-    """Load a Bend->CEDEN output pair (FieldResults + WaterChemistry) and link to FHAB."""
+    """Load CEDEN WaterChemistry (and optional FieldResults) across many stations and link to FHAB.
+
+    `field_csv` is optional — stations are also resolved from the WaterChemistry rows — so a
+    batch ingest can run from a chemistry file alone.
+    """
     loader = CedenLoader(conn)
-    loader.load_field_results(field_csv)
+    if field_csv:
+        loader.load_field_results(field_csv)
     loader.load_water_chemistry(chemistry_csv)
     conn.commit()
+    loader.report.counts["stations"] = len(loader._stations)
     # Enrich station geometry from the CEDEN registry (if loaded) so spatial linking works.
     loader.report.counts["geocoded"] = enrich_station_geom(conn)
     if link:

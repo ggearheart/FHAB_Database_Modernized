@@ -179,6 +179,40 @@ def test_batch_filters_by_outcome(app_client, conn):
     assert b"Algae Pond" not in r.data
 
 
+def test_batch_ceden_upload(app_client, conn):
+    import io
+    from pathlib import Path
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    chem = Path(__file__).parent / "fixtures" / "ceden" / "CEDEN_WaterChemistry.csv"
+    field = Path(__file__).parent / "fixtures" / "ceden" / "CEDEN_FieldResults.csv"
+    data = {"chem_file": (io.BytesIO(chem.read_bytes()), "chem.csv"),
+            "field_file": (io.BytesIO(field.read_bytes()), "field.csv")}
+    r = app_client.post("/batch/ceden", data=data, content_type="multipart/form-data",
+                        follow_redirects=True)
+    assert b"Ingested 16 result" in r.data
+    assert conn.execute("SELECT count(*) c FROM station").fetchone()["c"] == 4
+    assert conn.execute("SELECT count(*) c FROM result").fetchone()["c"] == 16
+
+
+def test_batch_ceden_pull_from_url(app_client, conn):
+    from pathlib import Path
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    chem = Path(__file__).parent / "fixtures" / "ceden" / "CEDEN_WaterChemistry.csv"
+    r = app_client.post("/batch/ceden", data={"url": chem.resolve().as_uri()},
+                        follow_redirects=True)
+    assert b"Ingested 16 result" in r.data
+    assert conn.execute("SELECT count(*) c FROM result").fetchone()["c"] == 16
+
+
+def test_batch_ceden_requires_staff(app_client, conn):
+    from fhab.auth import set_password
+    pub = create_user(conn, "v2@public.org"); grant_role(conn, pub, "public")
+    set_password(conn, pub, "pw")
+    _login(app_client, "v2@public.org", "pw")
+    r = app_client.get("/batch/ceden", follow_redirects=True)
+    assert b"Staff access required" in r.data
+
+
 def test_non_staff_cannot_batch(app_client, conn):
     pub = create_user(conn, "viewer@public.org"); grant_role(conn, pub, "public")
     from fhab.auth import set_password

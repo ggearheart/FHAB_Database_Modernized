@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Batch lab data (CEDEN){% endblock %}
+{% block body %}
+<h1>Batch lab data (CEDEN)</h1>
+<p class="muted">Ingest CEDEN structured lab data covering <strong>many stations / events</strong> at
+  once — the Bend→CEDEN <strong>WaterChemistry</strong> output. Samples are matched to FHAB
+  events by station coordinates and date (where they coincide). <a href="{{ url_for('batch_determination') }}">← back to batch</a></p>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Upload files</h1>
+  <form method="post" enctype="multipart/form-data">
+    <div class="row">
+      <div><label>WaterChemistry CSV *</label><input type="file" name="chem_file" accept=".csv" required></div>
+      <div><label>FieldResults CSV (optional)</label><input type="file" name="field_file" accept=".csv"></div>
+    </div>
+    <p></p>
+    <button>Upload &amp; ingest</button>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">…or pull from an API / URL</h1>
+  <p class="muted">Point to an endpoint that serves CEDEN-structured WaterChemistry as CSV
+    (e.g. a data-portal resource). The server fetches it and ingests it.</p>
+  <form method="post">
+    <label>Data URL</label>
+    <input name="url" type="url" placeholder="https://…/water-chemistry.csv">
+    <p></p>
+    <button class="secondary">Pull &amp; ingest</button>
+  </form>
+</div>
+{% endblock %}

@@ -17,7 +17,7 @@ import tempfile
 
 from ..auth import (acting_as, authenticate, create_user, grant_role, list_roles_for,
                     revoke_role, set_password, user_regions)
-from ..ceden import load_chemistry_for_event
+from ..ceden import load_ceden_output, load_chemistry_for_event
 from ..db import DEFAULT_DSN, connect
 from ..reports import add_response, add_result, enter_report, update_report
 
@@ -226,6 +226,59 @@ def create_app(dsn: str | None = None) -> Flask:
             conn.rollback()
             flash("Could not record response: " + str(exc).splitlines()[0], "error")
         return redirect(url_for("report_detail", brid=brid))
+
+    def _save_upload(fileobj):
+        tmp = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        fileobj.save(tmp.name)
+        tmp.close()
+        return tmp.name
+
+    def _fetch_to_temp(url):
+        import subprocess
+        tmp = tempfile.NamedTemporaryFile(suffix=".csv", delete=False)
+        tmp.close()
+        subprocess.run(["curl", "-fsSL", "-o", tmp.name, url], check=True,
+                       capture_output=True, timeout=60)
+        return tmp.name
+
+    @app.route("/batch/ceden", methods=["GET", "POST"])
+    @staff_required
+    def batch_ceden():
+        conn = db()
+        if request.method == "POST":
+            url = (request.form.get("url") or "").strip()
+            chem = request.files.get("chem_file")
+            field = request.files.get("field_file")
+            tmps = []
+            try:
+                if url:
+                    chem_path, field_path = _fetch_to_temp(url), None
+                    tmps.append(chem_path)
+                    source = url
+                elif chem and chem.filename:
+                    chem_path = _save_upload(chem); tmps.append(chem_path)
+                    field_path = None
+                    if field and field.filename:
+                        field_path = _save_upload(field); tmps.append(field_path)
+                    source = chem.filename
+                else:
+                    flash("Provide a CEDEN WaterChemistry CSV (upload) or an API URL.", "error")
+                    return redirect(url_for("batch_ceden"))
+                rep = load_ceden_output(conn, field_path, chem_path, link=True).counts
+                flash(f"Ingested {rep.get('results', 0)} result(s) across "
+                      f"{rep.get('samples', 0)} sample(s) / {rep.get('stations', 0)} station(s) "
+                      f"from {source}; linked {rep.get('event_links', 0)} sample(s) to events.", "ok")
+            except Exception as exc:  # noqa: BLE001 - surface fetch/parse/load errors to staff
+                conn.rollback()
+                flash("CEDEN ingest failed: " + str(exc).splitlines()[0], "error")
+            finally:
+                for t in tmps:
+                    try:
+                        os.unlink(t)
+                    except OSError:
+                        pass
+            return redirect(url_for("batch_ceden"))
+        return render_template("batch_ceden.html")
 
     @app.route("/batch", methods=["GET", "POST"])
     @staff_required
