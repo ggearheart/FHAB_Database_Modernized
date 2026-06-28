@@ -99,18 +99,44 @@ _QUERIES = {
 }
 
 
-def export_flatfile(conn: psycopg.Connection, name: str, out_dir: Path) -> int:
-    """Write one published flat file; return the row count."""
-    sql_tmpl, columns = _QUERIES[name]
+# Human-facing metadata for each dataset (slug -> title, description), keyed without ".csv".
+DATASETS = {
+    "bloom-report": ("FHAB Bloom Reports",
+                     "Reported and observed freshwater HAB events (one row per report)."),
+    "hab-cases": ("FHAB Cases", "Case records that group related reports for a waterbody/year."),
+    "hab-responses": ("FHAB Responses", "Response actions and posted advisories."),
+    "hab-results": ("FHAB Results", "Field and laboratory results (veterinary excluded)."),
+}
+
+
+def _filename(slug: str) -> str:
+    return slug if slug.endswith(".csv") else slug + ".csv"
+
+
+def fetch_flatfile(conn: psycopg.Connection, name: str):
+    """Run one published export; return (headers, records) where records are JSON-friendly dicts.
+
+    Single source of truth for both the CSV writer and the open-data JSON API, so both expose
+    exactly the published column set (no reporter PII / illness; veterinary excluded).
+    """
+    sql_tmpl, columns = _QUERIES[_filename(name)]
     select = ", ".join(f"{expr} AS \"{hdr}\"" for hdr, expr in columns)
     rows = conn.execute(sql_tmpl.format(cols=select)).fetchall()
-    out = Path(out_dir) / name
+    headers = [hdr for hdr, _ in columns]
+    records = [{h: row[h] for h in headers} for row in rows]
+    return headers, records
+
+
+def export_flatfile(conn: psycopg.Connection, name: str, out_dir: Path) -> int:
+    """Write one published flat file; return the row count."""
+    headers, records = fetch_flatfile(conn, name)
+    out = Path(out_dir) / _filename(name)
     with out.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
-        writer.writerow([hdr for hdr, _ in columns])
-        for row in rows:
-            writer.writerow(["" if row[h] is None else row[h] for h, _ in columns])
-    return len(rows)
+        writer.writerow(headers)
+        for rec in records:
+            writer.writerow(["" if rec[h] is None else rec[h] for h in headers])
+    return len(records)
 
 
 def export_all(conn: psycopg.Connection, out_dir: Path) -> dict[str, int]:

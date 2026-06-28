@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Open data export{% endblock %}
+{% block body %}
+<h1>Open-data flat files</h1>
+<p class="muted">The four files published on
+  <a href="https://data.ca.gov/dataset/surface-water-freshwater-harmful-algal-blooms" target="_blank">data.ca.gov</a>,
+  generated from the live database. Download for the manual upload, or point an app at the
+  provisional JSON API. Both expose only the published columns — no reporter contact, illness,
+  or veterinary data.</p>
+
+<div class="card">
+  <p><a class="btn" href="{{ url_for('export_zip') }}">⬇ Download all four (zip)</a></p>
+  <table>
+    <tr><th>Dataset</th><th>Rows</th><th>CSV</th><th>Provisional JSON</th></tr>
+    {% for f in files %}
+    <tr>
+      <td><strong>{{ f.title }}</strong><br><span class="muted">{{ f.desc }}</span></td>
+      <td>{{ '{:,}'.format(f.count) }}</td>
+      <td><a href="{{ url_for('export_csv', slug=f.slug) }}">{{ f.slug }}.csv ↓</a></td>
+      <td><a href="{{ url_for('open_dataset', slug=f.slug) }}" target="_blank">/api/open/{{ f.slug }}.json</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Provisional API</h1>
+  <p class="muted">Read-only and CORS-open, so apps like the CyanoSafe demo can consume it directly.
+    The index lists all datasets:</p>
+  <p><a href="{{ url_for('open_index') }}" target="_blank">/api/open/index.json</a></p>
+  <p class="muted">It reflects the <strong>current</strong> database (including reports not yet in an
+    official data.ca.gov release), so every record is marked <em>provisional</em>. Responses are
+    cached for 10 minutes.</p>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Scheduled generation</h1>
+  <p class="muted">For a daily/weekly batch, run
+    <code>python scripts/export_flatfiles.py OUTPUT_DIR</code> from cron or a Render cron job.
+    See <code>docs/OPEN_DATA.md</code>.</p>
+</div>
+{% endblock %}

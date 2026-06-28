@@ -342,6 +342,56 @@ def test_photo_upload_and_serve_roundtrip(app_client, conn):
     assert r.status_code == 200 and r.data == png
 
 
+def test_export_page_and_csv_download(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    app_client.post("/reports/new", data={"waterbody": "Export Lake", "region": R5,
+                                          "confirm_new_wb": "1"}, follow_redirects=True)
+    r = app_client.get("/export")
+    assert b"FHAB Bloom Reports" in r.data and b"Provisional" in r.data
+    r = app_client.get("/export/bloom-report.csv")
+    assert r.status_code == 200 and r.mimetype == "text/csv"
+    assert "attachment" in r.headers["Content-Disposition"]
+    assert b"Bloom_Report_ID" in r.data and b"Export Lake" in r.data
+
+
+def test_export_zip_download(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    r = app_client.get("/export/all.zip")
+    assert r.status_code == 200 and r.mimetype == "application/zip"
+
+
+def test_export_requires_staff(app_client, conn):
+    pub = create_user(conn, "viewer@public.org"); grant_role(conn, pub, "public")
+    set_password(conn, pub, "pw")
+    _login(app_client, "viewer@public.org", "pw")
+    r = app_client.get("/export", follow_redirects=True)
+    assert b"Staff access required" in r.data
+
+
+def test_open_api_is_public_and_cors(app_client, conn):
+    # No login required; CORS-open; marked provisional.
+    r = app_client.get("/api/open/index.json")
+    assert r.status_code == 200 and r.headers["Access-Control-Allow-Origin"] == "*"
+    assert r.get_json()["provisional"] is True
+    r = app_client.get("/api/open/bloom-report.json")
+    assert r.status_code == 200 and r.get_json()["provisional"] is True
+    assert "records" in r.get_json()
+
+
+def test_open_api_excludes_reporter_pii(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    app_client.post("/reports/new", data={"waterbody": "PII Lake", "region": R5,
+                                          "reporter_name": "Secret Person",
+                                          "reporter_email": "secret@example.com",
+                                          "confirm_new_wb": "1"}, follow_redirects=True)
+    # The provisional JSON and the CSV must not leak the reporter's PII.
+    j = app_client.get("/api/open/bloom-report.json").get_data(as_text=True)
+    c = app_client.get("/export/bloom-report.csv").get_data(as_text=True)
+    assert "PII Lake" in j and "PII Lake" in c           # the report is published
+    assert "Secret Person" not in j and "Secret Person" not in c
+    assert "secret@example.com" not in j and "reporter" not in j.lower()
+
+
 def test_batch_ceden_upload(app_client, conn):
     import io
     from pathlib import Path

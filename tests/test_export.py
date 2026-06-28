@@ -42,3 +42,13 @@ def test_export_headers_use_published_names(loaded_conn, tmp_path):
     assert "RESULT ID UNIQUE" in header
     assert "Analyte" in header
     assert "Bloom_Report_ID" in header
+
+
+def test_fetch_flatfile_returns_records_without_pii(loaded_conn):
+    from fhab.export import DATASETS, fetch_flatfile
+    assert set(DATASETS) == {"bloom-report", "hab-cases", "hab-responses", "hab-results"}
+    headers, records = fetch_flatfile(loaded_conn, "bloom-report")
+    assert "Bloom_Report_ID" in headers and records and isinstance(records[0], dict)
+    # The published column set must never include reporter contact / illness.
+    joined = " ".join(headers).lower()
+    assert "reporter" not in joined and "illness" not in joined and "email" not in joined

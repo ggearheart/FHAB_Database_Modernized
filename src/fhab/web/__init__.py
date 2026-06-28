@@ -24,6 +24,7 @@ from ..labmatch import (_candidates, auto_match, create_event_from_stage, link_s
 from ..places import COUNTIES, similar_waterbodies, suggest_waterbodies
 from ..intake import (SubmissionError, list_submissions, promote_submission, reject_submission,
                       submit_public_report)
+from ..export import DATASETS, fetch_flatfile
 from ..db import DEFAULT_DSN, connect
 
 # Simple in-memory per-IP rate limiter for the public submission endpoint. Process-local (resets
@@ -42,6 +43,32 @@ def _rate_ok(ip: str, limit: int = 10, window: int = 3600) -> bool:
         return False
     c[0] += 1
     return True
+
+
+# Short-TTL cache for the public open-data JSON endpoints, to shield the DB from repeated hits.
+_OPEN_CACHE: dict[str, tuple] = {}
+_OPEN_TTL = 600  # seconds
+
+
+def _jsonable(v):
+    from datetime import date, datetime
+    from decimal import Decimal
+    if isinstance(v, (date, datetime)):
+        return v.isoformat()
+    if isinstance(v, Decimal):
+        return float(v)
+    return v
+
+
+def _csv_text(headers, records) -> str:
+    import csv
+    import io
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(headers)
+    for rec in records:
+        w.writerow(["" if rec[h] is None else rec[h] for h in headers])
+    return buf.getvalue()
 from ..geo import GEOCONNEX
 from ..reports import (ILLNESS_SUBJECTS, add_response, add_result, enter_report,
                        set_report_illness, update_report)
@@ -832,6 +859,87 @@ def create_app(dsn: str | None = None) -> Flask:
             flash("No photo on that submission.", "error")
             return redirect(url_for("intake_review"))
         return Response(bytes(row["photo"]), mimetype=row["photo_content_type"] or "image/jpeg")
+
+    # ---------- Open-data flat files (the four data.ca.gov files) ----------
+    @app.route("/export")
+    @staff_required
+    def export_index():
+        conn = db()
+        files = []
+        for slug, (title, desc) in DATASETS.items():
+            _, records = fetch_flatfile(conn, slug)
+            files.append({"slug": slug, "title": title, "desc": desc, "count": len(records)})
+        return render_template("export.html", files=files)
+
+    @app.route("/export/<slug>.csv")
+    @staff_required
+    def export_csv(slug):
+        from flask import Response
+        if slug not in DATASETS:
+            flash("Unknown dataset.", "error")
+            return redirect(url_for("export_index"))
+        headers, records = fetch_flatfile(db(), slug)
+        stamp = __import__("datetime").date.today().isoformat()
+        resp = Response(_csv_text(headers, records), mimetype="text/csv")
+        resp.headers["Content-Disposition"] = f'attachment; filename="fhab_{slug}_{stamp}.csv"'
+        return resp
+
+    @app.route("/export/all.zip")
+    @staff_required
+    def export_zip():
+        import io
+        import zipfile
+        from flask import Response
+        conn = db()
+        stamp = __import__("datetime").date.today().isoformat()
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for slug in DATASETS:
+                headers, records = fetch_flatfile(conn, slug)
+                zf.writestr(f"fhab_{slug}_{stamp}.csv", _csv_text(headers, records))
+        resp = Response(buf.getvalue(), mimetype="application/zip")
+        resp.headers["Content-Disposition"] = f'attachment; filename="fhab_flatfiles_{stamp}.zip"'
+        return resp
+
+    # Public provisional open-data API (read-only, CORS-open). Same published columns as the
+    # CSVs — no reporter PII / illness, veterinary excluded — but reflects the live (provisional)
+    # database, including reports not yet in an official data.ca.gov release.
+    def _open_cors(resp):
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Cache-Control"] = "public, max-age=600"
+        return resp
+
+    @app.route("/api/open/index.json")
+    def open_index():
+        base = request.host_url.rstrip("/")
+        datasets = [{
+            "slug": slug, "title": title, "description": desc,
+            "json": f"{base}/api/open/{slug}.json", "csv": f"{base}/export/{slug}.csv",
+        } for slug, (title, desc) in DATASETS.items()]
+        return _open_cors(jsonify({
+            "provisional": True,
+            "notice": ("Provisional FHAB data from the live database; not the official "
+                       "data.ca.gov release. Subject to change as reports are verified."),
+            "source": "https://data.ca.gov/dataset/surface-water-freshwater-harmful-algal-blooms",
+            "datasets": datasets,
+        }))
+
+    @app.route("/api/open/<slug>.json")
+    def open_dataset(slug):
+        if slug not in DATASETS:
+            return _open_cors(jsonify({"error": "unknown dataset"})), 404
+        now = _time.time()
+        cached = None if app.testing else _OPEN_CACHE.get(slug)
+        if not cached or now - cached[0] > _OPEN_TTL:
+            headers, records = fetch_flatfile(db(), slug)
+            records = [{k: _jsonable(v) for k, v in rec.items()} for rec in records]
+            payload = {"provisional": True, "dataset": slug,
+                       "title": DATASETS[slug][0],
+                       "generated_at": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+                       "count": len(records), "records": records}
+            _OPEN_CACHE[slug] = (now, payload)
+            cached = _OPEN_CACHE[slug]
+        return _open_cors(jsonify(cached[1]))
 
     # ---------- Lab batch reconciliation ----------
     @app.route("/batch/lab-reconcile", methods=["GET", "POST"])
