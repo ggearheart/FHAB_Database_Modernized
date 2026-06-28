@@ -22,8 +22,9 @@ from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_
 from ..labmatch import (_candidates, auto_match, create_event_from_stage, link_stage_sample,
                         skip_stage_sample, stage_batch)
 from ..places import COUNTIES, similar_waterbodies, suggest_waterbodies
-from ..intake import (SubmissionError, list_submissions, promote_submission, reject_submission,
-                      submit_public_report)
+from ..intake import (SubmissionError, create_intake_group, list_intake_groups, list_submissions,
+                      promote_submission, promote_trusted_pending, reject_submission,
+                      resolve_intake_group, set_group_active, submit_public_report)
 from ..export import DATASETS, fetch_flatfile
 from ..db import DEFAULT_DSN, connect
 
@@ -795,7 +796,12 @@ def create_app(dsn: str | None = None) -> Flask:
             r.status_code = code
             return r
 
-        if PUBLIC_KEY and request.headers.get("X-API-Key") != PUBLIC_KEY:
+        # A key may identify a registered community/partner group; otherwise it's anonymous
+        # public (gated by PUBLIC_KEY if one is configured).
+        key = request.headers.get("X-API-Key")
+        from ..intake import TIER_REPORT_TYPE
+        group = resolve_intake_group(db(), key) if key else None
+        if not group and PUBLIC_KEY and key != PUBLIC_KEY:
             return fail("unauthorized", 401)
         ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
               or request.remote_addr or "?")
@@ -804,9 +810,12 @@ def create_app(dsn: str | None = None) -> Flask:
         payload = request.get_json(silent=True) or {}
         if (payload.get("website") or "").strip():   # honeypot — silently accept & discard
             return _cors(jsonify({"ok": True, "id": None}), origin)
+        # report_type / group / trusted come from the authenticated group, never the payload.
+        kw = (dict(source=group["group_name"], report_type=TIER_REPORT_TYPE.get(group["tier"]),
+                   group_id=group["id"], trusted=bool(group["trusted"]))
+              if group else dict(source=(payload.get("source") or "api")))
         try:
-            sid = submit_public_report(db(), payload,
-                                       source=(payload.get("source") or "api"), remote_ip=ip)
+            sid = submit_public_report(db(), payload, remote_ip=ip, **kw)
         except SubmissionError as exc:
             return fail(str(exc), 400)
         except Exception:  # noqa: BLE001
@@ -819,8 +828,21 @@ def create_app(dsn: str | None = None) -> Flask:
     @staff_required
     def intake_review():
         status = request.args.get("status", "pending")
-        subs = list_submissions(db(), session["uid"], status)
-        return render_template("intake_review.html", subs=subs, status=status, regions=_regions())
+        trusted_only = request.args.get("trusted") == "1"
+        subs = list_submissions(db(), session["uid"], status, trusted_only=trusted_only)
+        return render_template("intake_review.html", subs=subs, status=status,
+                               trusted_only=trusted_only, regions=_regions())
+
+    @app.route("/intake/promote-trusted", methods=["POST"])
+    @staff_required
+    def intake_promote_trusted():
+        conn = db()
+        try:
+            n = promote_trusted_pending(conn, session["uid"])
+            flash(f"Promoted {n} trusted submission(s).", "ok")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not promote: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("intake_review"))
 
     @app.route("/intake/<int:sid>/promote", methods=["POST"])
     @staff_required
@@ -859,6 +881,37 @@ def create_app(dsn: str | None = None) -> Flask:
             flash("No photo on that submission.", "error")
             return redirect(url_for("intake_review"))
         return Response(bytes(row["photo"]), mimetype=row["photo_content_type"] or "image/jpeg")
+
+    # ---------- Community/partner intake groups (API keys) — admin ----------
+    @app.route("/admin/intake-groups", methods=["GET", "POST"])
+    @admin_required
+    def admin_intake_groups():
+        conn = db()
+        if request.method == "POST":
+            name = (request.form.get("group_name") or "").strip()
+            if not name:
+                flash("Enter a group name.", "error")
+                return redirect(url_for("admin_intake_groups"))
+            try:
+                _, key = create_intake_group(
+                    conn, session["uid"], name,
+                    tier=(request.form.get("tier") or "community"),
+                    trusted=bool(request.form.get("trusted")))
+                # The key is shown once — staff must copy it now.
+                flash(f"Group “{name}” created. API key (copy now, shown once): {key}", "ok")
+            except SubmissionError as exc:
+                flash(str(exc), "error")
+            except psycopg.Error as exc:
+                conn.rollback(); flash("Could not create: " + str(exc).splitlines()[0], "error")
+            return redirect(url_for("admin_intake_groups"))
+        return render_template("intake_groups.html", groups=list_intake_groups(conn, session["uid"]))
+
+    @app.route("/admin/intake-groups/<int:gid>/active", methods=["POST"])
+    @admin_required
+    def admin_intake_group_active(gid):
+        set_group_active(db(), session["uid"], gid, request.form.get("active") == "1")
+        flash("Group updated.", "ok")
+        return redirect(url_for("admin_intake_groups"))
 
     # ---------- Open-data flat files (the four data.ca.gov files) ----------
     @app.route("/export")

@@ -218,9 +218,31 @@ CREATE TABLE IF NOT EXISTS public_report_submission (
     promoted_report_id bigint REFERENCES event(bloom_report_id),
     review_note        text,
     reviewed_by        bigint,
-    reviewed_at        timestamptz
+    reviewed_at        timestamptz,
+    -- Full-form: suspected illness/death (sensitive, internal-read only).
+    no_illness_observed boolean,
+    illness_description text,
+    illness            jsonb,        -- [{subject, illness, death}, ...]
+    -- Community/partner attribution (set from the authenticated group key, not the payload).
+    group_id           bigint,       -- -> intake_group(id)
+    report_type        text,         -- Public Reporting | Agency/Partner Reporting
+    trusted            boolean NOT NULL DEFAULT false
 );
 CREATE INDEX IF NOT EXISTS public_submission_status_idx ON public_report_submission(status);
+
+-- Registered community/partner groups that submit via the public ingestion API. Each holds an
+-- API key; keyed submissions are attributed to the group and may be flagged trusted (a lighter
+-- review lane). Managed by program admins.
+CREATE TABLE IF NOT EXISTS intake_group (
+    id          bigserial PRIMARY KEY,
+    group_name  text NOT NULL,
+    tier        text NOT NULL DEFAULT 'community',  -- public | community | agency
+    api_key     text UNIQUE NOT NULL,
+    trusted     boolean NOT NULL DEFAULT false,
+    active      boolean NOT NULL DEFAULT true,
+    created_by  bigint,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
 
 -- CRM-3: a staff action; relates to both events and cases (either/both set).
 CREATE TABLE IF NOT EXISTS response (

@@ -43,7 +43,8 @@
     {% if session.roles|select('in', ['program_admin','wb_staff','field_staff','lab_analyst','illness_workgroup','ddw_staff'])|list %}<a href="{{ url_for('batch_determination') }}">Batch</a>
     <a href="{{ url_for('intake_review') }}">Submissions</a>
     <a href="{{ url_for('export_index') }}">Open data</a>{% endif %}
-    {% if 'program_admin' in session.roles %}<a href="{{ url_for('admin_users') }}">Accounts</a>{% endif %}
+    {% if 'program_admin' in session.roles %}<a href="{{ url_for('admin_users') }}">Accounts</a>
+    <a href="{{ url_for('admin_intake_groups') }}">Groups</a>{% endif %}
     <span class="spacer"></span>
     <span class="muted" style="color:#dff0e7">{{ session.name }}</span>
     <a href="{{ url_for('logout') }}">Sign out</a>

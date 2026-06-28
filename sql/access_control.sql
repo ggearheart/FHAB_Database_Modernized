@@ -259,6 +259,11 @@ BEGIN
     END LOOP;
 END $$;
 
+-- Intake group registry (API keys for community/partner submitters): program admins only.
+ALTER TABLE intake_group ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS intake_group_all ON intake_group;
+CREATE POLICY intake_group_all ON intake_group FOR ALL USING (fhab_is_admin()) WITH CHECK (fhab_is_admin());
+
 -- ---------- Write policies (INSERT / UPDATE / DELETE) ----------
 -- Each writable table gets a predicate; the loop builds matching insert/update/delete
 -- policies. Staff edit within their region; contributors edit only their own org's rows;
@@ -299,7 +304,7 @@ GRANT fhab_app TO current_user;
 GRANT INSERT, UPDATE, DELETE ON
     event, station, sample, result, hab_case, waterbody, location, response, advisory,
     lab_batch, lab_stage_sample, lab_stage_result, report_illness, report_photo,
-    public_report_submission TO fhab_app;
+    public_report_submission, intake_group TO fhab_app;
 -- analyte is reference vocabulary (no RLS); lab-result entry/upload may add new analytes.
 GRANT INSERT, UPDATE ON analyte TO fhab_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO fhab_app;

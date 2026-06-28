@@ -7,22 +7,31 @@
   Submissions never appear on the map until promoted.</p>
 
 <div class="card">
-  <form method="get" style="display:flex; gap:.5rem; align-items:flex-end">
+  <form method="get" style="display:flex; gap:.8rem; align-items:flex-end">
     <div><label>Show</label>
       <select name="status" style="width:auto" onchange="this.form.submit()">
         {% for s in ['pending','promoted','rejected','all'] %}
         <option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
       </select>
     </div>
+    <div><label style="display:flex; align-items:center; gap:.4rem; font-weight:normal; color:inherit">
+      <input type="checkbox" name="trusted" value="1" {% if trusted_only %}checked{% endif %}
+             style="width:auto" onchange="this.form.submit()"> trusted groups only</label></div>
     <noscript><button class="secondary">Apply</button></noscript>
   </form>
+  {% if status=='pending' %}
+  <form method="post" action="{{ url_for('intake_promote_trusted') }}" style="margin-top:.4rem">
+    <button class="secondary">Promote all pending trusted submissions</button>
+    <span class="muted">— the lighter-touch lane for registered trusted groups.</span>
+  </form>
+  {% endif %}
 </div>
 
 <div class="card">
   <h1 style="font-size:1.05rem">{{ status|capitalize }} <span class="muted">({{ subs|length }})</span></h1>
   <table>
     <tr><th>Submitted</th><th>Water body</th><th>County</th><th>Observed</th><th>Reporter</th>
-        <th>Source</th><th>Photo</th><th>Status</th><th></th></tr>
+        <th>Source / tier</th><th>Photo</th><th>Illness</th><th>Status</th><th></th></tr>
     {% for s in subs %}
     <tr>
       <td>{{ s.submitted_at.strftime('%Y-%m-%d %H:%M') if s.submitted_at else '—' }}</td>
@@ -31,8 +40,11 @@
       <td>{{ s.county or '—' }}</td>
       <td>{{ s.observation_date or '—' }}</td>
       <td>{{ s.reporter_name or '—' }}</td>
-      <td>{{ s.source or '—' }}</td>
+      <td>{{ s.source or '—' }}
+          {% if s.trusted %}<span class="pill" style="background:#e3f4ea">trusted</span>{% endif %}
+          {% if s.report_type and 'Agency' in s.report_type %}<br><span class="muted">partner</span>{% endif %}</td>
       <td>{% if s.has_photo %}<a href="{{ url_for('intake_photo', sid=s.id) }}" target="_blank">view</a>{% else %}—{% endif %}</td>
+      <td>{% if s.has_illness %}<span class="pill" style="background:#fbe6e6">yes</span>{% else %}—{% endif %}</td>
       <td>{% if s.status=='pending' %}<span class="pill" style="background:#fff6e0">pending</span>
           {% elif s.status=='promoted' %}<span class="pill" style="background:#e3f4ea">→ R{{ s.promoted_report_id }}</span>
           {% else %}<span class="pill" style="background:#fbe6e6">rejected</span>{% endif %}</td>
@@ -52,7 +64,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="9" class="muted">No {{ status }} submissions.</td></tr>
+    <tr><td colspan="10" class="muted">No {{ status }} submissions.</td></tr>
     {% endfor %}
   </table>
 </div>

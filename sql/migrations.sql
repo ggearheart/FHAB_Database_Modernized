@@ -76,3 +76,11 @@ CREATE INDEX IF NOT EXISTS location_geom_gix ON location USING gist (geom);
 
 -- Trigram index for fuzzy waterbody-name matching (type-ahead + near-duplicate guard).
 CREATE INDEX IF NOT EXISTS waterbody_name_trgm ON waterbody USING gin (water_body_name gin_trgm_ops);
+
+-- Public submission: full-form illness + community/partner attribution (table predates these).
+ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS no_illness_observed boolean;
+ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS illness_description text;
+ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS illness jsonb;
+ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS group_id bigint;
+ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS report_type text;
+ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS trusted boolean NOT NULL DEFAULT false;

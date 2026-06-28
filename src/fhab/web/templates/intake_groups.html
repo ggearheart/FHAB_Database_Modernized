@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Intake groups{% endblock %}
+{% block body %}
+<h1>Community / partner intake groups</h1>
+<p class="muted">Registered groups can submit through the public API with an API key. Keyed
+  submissions are attributed to the group and tiered (community/agency → “Agency/Partner
+  Reporting”); <strong>trusted</strong> groups land in the lighter-touch review lane. The key is
+  shown <strong>once</strong> at creation — copy it then.</p>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Register a group</h1>
+  <form method="post" action="{{ url_for('admin_intake_groups') }}">
+    <div class="row">
+      <div><label>Group name *</label><input name="group_name" required placeholder="e.g. Clear Lake Volunteers"></div>
+      <div><label>Tier</label>
+        <select name="tier"><option value="community">community</option>
+          <option value="agency">agency</option><option value="public">public</option></select>
+      </div>
+      <div><label>Trusted lane</label>
+        <label style="display:flex; align-items:center; gap:.4rem; font-weight:normal; color:inherit; margin-top:.45rem">
+          <input type="checkbox" name="trusted" value="1" style="width:auto"> bulk-promotable</label>
+      </div>
+    </div>
+    <p></p>
+    <button>Create group &amp; mint key</button>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Groups <span class="muted">({{ groups|length }})</span></h1>
+  <table>
+    <tr><th>Group</th><th>Tier</th><th>Trusted</th><th>Key</th><th>Created</th><th>Status</th><th></th></tr>
+    {% for g in groups %}
+    <tr>
+      <td>{{ g.group_name }}</td>
+      <td>{{ g.tier }}</td>
+      <td>{{ 'yes' if g.trusted else '—' }}</td>
+      <td><code>{{ g.key_prefix }}</code></td>
+      <td>{{ g.created_at.strftime('%Y-%m-%d') if g.created_at else '—' }}</td>
+      <td>{% if g.active %}<span class="pill" style="background:#e3f4ea">active</span>{% else %}<span class="pill" style="background:#fbe6e6">revoked</span>{% endif %}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin_intake_group_active', gid=g.id) }}" style="display:inline">
+          <input type="hidden" name="active" value="{{ '0' if g.active else '1' }}">
+          <button class="secondary" style="padding:.3rem .7rem">{{ 'Revoke' if g.active else 'Reactivate' }}</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">No groups yet.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+<p><a href="{{ url_for('intake_review') }}">← submissions queue</a></p>
+{% endblock %}
