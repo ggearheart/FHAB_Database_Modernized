@@ -56,14 +56,21 @@ def enter_report(
             "SELECT coalesce(max(bloom_report_id), 0) + 1 AS n FROM event"
         ).fetchone()["n"]
 
+    # Resolve the canonical waterbody with the privileged connection (before switching role):
+    # waterbody_read is region-scoped, so a staffer filing cross-region — or matching a waterbody
+    # with no region yet — could not otherwise see the existing row and would create a duplicate.
+    # Dedup is a global concern; the event's own visibility stays region-policed below.
+    wb = conn.execute(
+        """SELECT id FROM waterbody
+           WHERE lower(water_body_name) = lower(%s) AND county IS NOT DISTINCT FROM %s
+           ORDER BY id LIMIT 1""",
+        (water_body_name, county),
+    ).fetchone()
+
     # Use plain INSERT + currval rather than RETURNING: when a staffer files on behalf of
     # another region, RETURNING would read the new row back and trip the region-scoped read
     # policy. currval reads the sequence, which is not subject to RLS.
     with acting_as(conn, user_id):
-        wb = conn.execute(
-            "SELECT id FROM waterbody WHERE water_body_name = %s AND county IS NOT DISTINCT FROM %s",
-            (water_body_name, county),
-        ).fetchone()
         if wb:
             wb_id = wb["id"]
         else:

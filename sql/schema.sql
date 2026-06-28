@@ -10,6 +10,7 @@
 -- keyed by `bloom_report_id` and carries an `event_status` for its lifecycle stage.
 
 CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- trigram fuzzy matching for waterbody-name dedup
 
 -- ---------- Enumerated types ----------
 

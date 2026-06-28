@@ -21,6 +21,7 @@ from ..cases import (CASE_STATUSES, assign_report_to_case, create_case, update_c
 from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_for_event)
 from ..labmatch import (_candidates, auto_match, create_event_from_stage, link_stage_sample,
                         skip_stage_sample, stage_batch)
+from ..places import COUNTIES, similar_waterbodies, suggest_waterbodies
 from ..db import DEFAULT_DSN, connect
 from ..geo import GEOCONNEX
 from ..reports import (ILLNESS_SUBJECTS, add_response, add_result, enter_report,
@@ -205,7 +206,8 @@ def create_app(dsn: str | None = None) -> Flask:
     VOCAB = dict(report_types=REPORT_TYPES, signs_options=SIGNS_OPTIONS,
                  weather_options=WEATHER_OPTIONS, surface_water_options=SURFACE_WATER_OPTIONS,
                  size_options=SIZE_OPTIONS, bloom_location_options=BLOOM_LOCATION_OPTIONS,
-                 texture_options=TEXTURE_OPTIONS, illness_subjects=ILLNESS_SUBJECTS)
+                 texture_options=TEXTURE_OPTIONS, illness_subjects=ILLNESS_SUBJECTS,
+                 counties=COUNTIES)
 
     # ---- routes ----
     @app.route("/login", methods=["GET", "POST"])
@@ -663,7 +665,19 @@ def create_app(dsn: str | None = None) -> Flask:
             if cross and not f.get("confirm_cross"):
                 return render_template("new_report.html", form=f, regions=_regions(),
                                        determinations=_determinations(), cross_warn=(regs, region),
-                                       **VOCAB)
+                                       wb_suggestions=None, **VOCAB)
+            # Controlled-vocabulary guard for waterbody: if the typed name has no exact match but
+            # is close to existing ones, ask the staffer to pick the canonical name or confirm new.
+            wb_name = f["waterbody"].strip()
+            county = (f.get("county") or "").strip() or None
+            exact = conn.execute(
+                "SELECT 1 FROM waterbody WHERE lower(water_body_name)=lower(%s)", (wb_name,)).fetchone()
+            if not exact and not f.get("confirm_new_wb"):
+                sims = similar_waterbodies(conn, wb_name, county)
+                if sims:
+                    return render_template("new_report.html", form=f, regions=_regions(),
+                                           determinations=_determinations(), cross_warn=None,
+                                           wb_suggestions=sims, **VOCAB)
             try:
                 rid = enter_report(
                     conn, session["uid"],
@@ -702,7 +716,13 @@ def create_app(dsn: str | None = None) -> Flask:
                 conn.rollback()
                 flash("Could not enter report: " + str(exc).splitlines()[0], "error")
         return render_template("new_report.html", form={}, regions=_regions(),
-                               determinations=_determinations(), cross_warn=None, **VOCAB)
+                               determinations=_determinations(), cross_warn=None,
+                               wb_suggestions=None, **VOCAB)
+
+    @app.route("/api/waterbodies")
+    @login_required
+    def api_waterbodies():
+        return jsonify(suggest_waterbodies(db(), request.args.get("q", "")))
 
     # ---------- Lab batch reconciliation ----------
     @app.route("/batch/lab-reconcile", methods=["GET", "POST"])

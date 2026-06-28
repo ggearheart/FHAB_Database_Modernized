@@ -20,9 +20,37 @@
       </select>
     </div>
   </div>
+  {% if wb_suggestions %}
+  <div class="warn">
+    <strong>Possible duplicate waterbody.</strong> “{{ form.waterbody }}” is close to waterbodies
+    already in the system. Pick the canonical name to keep data consistent, or confirm a new one.
+    <ul style="margin:.5rem 0">
+      {% for s in wb_suggestions %}
+      <li style="margin:.15rem 0">
+        <button type="button" class="btn" style="padding:.15rem .6rem"
+                onclick="useWb({{ s.name|tojson }}, {{ (s.county or '')|tojson }}, {{ (s.region or '')|tojson }})">Use “{{ s.name }}”</button>
+        {% if s.county %}<span class="muted">{{ s.county }} County</span>{% endif %}
+        {%- if s.region %} <span class="muted">· {{ s.region }}</span>{% endif %}
+        <span class="muted">· {{ (s.sim*100)|int }}% match</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <label style="display:flex; align-items:center; gap:.5rem; color:inherit">
+      <input type="checkbox" name="confirm_new_wb" value="1" style="width:auto">
+      No — create a new waterbody “{{ form.waterbody }}”.</label>
+  </div>
+  {% endif %}
   <div class="row">
-    <div><label>Water body name *</label><input name="waterbody" required value="{{ form.waterbody or '' }}"></div>
-    <div><label>County</label><input name="county" value="{{ form.county or '' }}"></div>
+    <div><label>Water body name *</label>
+      <input name="waterbody" id="wb-input" list="wb-list" autocomplete="off" required value="{{ form.waterbody or '' }}">
+      <datalist id="wb-list"></datalist>
+    </div>
+    <div><label>County</label>
+      <select name="county"><option value="">— select —</option>
+        {% if form.county and form.county not in counties %}<option selected>{{ form.county }}</option>{% endif %}
+        {% for c in counties %}<option value="{{ c }}" {% if form.county==c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+    </div>
   </div>
   <div class="row">
     <div><label>Landmark / nearest access</label><input name="landmark" value="{{ form.landmark or '' }}"></div>
@@ -59,14 +87,17 @@
   <div class="row">
     <div><label>Signs posted</label>{{ vocab_select('signs_posted', signs_options, form.signs_posted) }}</div>
     <div><label>Photos available?</label>
-      <select name="has_pictures"><option value="">—</option><option>Yes</option><option>No</option></select>
+      <select name="has_pictures"><option value="">—</option>
+        <option {% if form.has_pictures=='Yes' %}selected{% endif %}>Yes</option>
+        <option {% if form.has_pictures=='No' %}selected{% endif %}>No</option></select>
     </div>
   </div>
   <label>Bloom texture/appearance (select all that apply)</label>
   <div style="display:flex; flex-wrap:wrap; gap:.3rem .9rem">
     {% for t in texture_options %}
     <label style="display:flex; align-items:center; gap:.3rem; font-weight:normal; color:inherit; width:auto">
-      <input type="checkbox" name="bloom_textures" value="{{ t }}" style="width:auto"> {{ t }}</label>
+      <input type="checkbox" name="bloom_textures" value="{{ t }}" style="width:auto"
+             {% if form.getlist and t in form.getlist('bloom_textures') %}checked{% endif %}> {{ t }}</label>
     {% endfor %}
   </div>
   <label style="margin-top:.6rem">Description / comments</label>
@@ -76,13 +107,14 @@
 <div class="card">
   <h1 style="font-size:1.05rem">Suspected illness or death <span class="muted">(not shown publicly)</span></h1>
   <label style="display:flex; align-items:center; gap:.4rem; font-weight:normal; color:inherit">
-    <input type="checkbox" name="no_illness_observed" value="1" style="width:auto"> No illness or death observed</label>
+    <input type="checkbox" name="no_illness_observed" value="1" style="width:auto"
+           {% if form.get and form.get('no_illness_observed') %}checked{% endif %}> No illness or death observed</label>
   <table style="margin-top:.5rem">
     <tr><th>Subject</th><th>Illness</th><th>Death</th></tr>
     {% for s in illness_subjects %}
     <tr><td>{{ s }}</td>
-      <td><input type="checkbox" name="illness_{{ s }}" value="1" style="width:auto"></td>
-      <td><input type="checkbox" name="death_{{ s }}" value="1" style="width:auto"></td></tr>
+      <td><input type="checkbox" name="illness_{{ s }}" value="1" style="width:auto" {% if form.get and form.get('illness_' ~ s) %}checked{% endif %}></td>
+      <td><input type="checkbox" name="death_{{ s }}" value="1" style="width:auto" {% if form.get and form.get('death_' ~ s) %}checked{% endif %}></td></tr>
     {% endfor %}
   </table>
   <label>Illness details</label>
@@ -117,4 +149,40 @@
   <button type="submit">Submit report</button>
 </div>
 </form>
+
+<script>
+// Waterbody type-ahead: fuzzy-match existing waterbodies so staff converge on canonical names.
+(function () {
+  var inp = document.getElementById('wb-input'), dl = document.getElementById('wb-list'), seen = {}, t;
+  if (!inp) return;
+  inp.addEventListener('input', function () {
+    clearTimeout(t);
+    var q = inp.value.trim();
+    if (q.length < 2) return;
+    t = setTimeout(function () {
+      fetch('/api/waterbodies?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); })
+        .then(function (rows) {
+          dl.innerHTML = ''; seen = {};
+          rows.forEach(function (r) {
+            var o = document.createElement('option');
+            o.value = r.name;
+            o.label = (r.county ? r.county + ' County' : '') + (r.region ? ' · ' + r.region : '');
+            dl.appendChild(o); seen[r.name.toLowerCase()] = r;
+          });
+        });
+    }, 200);
+  });
+  // Picking an existing waterbody auto-fills its county/region.
+  inp.addEventListener('change', function () {
+    var r = seen[inp.value.trim().toLowerCase()];
+    if (r) window.useWb(r.name, r.county || '', r.region || '');
+  });
+  window.useWb = function (name, county, region) {
+    inp.value = name;
+    var c = document.querySelector('select[name=county]'), g = document.querySelector('select[name=region]');
+    if (county && c) c.value = county;
+    if (region && g) g.value = region;
+  };
+})();
+</script>
 {% endblock %}

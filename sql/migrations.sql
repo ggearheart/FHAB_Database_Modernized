@@ -73,3 +73,6 @@ CREATE INDEX IF NOT EXISTS response_event_idx ON response (bloom_report_id);
 CREATE INDEX IF NOT EXISTS sample_event_idx ON sample (bloom_report_id);
 CREATE INDEX IF NOT EXISTS advisory_response_idx ON advisory (response_action_id);
 CREATE INDEX IF NOT EXISTS location_geom_gix ON location USING gist (geom);
+
+-- Trigram index for fuzzy waterbody-name matching (type-ahead + near-duplicate guard).
+CREATE INDEX IF NOT EXISTS waterbody_name_trgm ON waterbody USING gin (water_body_name gin_trgm_ops);

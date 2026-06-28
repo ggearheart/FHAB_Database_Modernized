@@ -152,7 +152,8 @@ def test_batch_update_outcomes(app_client, conn):
     # Two reports in Region 5.
     ids = []
     for name in ("Batch A", "Batch B"):
-        app_client.post("/reports/new", data={"waterbody": name, "region": R5}, follow_redirects=True)
+        app_client.post("/reports/new", data={"waterbody": name, "region": R5,
+                                              "confirm_new_wb": "1"}, follow_redirects=True)
         ids.append(conn.execute(
             "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
             "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name=%s", (name,)
@@ -237,7 +238,8 @@ def test_dashboard_shows_recent_worked_reports(app_client, conn):
     _login(app_client, "staff@wb.ca.gov", "staffpw")
     # Work on two reports.
     for name in ("Recent A", "Recent B"):
-        app_client.post("/reports/new", data={"waterbody": name, "region": R5}, follow_redirects=True)
+        app_client.post("/reports/new", data={"waterbody": name, "region": R5,
+                                              "confirm_new_wb": "1"}, follow_redirects=True)
     r = app_client.get("/")
     assert b"Reports you&#39;ve worked on" in r.data or b"Reports you've worked on" in r.data
     assert b"Recent A" in r.data and b"Recent B" in r.data
@@ -262,6 +264,37 @@ def test_new_report_form_has_official_vocabularies(app_client, conn):
     assert b"between a football field and a tennis court" in r.data  # size vocab
     assert b"Benthic mats" in r.data and b"Suspected illness or death" in r.data
     assert b"Reporter contact" in r.data
+
+
+def test_new_report_has_county_dropdown(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    r = app_client.get("/reports/new")
+    assert b'<select name="county">' in r.data and b"Sacramento" in r.data and b"Arizona State" in r.data
+
+
+def test_waterbody_suggest_api(app_client, conn):
+    conn.execute("INSERT INTO waterbody (water_body_name, county) VALUES ('Clear Lake', 'Lake')")
+    conn.commit()
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    r = app_client.get("/api/waterbodies?q=clear")
+    assert r.status_code == 200 and any(w["name"] == "Clear Lake" for w in r.get_json())
+
+
+def test_new_report_near_duplicate_guard(app_client, conn):
+    conn.execute("INSERT INTO waterbody (water_body_name, county) VALUES ('Clear Lake', 'Lake')")
+    conn.commit()
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    # A near-duplicate name is held back with a guard rather than creating a new waterbody.
+    r = app_client.post("/reports/new", data={"waterbody": "Clearlake", "region": R5},
+                        follow_redirects=True)
+    assert b"Possible duplicate waterbody" in r.data
+    assert conn.execute("SELECT count(*) c FROM waterbody WHERE water_body_name='Clearlake'"
+                        ).fetchone()["c"] == 0
+    # A case-variant of the existing name (same county) reuses the canonical row — no duplicate.
+    app_client.post("/reports/new", data={"waterbody": "clear lake", "region": R5,
+                                          "county": "Lake"}, follow_redirects=True)
+    assert conn.execute("SELECT count(*) c FROM waterbody WHERE lower(water_body_name)='clear lake'"
+                        ).fetchone()["c"] == 1
 
 
 def test_new_report_saves_official_fields_and_illness(app_client, conn):
