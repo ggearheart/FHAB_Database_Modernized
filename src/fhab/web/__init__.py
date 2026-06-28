@@ -22,7 +22,26 @@ from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_
 from ..labmatch import (_candidates, auto_match, create_event_from_stage, link_stage_sample,
                         skip_stage_sample, stage_batch)
 from ..places import COUNTIES, similar_waterbodies, suggest_waterbodies
+from ..intake import (SubmissionError, list_submissions, promote_submission, reject_submission,
+                      submit_public_report)
 from ..db import DEFAULT_DSN, connect
+
+# Simple in-memory per-IP rate limiter for the public submission endpoint. Process-local (resets
+# on restart, not shared across workers) — adequate for the demo; use a shared store in prod.
+import time as _time
+_RATE: dict[str, list] = {}
+
+
+def _rate_ok(ip: str, limit: int = 10, window: int = 3600) -> bool:
+    now = _time.time()
+    c = _RATE.get(ip)
+    if not c or now - c[1] > window:
+        _RATE[ip] = [1, now]
+        return True
+    if c[0] >= limit:
+        return False
+    c[0] += 1
+    return True
 from ..geo import GEOCONNEX
 from ..reports import (ILLNESS_SUBJECTS, add_response, add_result, enter_report,
                        set_report_illness, update_report)
@@ -203,6 +222,11 @@ def create_app(dsn: str | None = None) -> Flask:
     TEXTURE_OPTIONS = ["Streaking", "Surface scum", "Floating mats", "Stranded mats",
                        "Benthic mats", "Spilled paint", "Green discoloration",
                        "Visible spherical colonies", "Grass clippings", "Other", "No bloom"]
+    # Public submission endpoint config (CORS allowlist + optional shared key).
+    PUBLIC_ORIGINS = [o.strip() for o in os.environ.get(
+        "PUBLIC_INTAKE_ORIGINS", "https://ggearheart.github.io").split(",") if o.strip()]
+    PUBLIC_KEY = os.environ.get("PUBLIC_INTAKE_KEY")
+
     VOCAB = dict(report_types=REPORT_TYPES, signs_options=SIGNS_OPTIONS,
                  weather_options=WEATHER_OPTIONS, surface_water_options=SURFACE_WATER_OPTIONS,
                  size_options=SIZE_OPTIONS, bloom_location_options=BLOOM_LOCATION_OPTIONS,
@@ -723,6 +747,91 @@ def create_app(dsn: str | None = None) -> Flask:
     @login_required
     def api_waterbodies():
         return jsonify(suggest_waterbodies(db(), request.args.get("q", "")))
+
+    # ---------- Public submission API (external apps, e.g. the CyanoSafe phone demo) ----------
+    def _cors(resp, origin):
+        allow = origin if origin in PUBLIC_ORIGINS else (PUBLIC_ORIGINS[0] if PUBLIC_ORIGINS else "*")
+        resp.headers["Access-Control-Allow-Origin"] = allow
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-API-Key"
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Vary"] = "Origin"
+        return resp
+
+    @app.route("/api/public/reports", methods=["POST", "OPTIONS"])
+    def public_submit():
+        origin = request.headers.get("Origin", "")
+        if request.method == "OPTIONS":
+            return _cors(app.make_response(("", 204)), origin)
+
+        def fail(msg, code):
+            r = _cors(jsonify({"ok": False, "error": msg}), origin)
+            r.status_code = code
+            return r
+
+        if PUBLIC_KEY and request.headers.get("X-API-Key") != PUBLIC_KEY:
+            return fail("unauthorized", 401)
+        ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+              or request.remote_addr or "?")
+        if not _rate_ok(ip):
+            return fail("rate limit exceeded; try again later", 429)
+        payload = request.get_json(silent=True) or {}
+        if (payload.get("website") or "").strip():   # honeypot — silently accept & discard
+            return _cors(jsonify({"ok": True, "id": None}), origin)
+        try:
+            sid = submit_public_report(db(), payload,
+                                       source=(payload.get("source") or "api"), remote_ip=ip)
+        except SubmissionError as exc:
+            return fail(str(exc), 400)
+        except Exception:  # noqa: BLE001
+            db().rollback()
+            return fail("could not accept submission", 400)
+        return _cors(jsonify({"ok": True, "id": sid,
+                              "message": "Thank you — your report was received for review."}), origin)
+
+    @app.route("/intake/review")
+    @staff_required
+    def intake_review():
+        status = request.args.get("status", "pending")
+        subs = list_submissions(db(), session["uid"], status)
+        return render_template("intake_review.html", subs=subs, status=status, regions=_regions())
+
+    @app.route("/intake/<int:sid>/promote", methods=["POST"])
+    @staff_required
+    def intake_promote(sid):
+        conn = db()
+        try:
+            brid = promote_submission(conn, session["uid"], sid,
+                                      region=(request.form.get("region") or "").strip() or None)
+            _record_activity(brid, "promoted public submission")
+            flash(f"Promoted to report {brid}.", "ok")
+            return redirect(url_for("report_detail", brid=brid))
+        except SubmissionError as exc:
+            flash(str(exc), "error")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not promote: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("intake_review"))
+
+    @app.route("/intake/<int:sid>/reject", methods=["POST"])
+    @staff_required
+    def intake_reject(sid):
+        reject_submission(db(), session["uid"], sid,
+                          note=(request.form.get("note") or "").strip() or None)
+        flash("Submission rejected.", "ok")
+        return redirect(url_for("intake_review"))
+
+    @app.route("/intake/<int:sid>/photo")
+    @staff_required
+    def intake_photo(sid):
+        from flask import Response
+        conn = db()
+        with acting_as(conn, session["uid"]):
+            row = conn.execute(
+                "SELECT photo, photo_content_type FROM public_report_submission WHERE id=%s",
+                (sid,)).fetchone()
+        if not row or not row["photo"]:
+            flash("No photo on that submission.", "error")
+            return redirect(url_for("intake_review"))
+        return Response(bytes(row["photo"]), mimetype=row["photo_content_type"] or "image/jpeg")
 
     # ---------- Lab batch reconciliation ----------
     @app.route("/batch/lab-reconcile", methods=["GET", "POST"])

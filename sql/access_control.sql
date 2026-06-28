@@ -248,7 +248,7 @@ END $$;
 DO $$
 DECLARE t text;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['report_illness','report_photo'] LOOP
+    FOREACH t IN ARRAY ARRAY['report_illness','report_photo','public_report_submission'] LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
         EXECUTE format('DROP POLICY IF EXISTS %1$I_read ON %1$I', t);
         EXECUTE format('CREATE POLICY %1$I_read ON %1$I FOR SELECT USING (fhab_is_admin() OR fhab_is_internal())', t);
@@ -298,7 +298,8 @@ GRANT fhab_app TO current_user;
 -- Writes are allowed only on the tables that have write policies above.
 GRANT INSERT, UPDATE, DELETE ON
     event, station, sample, result, hab_case, waterbody, location, response, advisory,
-    lab_batch, lab_stage_sample, lab_stage_result, report_illness, report_photo TO fhab_app;
+    lab_batch, lab_stage_sample, lab_stage_result, report_illness, report_photo,
+    public_report_submission TO fhab_app;
 -- analyte is reference vocabulary (no RLS); lab-result entry/upload may add new analytes.
 GRANT INSERT, UPDATE ON analyte TO fhab_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO fhab_app;

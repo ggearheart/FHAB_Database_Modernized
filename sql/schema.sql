@@ -187,6 +187,41 @@ CREATE TABLE IF NOT EXISTS report_photo (
 CREATE INDEX IF NOT EXISTS report_photo_report_idx ON report_photo(bloom_report_id);
 CREATE INDEX IF NOT EXISTS event_case_idx ON event(case_id);
 
+-- Public bloom-report submissions (e.g. from the CyanoSafe phone app). These land in a
+-- moderation queue; staff promote a submission into a real report or reject it. Nothing here
+-- appears on the staff/public map until promoted. Holds reporter PII (internal-read only).
+CREATE TABLE IF NOT EXISTS public_report_submission (
+    id                 bigserial PRIMARY KEY,
+    submitted_at       timestamptz NOT NULL DEFAULT now(),
+    status             text NOT NULL DEFAULT 'pending',  -- pending | promoted | rejected
+    water_body_name    text,
+    county             text,
+    landmark           text,
+    latitude           double precision,
+    longitude          double precision,
+    observation_date   date,
+    bloom_size         text,
+    bloom_location     text,
+    bloom_textures     text[],
+    weather_condition  text,
+    surface_water_condition text,
+    signs_posted       text,
+    description        text,
+    reporter_name      text,
+    reporter_email     text,
+    reporter_phone     text,
+    reporter_org       text,
+    photo              bytea,
+    photo_content_type text,
+    source             text,        -- submitting app, e.g. 'cyanosafe-demo'
+    remote_ip          text,        -- for abuse triage / rate limiting
+    promoted_report_id bigint REFERENCES event(bloom_report_id),
+    review_note        text,
+    reviewed_by        bigint,
+    reviewed_at        timestamptz
+);
+CREATE INDEX IF NOT EXISTS public_submission_status_idx ON public_report_submission(status);
+
 -- CRM-3: a staff action; relates to both events and cases (either/both set).
 CREATE TABLE IF NOT EXISTS response (
     response_action_id     bigint PRIMARY KEY,
