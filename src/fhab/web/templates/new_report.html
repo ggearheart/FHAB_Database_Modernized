@@ -1,65 +1,120 @@
 {% extends "base.html" %}
 {% block title %}New report{% endblock %}
+{% macro vocab_select(name, options, current) %}
+  <select name="{{ name }}">
+    <option value="">— select —</option>
+    {% for o in options %}<option value="{{ o }}" {% if current==o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+  </select>
+{% endmacro %}
 {% block body %}
 <h1>Enter a new bloom report</h1>
+<p class="muted">Mirrors the public <a href="https://mywaterquality.ca.gov/habs/bloom-report/" target="_blank">Report a HAB</a> form.</p>
+<form method="post">
 <div class="card">
-  <form method="post">
-    <div class="row">
-      <div>
-        <label>Water body name *</label>
-        <input name="waterbody" required value="{{ form.waterbody or '' }}">
-      </div>
-      <div>
-        <label>County</label>
-        <input name="county" value="{{ form.county or '' }}">
-      </div>
+  <h1 style="font-size:1.05rem">Report type &amp; location</h1>
+  <div class="row">
+    <div><label>Report type</label>{{ vocab_select('report_type', report_types, form.report_type or 'Public Reporting') }}</div>
+    <div><label>Regional Water Board</label>
+      <select name="region"><option value="">— select —</option>
+        {% for r in regions %}<option value="{{ r }}" {% if form.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
     </div>
-    <div class="row">
-      <div>
-        <label>Regional Water Board</label>
-        <select name="region">
-          <option value="">— select —</option>
-          {% for r in regions %}<option value="{{ r }}" {% if form.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label>Observation date</label>
-        <input name="date" type="date" value="{{ form.date or '' }}">
-      </div>
-    </div>
-    <div class="row">
-      <div><label>Latitude</label><input name="lat" value="{{ form.lat or '' }}"></div>
-      <div><label>Longitude</label><input name="lon" value="{{ form.lon or '' }}"></div>
-    </div>
-    <div class="row">
-      <div><label>Bloom type</label><input name="bloom_type" value="{{ form.bloom_type or '' }}"></div>
-      <div><label>Bloom size</label><input name="bloom_size" value="{{ form.bloom_size or '' }}"></div>
-    </div>
-    <div class="row">
-      <div>
-        <label>Outcome / determination</label>
-        <select name="determination_code">
-          {% for d in determinations %}
-          <option value="{{ d.code }}" {% if form.determination_code==d.code or (not form.determination_code and d.code=='under_investigation') %}selected{% endif %}>{{ d.label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div></div>
-    </div>
-    <label>Description</label>
-    <textarea name="description" rows="3">{{ form.description or '' }}</textarea>
-
-    {% if cross_warn %}
-    <div class="warn">
-      <strong>Heads up:</strong> you are entering a report on behalf of a different Regional Board.<br>
-      Your region(s): {{ cross_warn[0]|join(', ') }} &nbsp;•&nbsp; Report region: {{ cross_warn[1] }}.
-      <label style="display:flex; align-items:center; gap:.5rem; margin-top:.5rem; color:inherit">
-        <input type="checkbox" name="confirm_cross" value="1" style="width:auto"> I confirm entering for a different region.
-      </label>
-    </div>
-    {% endif %}
-    <p></p>
-    <button type="submit">Submit report</button>
-  </form>
+  </div>
+  <div class="row">
+    <div><label>Water body name *</label><input name="waterbody" required value="{{ form.waterbody or '' }}"></div>
+    <div><label>County</label><input name="county" value="{{ form.county or '' }}"></div>
+  </div>
+  <div class="row">
+    <div><label>Landmark / nearest access</label><input name="landmark" value="{{ form.landmark or '' }}"></div>
+    <div><label>Observation date *</label><input name="date" type="date" value="{{ form.date or '' }}"></div>
+  </div>
+  <div class="row">
+    <div><label>Latitude</label><input name="lat" value="{{ form.lat or '' }}"></div>
+    <div><label>Longitude</label><input name="lon" value="{{ form.lon or '' }}"></div>
+  </div>
 </div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Reporter contact <span class="muted">(not shown publicly)</span></h1>
+  <div class="row">
+    <div><label>Name</label><input name="reporter_name" value="{{ form.reporter_name or '' }}"></div>
+    <div><label>Organization</label><input name="reporter_org" value="{{ form.reporter_org or '' }}"></div>
+  </div>
+  <div class="row">
+    <div><label>Email</label><input name="reporter_email" type="email" value="{{ form.reporter_email or '' }}"></div>
+    <div><label>Phone</label><input name="reporter_phone" value="{{ form.reporter_phone or '' }}"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Bloom characteristics</h1>
+  <div class="row">
+    <div><label>Bloom size</label>{{ vocab_select('bloom_size', size_options, form.bloom_size) }}</div>
+    <div><label>Bloom location (from shore)</label>{{ vocab_select('bloom_location', bloom_location_options, form.bloom_location) }}</div>
+  </div>
+  <div class="row">
+    <div><label>Weather</label>{{ vocab_select('weather_condition', weather_options, form.weather_condition) }}</div>
+    <div><label>Surface water</label>{{ vocab_select('surface_water_condition', surface_water_options, form.surface_water_condition) }}</div>
+  </div>
+  <div class="row">
+    <div><label>Signs posted</label>{{ vocab_select('signs_posted', signs_options, form.signs_posted) }}</div>
+    <div><label>Photos available?</label>
+      <select name="has_pictures"><option value="">—</option><option>Yes</option><option>No</option></select>
+    </div>
+  </div>
+  <label>Bloom texture/appearance (select all that apply)</label>
+  <div style="display:flex; flex-wrap:wrap; gap:.3rem .9rem">
+    {% for t in texture_options %}
+    <label style="display:flex; align-items:center; gap:.3rem; font-weight:normal; color:inherit; width:auto">
+      <input type="checkbox" name="bloom_textures" value="{{ t }}" style="width:auto"> {{ t }}</label>
+    {% endfor %}
+  </div>
+  <label style="margin-top:.6rem">Description / comments</label>
+  <textarea name="description" rows="3">{{ form.description or '' }}</textarea>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Suspected illness or death <span class="muted">(not shown publicly)</span></h1>
+  <label style="display:flex; align-items:center; gap:.4rem; font-weight:normal; color:inherit">
+    <input type="checkbox" name="no_illness_observed" value="1" style="width:auto"> No illness or death observed</label>
+  <table style="margin-top:.5rem">
+    <tr><th>Subject</th><th>Illness</th><th>Death</th></tr>
+    {% for s in illness_subjects %}
+    <tr><td>{{ s }}</td>
+      <td><input type="checkbox" name="illness_{{ s }}" value="1" style="width:auto"></td>
+      <td><input type="checkbox" name="death_{{ s }}" value="1" style="width:auto"></td></tr>
+    {% endfor %}
+  </table>
+  <label>Illness details</label>
+  <textarea name="illness_description" rows="2">{{ form.illness_description or '' }}</textarea>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Determination &amp; management</h1>
+  <div class="row">
+    <div><label>Outcome / determination</label>
+      <select name="determination_code">
+        {% for d in determinations %}
+        <option value="{{ d.code }}" {% if form.determination_code==d.code or (not form.determination_code and d.code=='under_investigation') %}selected{% endif %}>{{ d.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div></div>
+  </div>
+  <label>Management comments <span class="muted">(internal)</span></label>
+  <textarea name="management_comments" rows="2">{{ form.management_comments or '' }}</textarea>
+
+  {% if cross_warn %}
+  <div class="warn">
+    <strong>Heads up:</strong> you are entering a report on behalf of a different Regional Board.<br>
+    Your region(s): {{ cross_warn[0]|join(', ') }} &nbsp;•&nbsp; Report region: {{ cross_warn[1] }}.
+    <label style="display:flex; align-items:center; gap:.5rem; margin-top:.5rem; color:inherit">
+      <input type="checkbox" name="confirm_cross" value="1" style="width:auto"> I confirm entering for a different region.
+    </label>
+  </div>
+  {% endif %}
+  <p></p>
+  <button type="submit">Submit report</button>
+</div>
+</form>
 {% endblock %}

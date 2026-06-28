@@ -15,6 +15,16 @@ ALTER TABLE event ADD COLUMN IF NOT EXISTS illness_type text;
 ALTER TABLE event ADD COLUMN IF NOT EXISTS illness_description text;
 ALTER TABLE event ADD COLUMN IF NOT EXISTS geoconnex_uri text;
 ALTER TABLE event ADD COLUMN IF NOT EXISTS bloom_date_created timestamptz;
+-- Fields adopted from the official MyWaterQuality bloom-report form.
+ALTER TABLE event ADD COLUMN IF NOT EXISTS signs_posted text;          -- Caution/Danger/Warning/...
+ALTER TABLE event ADD COLUMN IF NOT EXISTS bloom_textures text[];      -- multi-select textures
+ALTER TABLE event ADD COLUMN IF NOT EXISTS no_illness_observed boolean;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS management_comments text;
+-- Reporter contact (PII — withheld from the public map/exports).
+ALTER TABLE event ADD COLUMN IF NOT EXISTS reporter_name text;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS reporter_email text;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS reporter_phone text;
+ALTER TABLE event ADD COLUMN IF NOT EXISTS reporter_org text;
 
 -- sample
 ALTER TABLE sample ADD COLUMN IF NOT EXISTS station_id bigint;

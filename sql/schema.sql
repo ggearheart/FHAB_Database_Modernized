@@ -146,13 +146,44 @@ CREATE TABLE IF NOT EXISTS event (
     bloom_description        text,
     reported_advisory_types  text,
     has_pictures             boolean,
+    signs_posted             text,          -- advisory signage observed (Caution/Danger/Warning/...)
+    bloom_textures           text[],        -- multi-select textures from the public form
+    management_comments      text,          -- internal (agency) notes
     -- public-health (adopted from legacy review)
     illness_type             text,
     illness_description      text,
+    no_illness_observed      boolean,
+    -- reporter contact (PII — withheld from the public map/exports)
+    reporter_name            text,
+    reporter_email           text,
+    reporter_phone           text,
+    reporter_org             text,
     geoconnex_uri            text UNIQUE,
     owner_org                text,   -- contributor org that owns this row (NULL = State)
     created_at               timestamptz NOT NULL DEFAULT now()
 );
+-- Suspected illness/death matrix (subject x illness/death) from the public bloom-report form.
+-- Sensitive: internal-read only (see access_control.sql).
+CREATE TABLE IF NOT EXISTS report_illness (
+    id              bigserial PRIMARY KEY,
+    bloom_report_id bigint NOT NULL REFERENCES event(bloom_report_id) ON DELETE CASCADE,
+    subject         text NOT NULL,   -- Human, Dog, Pet, Fish, Wildlife, Cattle, Goat, Horse, Sheep, Livestock
+    illness         boolean NOT NULL DEFAULT false,
+    death           boolean NOT NULL DEFAULT false
+);
+CREATE INDEX IF NOT EXISTS report_illness_report_idx ON report_illness(bloom_report_id);
+
+-- Photos attached to a report (stored in-DB for the demo; swap for object storage in prod).
+CREATE TABLE IF NOT EXISTS report_photo (
+    id              bigserial PRIMARY KEY,
+    bloom_report_id bigint NOT NULL REFERENCES event(bloom_report_id) ON DELETE CASCADE,
+    filename        text,
+    content_type    text,
+    data            bytea NOT NULL,
+    uploaded_by     bigint,
+    uploaded_at     timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS report_photo_report_idx ON report_photo(bloom_report_id);
 CREATE INDEX IF NOT EXISTS event_case_idx ON event(case_id);
 
 -- CRM-3: a staff action; relates to both events and cases (either/both set).

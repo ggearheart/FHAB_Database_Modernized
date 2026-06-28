@@ -1,8 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Report {{ ev.bloom_report_id }}{% endblock %}
+{% macro vocab_select(name, options, current) %}
+  <select name="{{ name }}"><option value="">— select —</option>
+    {% for o in options %}<option value="{{ o }}" {% if current==o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+  </select>
+{% endmacro %}
 {% block body %}
 <h1>Report {{ ev.bloom_report_id }} — {{ ev.water_body_name or 'Unnamed waterbody' }}</h1>
-<p class="muted">{{ ev.regional_water_board or '—' }}{% if ev.county %} · {{ ev.county }} County{% endif %} ·
+<p class="muted">{{ ev.regional_water_board or '—' }}{% if ev.county %} · {{ ev.county }} County{% endif %}
+  {%- if ev.landmark %} · {{ ev.landmark }}{% endif %} · {{ ev.report_type or 'report' }} ·
   status: {{ ev.event_status }}</p>
 
 <div class="card">
@@ -20,20 +26,88 @@
     </div>
     <div class="row">
       <div><label>Bloom type</label><input name="bloom_type" value="{{ ev.bloom_type or '' }}"></div>
-      <div><label>Bloom size</label><input name="bloom_size" value="{{ ev.bloom_size or '' }}"></div>
+      <div><label>Bloom size</label>{{ vocab_select('bloom_size', size_options, ev.bloom_size) }}</div>
     </div>
     <div class="row">
-      <div><label>Bloom location</label><input name="bloom_location" value="{{ ev.bloom_location or '' }}"></div>
-      <div><label>Bloom texture</label><input name="bloom_texture" value="{{ ev.bloom_texture or '' }}"></div>
+      <div><label>Bloom location (from shore)</label>{{ vocab_select('bloom_location', bloom_location_options, ev.bloom_location) }}</div>
+      <div><label>Signs posted</label>{{ vocab_select('signs_posted', signs_options, ev.signs_posted) }}</div>
     </div>
     <div class="row">
-      <div><label>Surface water condition</label><input name="surface_water_condition" value="{{ ev.surface_water_condition or '' }}"></div>
-      <div><label>Weather condition</label><input name="weather_condition" value="{{ ev.weather_condition or '' }}"></div>
+      <div><label>Surface water condition</label>{{ vocab_select('surface_water_condition', surface_water_options, ev.surface_water_condition) }}</div>
+      <div><label>Weather condition</label>{{ vocab_select('weather_condition', weather_options, ev.weather_condition) }}</div>
     </div>
-    <label>Description / notes</label>
+    <div class="row">
+      <div><label>Photos available?</label>
+        <select name="has_pictures"><option value="">—</option>
+          <option {% if ev.has_pictures is true %}selected{% endif %}>Yes</option>
+          <option {% if ev.has_pictures is false %}selected{% endif %}>No</option></select>
+      </div>
+      <div></div>
+    </div>
+    <label>Bloom texture/appearance (select all that apply)</label>
+    <div style="display:flex; flex-wrap:wrap; gap:.3rem .9rem">
+      {% for t in texture_options %}
+      <label style="display:flex; align-items:center; gap:.3rem; font-weight:normal; color:inherit; width:auto">
+        <input type="checkbox" name="bloom_textures" value="{{ t }}" style="width:auto"
+               {% if ev.bloom_textures and t in ev.bloom_textures %}checked{% endif %}> {{ t }}</label>
+      {% endfor %}
+    </div>
+    <label style="margin-top:.6rem">Description / notes</label>
     <textarea name="bloom_description" rows="2">{{ ev.bloom_description or '' }}</textarea>
+    <label>Management comments <span class="muted">(internal)</span></label>
+    <textarea name="management_comments" rows="2">{{ ev.management_comments or '' }}</textarea>
     <p></p>
     <button>Save report</button>
+  </form>
+</div>
+
+{% if can_see_pii and (ev.reporter_name or ev.reporter_email or ev.reporter_phone or ev.reporter_org) %}
+<div class="card">
+  <h1 style="font-size:1.05rem">Reporter <span class="muted">(not shown publicly)</span></h1>
+  <p>{{ ev.reporter_name or '—' }}{% if ev.reporter_org %} · {{ ev.reporter_org }}{% endif %}
+     {%- if ev.reporter_email %} · <a href="mailto:{{ ev.reporter_email }}">{{ ev.reporter_email }}</a>{% endif %}
+     {%- if ev.reporter_phone %} · {{ ev.reporter_phone }}{% endif %}</p>
+</div>
+{% endif %}
+
+{% if can_see_pii %}
+<div class="card">
+  <h1 style="font-size:1.05rem">Suspected illness or death <span class="muted">(staff only)</span></h1>
+  <form method="post" action="{{ url_for('update_report_illness', brid=ev.bloom_report_id) }}">
+    <label style="display:flex; align-items:center; gap:.4rem; font-weight:normal; color:inherit">
+      <input type="checkbox" name="no_illness_observed" value="1" style="width:auto"
+             {% if ev.no_illness_observed %}checked{% endif %}> No illness or death observed</label>
+    <table style="margin-top:.5rem">
+      <tr><th>Subject</th><th>Illness</th><th>Death</th></tr>
+      {% for s in illness_subjects %}
+      <tr><td>{{ s }}</td>
+        <td><input type="checkbox" name="illness_{{ s }}" value="1" style="width:auto" {% if illness_map.get(s) and illness_map[s].illness %}checked{% endif %}></td>
+        <td><input type="checkbox" name="death_{{ s }}" value="1" style="width:auto" {% if illness_map.get(s) and illness_map[s].death %}checked{% endif %}></td></tr>
+      {% endfor %}
+    </table>
+    <label>Illness details</label>
+    <textarea name="illness_description" rows="2">{{ ev.illness_description or '' }}</textarea>
+    <p></p>
+    <button class="secondary">Save illness report</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Photos <span class="muted">({{ photos|length }})</span></h1>
+  {% if photos %}
+  <div style="display:flex; flex-wrap:wrap; gap:.6rem">
+    {% for p in photos %}
+    <a href="{{ url_for('serve_report_photo', brid=ev.bloom_report_id, pid=p.id) }}" target="_blank">
+      <img src="{{ url_for('serve_report_photo', brid=ev.bloom_report_id, pid=p.id) }}"
+           alt="{{ p.filename or 'photo' }}" style="height:120px; border-radius:6px; border:1px solid var(--line)"></a>
+    {% endfor %}
+  </div>
+  {% else %}<p class="muted">No photos attached.</p>{% endif %}
+  <form method="post" action="{{ url_for('upload_report_photo', brid=ev.bloom_report_id) }}"
+        enctype="multipart/form-data" style="display:flex; gap:.5rem; align-items:center; margin-top:.6rem">
+    <input type="file" name="photo" accept="image/*" required style="width:auto">
+    <button class="secondary">Upload photo</button>
   </form>
 </div>
 

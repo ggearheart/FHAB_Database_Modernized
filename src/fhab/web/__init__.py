@@ -23,7 +23,8 @@ from ..labmatch import (_candidates, auto_match, create_event_from_stage, link_s
                         skip_stage_sample, stage_batch)
 from ..db import DEFAULT_DSN, connect
 from ..geo import GEOCONNEX
-from ..reports import add_response, add_result, enter_report, update_report
+from ..reports import (ILLNESS_SUBJECTS, add_response, add_result, enter_report,
+                       set_report_illness, update_report)
 
 
 def case_locations(conn, case_id):
@@ -145,6 +146,15 @@ def create_app(dsn: str | None = None) -> Flask:
         except ValueError:
             return None
 
+    def _yn(v):
+        """Map a Yes/No radio to a tri-state bool (None when unanswered)."""
+        return {"Yes": True, "No": False}.get((v or "").strip())
+
+    def _illness_rows(form):
+        """Parse the illness/death matrix checkboxes (illness_<Subject>, death_<Subject>)."""
+        return [{"subject": s, "illness": bool(form.get(f"illness_{s}")),
+                 "death": bool(form.get(f"death_{s}"))} for s in ILLNESS_SUBJECTS]
+
     def _record_activity(brid, action):
         """Best-effort log that the current user worked on a report (never breaks the request)."""
         try:
@@ -178,6 +188,24 @@ def create_app(dsn: str | None = None) -> Flask:
 
     DATA_TYPES = ["Field Visual", "Field Measurement", "Laboratory"]
     RESPONSE_CATEGORIES = ["Advisory", "Investigation", "Field response", "Notification"]
+
+    # Controlled vocabularies from the official MyWaterQuality bloom-report form.
+    REPORT_TYPES = ["Public Reporting", "Agency/Partner Reporting"]
+    SIGNS_OPTIONS = ["None", "General awareness", "Caution", "Warning", "Danger"]
+    WEATHER_OPTIONS = ["Clear", "Partly cloudy", "Overcast", "Rain"]
+    SURFACE_WATER_OPTIONS = ["Calm", "Ripples", "Choppy", "White caps"]
+    SIZE_OPTIONS = ["larger than a football field",
+                    "between a football field and a tennis court",
+                    "between a tennis court and a sedan", "smaller than a sedan", "no bloom"]
+    BLOOM_LOCATION_OPTIONS = ["<10 feet from shore", "10-50 feet from shore",
+                              ">50 feet from shore", "shoreline to >50 feet from shore", "no bloom"]
+    TEXTURE_OPTIONS = ["Streaking", "Surface scum", "Floating mats", "Stranded mats",
+                       "Benthic mats", "Spilled paint", "Green discoloration",
+                       "Visible spherical colonies", "Grass clippings", "Other", "No bloom"]
+    VOCAB = dict(report_types=REPORT_TYPES, signs_options=SIGNS_OPTIONS,
+                 weather_options=WEATHER_OPTIONS, surface_water_options=SURFACE_WATER_OPTIONS,
+                 size_options=SIZE_OPTIONS, bloom_location_options=BLOOM_LOCATION_OPTIONS,
+                 texture_options=TEXTURE_OPTIONS, illness_subjects=ILLNESS_SUBJECTS)
 
     # ---- routes ----
     @app.route("/login", methods=["GET", "POST"])
@@ -271,9 +299,12 @@ def create_app(dsn: str | None = None) -> Flask:
             ev = conn.execute(
                 """SELECT e.bloom_report_id, e.observation_date, e.report_type, e.event_status,
                           e.determination_code, e.bloom_type, e.bloom_size, e.bloom_location,
-                          e.bloom_texture, e.surface_water_condition, e.weather_condition,
-                          e.bloom_description, e.case_id,
-                          w.water_body_name, w.regional_water_board, w.county
+                          e.bloom_texture, e.bloom_textures, e.surface_water_condition,
+                          e.weather_condition, e.signs_posted, e.has_pictures,
+                          e.bloom_description, e.management_comments, e.no_illness_observed,
+                          e.illness_description, e.reporter_name, e.reporter_email,
+                          e.reporter_phone, e.reporter_org, e.case_id,
+                          l.landmark, w.water_body_name, w.regional_water_board, w.county
                    FROM event e
                    LEFT JOIN location l ON l.id = e.location_id
                    LEFT JOIN waterbody w ON w.id = l.waterbody_id
@@ -281,6 +312,15 @@ def create_app(dsn: str | None = None) -> Flask:
             if not ev:
                 flash("Report not found or not visible to your role.", "error")
                 return redirect(url_for("reports"))
+            illness = conn.execute(
+                "SELECT subject, illness, death FROM report_illness WHERE bloom_report_id = %s",
+                (brid,)).fetchall()
+            illness_map = {r["subject"]: r for r in illness}
+            photos = conn.execute(
+                """SELECT id, filename, content_type, uploaded_at FROM report_photo
+                   WHERE bloom_report_id = %s ORDER BY uploaded_at""", (brid,)).fetchall()
+            # Reporter PII shows only to internal staff (illness/photos are already RLS-gated).
+            can_see_pii = conn.execute("SELECT fhab_is_internal() AS x").fetchone()["x"]
             results = conn.execute(
                 """SELECT r.data_type, r.measurement_value, r.measurement_unit, r.method,
                           r.res_qual_code, r.taxa, s.sample_date, s.sample_id, s.site,
@@ -303,10 +343,11 @@ def create_app(dsn: str | None = None) -> Flask:
                        FROM hab_case WHERE case_id = %s""", (ev["case_id"],)).fetchone()
             locations = report_locations(conn, brid)
         return render_template("report_detail.html", ev=ev, results=results, responses=responses,
-                               case=case, locations=locations,
+                               case=case, locations=locations, illness_map=illness_map,
+                               photos=photos, can_see_pii=can_see_pii,
                                determinations=_determinations(), analytes=_analytes(),
                                data_types=DATA_TYPES, recommended_advisories=_recommended_advisories(),
-                               response_categories=RESPONSE_CATEGORIES)
+                               response_categories=RESPONSE_CATEGORIES, **VOCAB)
 
     @app.route("/reports/<int:brid>/responses", methods=["POST"])
     @login_required
@@ -482,9 +523,13 @@ def create_app(dsn: str | None = None) -> Flask:
                 bloom_size=(f.get("bloom_size") or "").strip() or None,
                 bloom_location=(f.get("bloom_location") or "").strip() or None,
                 bloom_texture=(f.get("bloom_texture") or "").strip() or None,
+                bloom_textures=f.getlist("bloom_textures") or None,
                 surface_water_condition=(f.get("surface_water_condition") or "").strip() or None,
                 weather_condition=(f.get("weather_condition") or "").strip() or None,
+                signs_posted=(f.get("signs_posted") or "").strip() or None,
+                has_pictures=_yn(f.get("has_pictures")),
                 bloom_description=(f.get("bloom_description") or "").strip() or None,
+                management_comments=(f.get("management_comments") or "").strip() or None,
                 determination=(f.get("determination_code") or "").strip() or None,
             )
             _record_activity(brid, "edited report")
@@ -494,6 +539,64 @@ def create_app(dsn: str | None = None) -> Flask:
         except psycopg.Error as exc:
             conn.rollback(); flash("Could not update: " + str(exc).splitlines()[0], "error")
         return redirect(url_for("report_detail", brid=brid))
+
+    @app.route("/reports/<int:brid>/illness", methods=["POST"])
+    @staff_required
+    def update_report_illness(brid):
+        conn, f = db(), request.form
+        try:
+            set_report_illness(conn, session["uid"], brid, rows=_illness_rows(f),
+                               none_observed=bool(f.get("no_illness_observed")),
+                               description=(f.get("illness_description") or "").strip() or None)
+            _record_activity(brid, "updated illness report")
+            flash("Suspected illness/death updated.", "ok")
+        except psycopg.errors.InsufficientPrivilege:
+            conn.rollback(); flash("Access denied.", "error")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not update: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("report_detail", brid=brid))
+
+    @app.route("/reports/<int:brid>/photos", methods=["POST"])
+    @staff_required
+    def upload_report_photo(brid):
+        conn = db()
+        upload = request.files.get("photo")
+        if not upload or not upload.filename:
+            flash("Choose an image to upload.", "error")
+            return redirect(url_for("report_detail", brid=brid))
+        data = upload.read()
+        if len(data) > 8 * 1024 * 1024:
+            flash("Image too large (max 8 MB).", "error")
+            return redirect(url_for("report_detail", brid=brid))
+        try:
+            with acting_as(conn, session["uid"]):
+                conn.execute(
+                    """INSERT INTO report_photo
+                         (bloom_report_id, filename, content_type, data, uploaded_by)
+                       VALUES (%s,%s,%s,%s,%s)""",
+                    (brid, upload.filename, upload.mimetype, data, session["uid"]))
+                conn.commit()
+            _record_activity(brid, "added photo")
+            flash("Photo uploaded.", "ok")
+        except psycopg.errors.InsufficientPrivilege:
+            conn.rollback(); flash("Access denied: only staff may upload photos.", "error")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not upload: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("report_detail", brid=brid))
+
+    @app.route("/reports/<int:brid>/photos/<int:pid>")
+    @login_required
+    def serve_report_photo(brid, pid):
+        from flask import Response
+        conn = db()
+        with acting_as(conn, session["uid"]):
+            row = conn.execute(
+                "SELECT content_type, data FROM report_photo WHERE id = %s AND bloom_report_id = %s",
+                (pid, brid)).fetchone()
+        if not row:
+            flash("Photo not found or not visible to your role.", "error")
+            return redirect(url_for("report_detail", brid=brid))
+        return Response(bytes(row["data"]), mimetype=row["content_type"] or "application/octet-stream")
 
     @app.route("/reports/<int:brid>/results", methods=["POST"])
     @login_required
@@ -559,23 +662,39 @@ def create_app(dsn: str | None = None) -> Flask:
             cross = bool(region and regs and region not in regs)
             if cross and not f.get("confirm_cross"):
                 return render_template("new_report.html", form=f, regions=_regions(),
-                                       determinations=_determinations(), cross_warn=(regs, region))
+                                       determinations=_determinations(), cross_warn=(regs, region),
+                                       **VOCAB)
             try:
                 rid = enter_report(
                     conn, session["uid"],
                     water_body_name=f["waterbody"].strip(), region=region,
                     county=(f.get("county") or "").strip() or None,
+                    landmark=(f.get("landmark") or "").strip() or None,
                     lat=_f(f.get("lat")), lon=_f(f.get("lon")),
                     observation_date=(f.get("date") or "").strip() or None,
-                    report_type=(f.get("report_type") or "Staff entry").strip(),
+                    report_type=(f.get("report_type") or "Public Reporting").strip(),
                     bloom_type=(f.get("bloom_type") or "").strip() or None,
                     bloom_size=(f.get("bloom_size") or "").strip() or None,
+                    bloom_location=(f.get("bloom_location") or "").strip() or None,
+                    bloom_textures=f.getlist("bloom_textures") or None,
+                    surface_water_condition=(f.get("surface_water_condition") or "").strip() or None,
+                    weather_condition=(f.get("weather_condition") or "").strip() or None,
+                    signs_posted=(f.get("signs_posted") or "").strip() or None,
+                    has_pictures=_yn(f.get("has_pictures")),
                     description=(f.get("description") or "").strip() or None,
+                    management_comments=(f.get("management_comments") or "").strip() or None,
+                    reporter_name=(f.get("reporter_name") or "").strip() or None,
+                    reporter_email=(f.get("reporter_email") or "").strip() or None,
+                    reporter_phone=(f.get("reporter_phone") or "").strip() or None,
+                    reporter_org=(f.get("reporter_org") or "").strip() or None,
                     determination=(f.get("determination_code") or "").strip() or None,
                 )
+                set_report_illness(conn, session["uid"], rid,
+                                   rows=_illness_rows(f), none_observed=bool(f.get("no_illness_observed")),
+                                   description=(f.get("illness_description") or "").strip() or None)
                 _record_activity(rid, "entered report")
                 flash(f"Report entered — Bloom_Report_ID {rid}.", "ok")
-                return redirect(url_for("reports"))
+                return redirect(url_for("report_detail", brid=rid))
             except psycopg.errors.InsufficientPrivilege:
                 conn.rollback()
                 flash("Access denied: your role may not file this report.", "error")
@@ -583,7 +702,7 @@ def create_app(dsn: str | None = None) -> Flask:
                 conn.rollback()
                 flash("Could not enter report: " + str(exc).splitlines()[0], "error")
         return render_template("new_report.html", form={}, regions=_regions(),
-                               determinations=_determinations(), cross_warn=None)
+                               determinations=_determinations(), cross_warn=None, **VOCAB)
 
     # ---------- Lab batch reconciliation ----------
     @app.route("/batch/lab-reconcile", methods=["GET", "POST"])

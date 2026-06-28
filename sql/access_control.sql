@@ -243,6 +243,22 @@ BEGIN
     END LOOP;
 END $$;
 
+-- Report PII / sensitive child tables (suspected illness, photos): internal staff read,
+-- staff writers write. Keeps illness/veterinary detail out of contributor/public reach.
+DO $$
+DECLARE t text;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['report_illness','report_photo'] LOOP
+        EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+        EXECUTE format('DROP POLICY IF EXISTS %1$I_read ON %1$I', t);
+        EXECUTE format('CREATE POLICY %1$I_read ON %1$I FOR SELECT USING (fhab_is_admin() OR fhab_is_internal())', t);
+        EXECUTE format('DROP POLICY IF EXISTS %1$I_ins ON %1$I; DROP POLICY IF EXISTS %1$I_upd ON %1$I; DROP POLICY IF EXISTS %1$I_del ON %1$I', t);
+        EXECUTE format('CREATE POLICY %1$I_ins ON %1$I FOR INSERT WITH CHECK (fhab_is_admin() OR fhab_is_staff_writer())', t);
+        EXECUTE format('CREATE POLICY %1$I_upd ON %1$I FOR UPDATE USING (fhab_is_admin() OR fhab_is_staff_writer()) WITH CHECK (fhab_is_admin() OR fhab_is_staff_writer())', t);
+        EXECUTE format('CREATE POLICY %1$I_del ON %1$I FOR DELETE USING (fhab_is_admin() OR fhab_is_staff_writer())', t);
+    END LOOP;
+END $$;
+
 -- ---------- Write policies (INSERT / UPDATE / DELETE) ----------
 -- Each writable table gets a predicate; the loop builds matching insert/update/delete
 -- policies. Staff edit within their region; contributors edit only their own org's rows;
@@ -282,7 +298,7 @@ GRANT fhab_app TO current_user;
 -- Writes are allowed only on the tables that have write policies above.
 GRANT INSERT, UPDATE, DELETE ON
     event, station, sample, result, hab_case, waterbody, location, response, advisory,
-    lab_batch, lab_stage_sample, lab_stage_result TO fhab_app;
+    lab_batch, lab_stage_sample, lab_stage_result, report_illness, report_photo TO fhab_app;
 -- analyte is reference vocabulary (no RLS); lab-result entry/upload may add new analytes.
 GRANT INSERT, UPDATE ON analyte TO fhab_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO fhab_app;

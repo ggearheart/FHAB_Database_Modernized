@@ -22,6 +22,7 @@ def enter_report(
     water_body_name: str,
     region: str | None = None,
     county: str | None = None,
+    landmark: str | None = None,
     lat: float | None = None,
     lon: float | None = None,
     observation_date: date | None = None,
@@ -30,7 +31,17 @@ def enter_report(
     bloom_size: str | None = None,
     bloom_location: str | None = None,
     bloom_texture: str | None = None,
+    bloom_textures: list | None = None,
+    surface_water_condition: str | None = None,
+    weather_condition: str | None = None,
+    signs_posted: str | None = None,
+    has_pictures: bool | None = None,
     description: str | None = None,
+    management_comments: str | None = None,
+    reporter_name: str | None = None,
+    reporter_email: str | None = None,
+    reporter_phone: str | None = None,
+    reporter_org: str | None = None,
     owner_org: str | None = None,
     determination: str | None = None,
     bloom_report_id: int | None = None,
@@ -67,12 +78,13 @@ def enter_report(
 
         if lat is not None and lon is not None:
             conn.execute(
-                """INSERT INTO location (waterbody_id, geom)
-                   VALUES (%s, ST_SetSRID(ST_MakePoint(%s, %s), 4326))""",
-                (wb_id, lon, lat),
+                """INSERT INTO location (waterbody_id, landmark, geom)
+                   VALUES (%s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326))""",
+                (wb_id, landmark, lon, lat),
             )
         else:
-            conn.execute("INSERT INTO location (waterbody_id) VALUES (%s)", (wb_id,))
+            conn.execute("INSERT INTO location (waterbody_id, landmark) VALUES (%s, %s)",
+                         (wb_id, landmark))
         loc_id = conn.execute(
             "SELECT currval(pg_get_serial_sequence('location', 'id')) AS id"
         ).fetchone()["id"]
@@ -80,12 +92,16 @@ def enter_report(
         conn.execute(
             """INSERT INTO event
                  (bloom_report_id, location_id, report_type, observation_date, bloom_type,
-                  bloom_size, bloom_location, bloom_texture, bloom_description, owner_org,
-                  determination_code, event_status)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'suspected')""",
+                  bloom_size, bloom_location, bloom_texture, bloom_textures,
+                  surface_water_condition, weather_condition, signs_posted, has_pictures,
+                  bloom_description, management_comments, reporter_name, reporter_email,
+                  reporter_phone, reporter_org, owner_org, determination_code, event_status)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'suspected')""",
             (bloom_report_id, loc_id, report_type, observation_date or date.today(),
-             bloom_type, bloom_size, bloom_location, bloom_texture, description, owner_org,
-             determination),
+             bloom_type, bloom_size, bloom_location, bloom_texture, bloom_textures or None,
+             surface_water_condition, weather_condition, signs_posted, has_pictures,
+             description, management_comments, reporter_name, reporter_email, reporter_phone,
+             reporter_org, owner_org, determination),
         )
         conn.commit()
 
@@ -95,20 +111,54 @@ def enter_report(
 def update_report(conn: psycopg.Connection, user_id: int, bloom_report_id: int, *,
                   observation_date: str | date | None = None, bloom_type: str | None = None,
                   bloom_size: str | None = None, bloom_location: str | None = None,
-                  bloom_texture: str | None = None, surface_water_condition: str | None = None,
-                  weather_condition: str | None = None, bloom_description: str | None = None,
+                  bloom_texture: str | None = None, bloom_textures: list | None = None,
+                  surface_water_condition: str | None = None,
+                  weather_condition: str | None = None, signs_posted: str | None = None,
+                  has_pictures: bool | None = None, bloom_description: str | None = None,
+                  management_comments: str | None = None,
                   determination: str | None = None) -> None:
     """Edit a report's summary / field-verification info, as `user_id` (under RLS)."""
     with acting_as(conn, user_id):
         conn.execute(
             """UPDATE event SET
                  observation_date = %s, bloom_type = %s, bloom_size = %s, bloom_location = %s,
-                 bloom_texture = %s, surface_water_condition = %s, weather_condition = %s,
-                 bloom_description = %s, determination_code = %s
+                 bloom_texture = %s, bloom_textures = %s, surface_water_condition = %s,
+                 weather_condition = %s, signs_posted = %s, has_pictures = %s,
+                 bloom_description = %s, management_comments = %s, determination_code = %s
                WHERE bloom_report_id = %s""",
             (observation_date or None, bloom_type, bloom_size, bloom_location, bloom_texture,
-             surface_water_condition, weather_condition, bloom_description, determination,
+             bloom_textures or None, surface_water_condition, weather_condition, signs_posted,
+             has_pictures, bloom_description, management_comments, determination,
              bloom_report_id),
+        )
+        conn.commit()
+
+
+# Subjects on the official suspected-illness/death matrix (order preserved for the form).
+ILLNESS_SUBJECTS = ["Human", "Dog", "Pet", "Fish", "Wildlife", "Cattle", "Goat", "Horse",
+                    "Sheep", "Livestock"]
+
+
+def set_report_illness(conn: psycopg.Connection, user_id: int, bloom_report_id: int, *,
+                       rows: list | None = None, none_observed: bool = False,
+                       description: str | None = None) -> None:
+    """Replace the suspected illness/death rows for a report (sensitive; staff-only via RLS).
+
+    `rows` is an iterable of dicts: {subject, illness, death}. Only rows with illness or death
+    set are stored. Also records the 'none observed' flag and free-text illness details.
+    """
+    with acting_as(conn, user_id):
+        conn.execute("DELETE FROM report_illness WHERE bloom_report_id = %s", (bloom_report_id,))
+        for r in rows or []:
+            if r.get("illness") or r.get("death"):
+                conn.execute(
+                    """INSERT INTO report_illness (bloom_report_id, subject, illness, death)
+                       VALUES (%s,%s,%s,%s)""",
+                    (bloom_report_id, r["subject"], bool(r.get("illness")), bool(r.get("death"))),
+                )
+        conn.execute(
+            "UPDATE event SET no_illness_observed = %s, illness_description = %s WHERE bloom_report_id = %s",
+            (none_observed, description, bloom_report_id),
         )
         conn.commit()
 

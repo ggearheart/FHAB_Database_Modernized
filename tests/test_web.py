@@ -256,6 +256,59 @@ def test_update_report_quick_action(app_client, conn):
     assert b"Enter a report ID" in r.data
 
 
+def test_new_report_form_has_official_vocabularies(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    r = app_client.get("/reports/new")
+    assert b"between a football field and a tennis court" in r.data  # size vocab
+    assert b"Benthic mats" in r.data and b"Suspected illness or death" in r.data
+    assert b"Reporter contact" in r.data
+
+
+def test_new_report_saves_official_fields_and_illness(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    app_client.post("/reports/new", data={
+        "waterbody": "Form Lake", "region": R5, "landmark": "Day-use beach",
+        "report_type": "Public Reporting", "bloom_size": "smaller than a sedan",
+        "signs_posted": "Caution", "bloom_textures": ["Surface scum", "Streaking"],
+        "has_pictures": "Yes", "reporter_name": "Pat Reporter",
+        "reporter_email": "pat@example.com", "no_illness_observed": "",
+        "illness_Dog": "1", "death_Dog": "1", "illness_description": "dog vomiting",
+    }, follow_redirects=True)
+    rid = conn.execute(
+        "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
+        "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name='Form Lake'"
+    ).fetchone()["bloom_report_id"]
+    ev = conn.execute(
+        "SELECT bloom_textures, signs_posted, reporter_name FROM event WHERE bloom_report_id=%s",
+        (rid,)).fetchone()
+    assert ev["signs_posted"] == "Caution" and ev["reporter_name"] == "Pat Reporter"
+    assert set(ev["bloom_textures"]) == {"Surface scum", "Streaking"}
+    ill = conn.execute(
+        "SELECT subject, illness, death FROM report_illness WHERE bloom_report_id=%s", (rid,)).fetchone()
+    assert ill["subject"] == "Dog" and ill["illness"] and ill["death"]
+    # The report page shows the reporter (staff can see PII) and the illness card.
+    r = app_client.get(f"/reports/{rid}")
+    assert b"Pat Reporter" in r.data and b"Suspected illness or death" in r.data
+
+
+def test_photo_upload_and_serve_roundtrip(app_client, conn):
+    import io
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    app_client.post("/reports/new", data={"waterbody": "Photo Lake", "region": R5},
+                    follow_redirects=True)
+    rid = conn.execute(
+        "SELECT bloom_report_id FROM event e JOIN location l ON l.id=e.location_id "
+        "JOIN waterbody w ON w.id=l.waterbody_id WHERE w.water_body_name='Photo Lake'"
+    ).fetchone()["bloom_report_id"]
+    png = bytes.fromhex("89504e470d0a1a0a")  # PNG magic header is enough for a roundtrip
+    r = app_client.post(f"/reports/{rid}/photos",
+                        data={"photo": (io.BytesIO(png), "bloom.png")}, follow_redirects=True)
+    assert b"Photo uploaded" in r.data
+    pid = conn.execute("SELECT id FROM report_photo WHERE bloom_report_id=%s", (rid,)).fetchone()["id"]
+    r = app_client.get(f"/reports/{rid}/photos/{pid}")
+    assert r.status_code == 200 and r.data == png
+
+
 def test_batch_ceden_upload(app_client, conn):
     import io
     from pathlib import Path
