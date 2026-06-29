@@ -1,0 +1,34 @@
+---
+title: "FHAB Database Modernized — Tester Guide"
+subtitle: "Pilot / Testing"
+---
+
+Welcome, and thank you for helping test the new FHAB system. This guide is for **program staff**
+and **community volunteers**. Please report anything confusing or broken — see
+[Giving feedback](feedback.qmd).
+
+::: {.callout-important}
+This is a **test system**. Do not treat anything here as an official advisory or an official
+report of record. Test data may be wiped at any time. For a real suspected bloom, still use the
+official channels.
+:::
+
+## Pick your track
+
+- **[Community tester](community.qmd)** — submit a bloom report from the CyanoSafe app, no login
+  needed.
+- **[Program staff](staff.qmd)** — log in to the FHAB Staff app to review reports, enter data,
+  manage cases, and more.
+
+## Systems and links
+
+| System | What it is | Link |
+|---|---|---|
+| **CyanoSafe map (desktop)** | Public HAB map + "Report a Bloom" form | [Open](https://ggearheart.github.io/CyanoSafe_demo/) |
+| **CyanoSafe app (phone / PWA)** | The mobile app most community users will use | [Open](https://ggearheart.github.io/CyanoSafe_phone_demo/) |
+| **FHAB Staff app** | Staff workspace (login required) | [Open](https://fhab-web.onrender.com) |
+
+::: {.callout-note}
+Your staff login and any community-group API key are provided **separately** — they are not in
+this guide.
+:::

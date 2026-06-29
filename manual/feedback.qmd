@@ -1,0 +1,28 @@
+---
+title: "Feedback & limitations"
+---
+
+## Giving feedback
+
+For each issue, please tell us:
+
+- **Which app** (CyanoSafe phone / desktop / FHAB Staff) and **which page**.
+- **What you did**, **what you expected**, and **what happened**.
+- A **screenshot** if you can, and the **date/time** and your browser/device.
+- Severity: blocker / annoying / cosmetic / suggestion.
+
+Send feedback to **[contact provided separately]**. There's no in-app bug button yet.
+
+## Known limitations (no need to report these)
+
+These are known and on the roadmap — please don't file them as bugs:
+
+- **No email yet** by default — notifications are in-app (the 🔔 bell). Email escalation is only
+  active if the program configures SMTP.
+- **No password reset / SSO** yet — if you're locked out, an admin resets your login.
+- **No full audit history** yet (only a light "recent activity" log).
+- **Publishing to data.ca.gov is manual** — the app generates the files; uploading them is a
+  manual/scheduled step.
+- **GeoConnex IDs** are shown but not yet publicly resolvable.
+- The free hosting tier can be **slow on the first request** after idle (it "wakes up"); give it
+  a few seconds.

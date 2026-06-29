@@ -1,0 +1,31 @@
+name: Publish tester manual
+
+# Renders the Quarto site in manual/ and publishes it to the gh-pages branch.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'manual/**'
+      - '.github/workflows/publish-manual.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Render and publish to gh-pages
+        uses: quarto-dev/quarto-actions/publish@v2
+        with:
+          target: gh-pages
+          path: manual
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

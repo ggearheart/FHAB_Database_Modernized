@@ -1,0 +1,16 @@
+---
+title: "Glossary"
+---
+
+| Term | Meaning |
+|---|---|
+| **Report** | One observed/suspected bloom event. |
+| **Event** | The first-class record a report becomes; some events become cases. |
+| **Case** | A grouping of related reports for a waterbody (one region, one year). |
+| **Response / Advisory** | A staff action; an advisory is the public-facing caution/warning/danger. |
+| **Determination / outcome** | What a report turned out to be. |
+| **Submission** | A public/community report awaiting staff review (not yet a tracked report). |
+| **Promote** | Turn a pending submission into a tracked report. |
+| **Provisional data** | Live data from this system, *not* the official data.ca.gov release. |
+| **CEDEN** | The state environmental data exchange (lab results format). |
+| **HUC-12 / GeoConnex** | Watershed coding / persistent identifiers for locations. |

@@ -1,0 +1,35 @@
+---
+title: "Community tester"
+---
+
+You don't need an account. You're testing the **"Report a Bloom"** flow and confirming a
+submission reaches staff.
+
+## Submit a test bloom report (phone / PWA)
+
+1. On your phone, open the [CyanoSafe phone app](https://ggearheart.github.io/CyanoSafe_phone_demo/).
+   *(Optional: use your browser's "Add to Home Screen" to install it like an app.)*
+2. Tap **Bloom List** (bottom), then expand **📋 Report a Bloom**.
+3. *(Optional)* Tap **📷 Take / Choose Photo** — this also captures your GPS location.
+4. Fill in at least the **Water body name** (required) and a location (your GPS, or pick a
+   **County**). Add date, bloom size, and a short description if you can.
+5. Tap **Submit report**. You should see *"Thank you — your report was received for review."*
+
+::: {.callout-tip}
+Please put **TEST** in the description (e.g. "TEST – ignore") so staff know it's a drill.
+:::
+
+## What happens next
+
+- Your report does **not** appear on the public map immediately. It goes into a **staff review
+  queue**, where a staffer promotes it to a tracked report or rejects it.
+- If you reported a **suspected illness** (you or an animal got sick), that automatically alerts
+  the program's illness team.
+
+## What to test / look for
+
+- Does the form submit successfully? Does the thank-you message appear?
+- Does **📷 + location** work on your phone? Is the GPS roughly right?
+- Try submitting with **only** a water body name + county (no GPS). Does it still work?
+- Try an obviously bad entry (no water body name). Do you get a clear error?
+- Is anything confusing, mislabeled, or hard to tap?
