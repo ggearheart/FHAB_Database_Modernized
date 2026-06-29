@@ -2,6 +2,7 @@
 {% block title %}Lab workboard{% endblock %}
 {% set PILL = {'unlinked':'#fff6e0','linked':'#e7efe9','approved':'#e3f4ea','flagged':'#fbe6e6'} %}
 {% block body %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <h1>Lab data workboard</h1>
 <p class="muted">Assign lab samples to team members, link each to a report or case, and QA-review
   the links. Re-linking a sample sends it back for review. To bring in <em>new</em> historic
@@ -53,7 +54,10 @@
     <tr>
       <td><input type="checkbox" name="sample_ids" value="{{ r.id }}" form="assignForm"></td>
       <td><span class="pill" style="background:{{ PILL.get(r.status,'#eee') }}">{{ r.status }}</span></td>
-      <td>{{ r.station_code or '—' }}<br><span class="muted">{{ r.sample_date or '—' }}{% if r.water_body_name %} · {{ r.water_body_name }}{% endif %}</span></td>
+      <td>{{ r.station_code or '—' }}
+          <button type="button" class="secondary" style="padding:0 .4rem; font-size:.85rem"
+                  onclick="openSampleMap({{ r.id }})" title="Show this sample &amp; nearby reports on a map">🗺</button>
+          <br><span class="muted">{{ r.sample_date or '—' }}{% if r.water_body_name %} · {{ r.water_body_name }}{% endif %}</span></td>
       <td>{{ r.n_results }}</td>
       <td>{% if r.bloom_report_id %}<a href="{{ url_for('report_detail', brid=r.bloom_report_id) }}">R{{ r.bloom_report_id }}</a>{% endif %}
           {% if r.case_id %} · C{{ r.case_id }}{% endif %}{% if not r.bloom_report_id and not r.case_id %}—{% endif %}</td>
@@ -98,4 +102,72 @@
   </p>
   {% endif %}
 </div>
+
+<!-- Sample geospatial-context map (modal) -->
+<div id="mapModal" style="display:none; position:fixed; inset:0; z-index:1000;
+     background:rgba(0,0,0,.45); align-items:center; justify-content:center">
+  <div style="background:#fff; border-radius:8px; width:min(720px,94vw); max-height:90vh; overflow:auto; padding:14px">
+    <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:.5rem">
+      <strong id="mapTitle" style="flex:1">Sample location</strong>
+      <button type="button" class="secondary" onclick="document.getElementById('mapModal').style.display='none'">Close ✕</button>
+    </div>
+    <div id="wbmap" style="height:380px; border:1px solid var(--line); border-radius:6px"></div>
+    <p class="muted" id="mapNote" style="margin:.5rem 0 0"></p>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let _wbmap = null, _wblayer = null;
+function openSampleMap(sid) {
+  const modal = document.getElementById('mapModal');
+  modal.style.display = 'flex';
+  if (typeof L === 'undefined') { document.getElementById('mapNote').textContent = 'Map library failed to load.'; return; }
+  if (!_wbmap) {
+    _wbmap = L.map('wbmap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(_wbmap);
+  }
+  setTimeout(() => _wbmap.invalidateSize(), 50);
+  document.getElementById('mapNote').textContent = 'Loading…';
+  fetch('/lab/sample/' + sid + '/geo.json').then(r => r.json()).then(g => {
+    if (_wblayer) _wblayer.remove();
+    _wblayer = L.layerGroup().addTo(_wbmap);
+    document.getElementById('mapTitle').textContent = 'Sample: ' + (g.label || sid);
+    const pts = [];
+    const dot = (p, color, ring) => L.circleMarker([p.lat, p.lon],
+      { radius: 8, weight: 2, color: ring || '#fff', fillColor: color, fillOpacity: .95 });
+
+    if (g.station) {
+      dot(g.station, '#16a085', '#0e6655').addTo(_wblayer)
+        .bindPopup('<b>Lab station</b><br>' + (g.station.code || '') + '<br>' + (g.station.name || ''));
+      pts.push([g.station.lat, g.station.lon]);
+    }
+    if (g.linked) {
+      dot(g.linked, '#2563eb').addTo(_wblayer)
+        .bindPopup('<b>Linked report</b><br><a href="/reports/' + g.linked.brid + '">R' + g.linked.brid + '</a> — ' + (g.linked.name || ''));
+      pts.push([g.linked.lat, g.linked.lon]);
+    }
+    (g.candidates || []).forEach(c => {
+      dot(c, '#9bb8e8').addTo(_wblayer).bindPopup(
+        '<b>Nearby report</b><br><a href="/reports/' + c.brid + '">R' + c.brid + '</a> — ' + (c.name || '—')
+        + '<br>' + c.dist_m + ' m' + (c.day_gap != null ? ' · ' + c.day_gap + ' d apart' : '') + '<br>'
+        + '<form method="post" action="/lab/sample/' + sid + '/link" style="margin-top:4px">'
+        + '<input type="hidden" name="bloom_report_id" value="' + c.brid + '">'
+        + '<button>Link this sample → R' + c.brid + '</button></form>');
+      pts.push([c.lat, c.lon]);
+    });
+
+    if (pts.length === 1) _wbmap.setView(pts[0], 13);
+    else if (pts.length > 1) _wbmap.fitBounds(pts, { padding: [30, 30], maxZoom: 14 });
+    document.getElementById('mapNote').textContent = g.station || g.linked
+      ? ((g.candidates || []).length + ' nearby report(s). Teal = lab station, blue = linked report, '
+         + 'light blue = nearby reports (click to link).')
+      : 'This sample has no mapped location (station not geocoded and not linked).';
+  }).catch(() => { document.getElementById('mapNote').textContent = 'Could not load the map.'; });
+}
+document.getElementById('mapModal').addEventListener('click', e => {
+  if (e.target.id === 'mapModal') e.target.style.display = 'none';   // click backdrop to close
+});
+</script>
 {% endblock %}

@@ -130,6 +130,32 @@ def test_workboard_screen_and_link_via_web(client, conn):
     assert conn.execute("SELECT qa_status FROM sample WHERE id=%s", (sid,)).fetchone()["qa_status"] == "approved"
 
 
+def test_sample_geo_context(conn):
+    from fhab.labtasks import sample_geo
+    staff = _staff(conn)
+    # A report ~near the station so it shows as a candidate.
+    near = enter_report(conn, staff, water_body_name="Near Lake", region=R5,
+                        lat=38.5, lon=-121.401)   # ~ a few hundred m from the ORP1 station
+    sid = _orphan_sample(conn, "GEO1")            # station at (-121.4, 38.5)
+    g = sample_geo(conn, sid)
+    assert g["station"] and g["station"]["code"] == "GEO1"
+    assert g["linked"] is None
+    assert any(c["brid"] == near for c in g["candidates"])
+
+    # Once linked, it appears as 'linked' and drops out of candidates.
+    link_sample(conn, staff, sid, bloom_report_id=near)
+    g2 = sample_geo(conn, sid)
+    assert g2["linked"] and g2["linked"]["brid"] == near
+    assert all(c["brid"] != near for c in g2["candidates"])
+
+
+def test_sample_geo_endpoint(client, conn):
+    sid = _orphan_sample(conn, "GEOWEB")
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+    j = client.get(f"/lab/sample/{sid}/geo.json").get_json()
+    assert j["station"]["code"] == "GEOWEB" and "candidates" in j
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")

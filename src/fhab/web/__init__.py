@@ -28,7 +28,8 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
 from ..export import DATASETS, fetch_flatfile
 from ..labquery import count_results, filter_options, query_results
 from ..labtasks import (assign_samples, count_workboard, create_report_from_sample, link_sample,
-                        qa_review, status_tallies, team_members, unlink_sample, workboard)
+                        qa_review, sample_geo, status_tallies, team_members, unlink_sample,
+                        workboard)
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
                         update_analyte)
 from ..notify import (list_notifications, mark_read, on_new_submission, unread_count)
@@ -982,6 +983,11 @@ def create_app(dsn: str | None = None) -> Flask:
         except psycopg.Error as exc:
             conn.rollback(); flash("Could not create report: " + str(exc).splitlines()[0], "error")
         return redirect(request.referrer or url_for("lab_workboard"))
+
+    @app.route("/lab/sample/<int:sid>/geo.json")
+    @staff_required
+    def lab_sample_geo(sid):
+        return jsonify(sample_geo(db(), sid))
 
     @app.route("/lab/sample/<int:sid>/qa", methods=["POST"])
     @staff_required

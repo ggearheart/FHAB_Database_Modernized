@@ -133,6 +133,59 @@ def qa_review(conn, user_id, sample_id, *, approve: bool, note=None) -> None:
         conn.commit()
 
 
+def sample_geo(conn, sample_id, *, radius_m=8000, limit=8) -> dict:
+    """Geospatial context for one sample: its station, its linked event, and nearby candidate
+    reports (events within `radius_m` of the station/linked point). For the workboard's map.
+    """
+    s = conn.execute(
+        """SELECT s.sample_date, s.bloom_report_id, st.station_code, st.station_name,
+                  ST_Y(st.geom) AS st_lat, ST_X(st.geom) AS st_lon
+           FROM sample s LEFT JOIN station st ON st.id = s.station_id WHERE s.id = %s""",
+        (sample_id,)).fetchone()
+    out = {"label": None, "station": None, "linked": None, "candidates": []}
+    if not s:
+        return out
+    out["label"] = f"{s['station_code'] or 'sample'} · {s['sample_date'] or '—'}"
+    if s["st_lat"] is not None:
+        out["station"] = {"lat": s["st_lat"], "lon": s["st_lon"],
+                          "code": s["station_code"], "name": s["station_name"]}
+
+    if s["bloom_report_id"]:
+        ev = conn.execute(
+            """SELECT ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon, w.water_body_name
+               FROM event e JOIN location l ON l.id = e.location_id
+               LEFT JOIN waterbody w ON w.id = l.waterbody_id
+               WHERE e.bloom_report_id = %s AND l.geom IS NOT NULL""",
+            (s["bloom_report_id"],)).fetchone()
+        if ev and ev["lat"] is not None:
+            out["linked"] = {"lat": ev["lat"], "lon": ev["lon"],
+                             "brid": s["bloom_report_id"], "name": ev["water_body_name"]}
+
+    # Anchor for "nearby" = the station, else the linked event.
+    anchor = out["station"] or out["linked"]
+    if anchor:
+        rows = conn.execute(
+            """SELECT e.bloom_report_id, w.water_body_name, e.observation_date::text AS obs,
+                      ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon,
+                      round(ST_Distance(l.geom::geography,
+                            ST_SetSRID(ST_MakePoint(%(lon)s,%(lat)s),4326)::geography)) AS dist_m,
+                      abs(e.observation_date - %(d)s) AS day_gap
+               FROM event e JOIN location l ON l.id = e.location_id
+               LEFT JOIN waterbody w ON w.id = l.waterbody_id
+               WHERE l.geom IS NOT NULL
+                 AND ST_DWithin(l.geom::geography,
+                       ST_SetSRID(ST_MakePoint(%(lon)s,%(lat)s),4326)::geography, %(r)s)
+                 AND e.bloom_report_id IS DISTINCT FROM %(linked)s
+               ORDER BY dist_m LIMIT %(lim)s""",
+            {"lon": anchor["lon"], "lat": anchor["lat"], "d": s["sample_date"], "r": radius_m,
+             "linked": s["bloom_report_id"], "lim": limit}).fetchall()
+        out["candidates"] = [
+            {"brid": r["bloom_report_id"], "name": r["water_body_name"], "obs": r["obs"],
+             "lat": r["lat"], "lon": r["lon"], "dist_m": r["dist_m"],
+             "day_gap": r["day_gap"]} for r in rows]
+    return out
+
+
 def create_report_from_sample(conn, user_id, sample_id, *, region=None) -> int:
     """Create a report from an unlinked sample's station + date, then link the sample to it."""
     info = conn.execute(
