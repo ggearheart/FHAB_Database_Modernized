@@ -135,23 +135,33 @@ function openSampleMap(sid) {
     _wblayer = L.layerGroup().addTo(_wbmap);
     document.getElementById('mapTitle').textContent = 'Sample: ' + (g.label || sid);
     const pts = [];
-    const dot = (p, color, ring) => L.circleMarker([p.lat, p.lon],
-      { radius: 8, weight: 2, color: ring || '#fff', fillColor: color, fillOpacity: .95 });
+    const dot = (p, color, ring, radius) => L.circleMarker([p.lat, p.lon],
+      { radius: radius || 8, weight: 2, color: ring || '#fff', fillColor: color, fillOpacity: .9 });
+    // Nearby report color by date gap (days) between the report and the sample date.
+    const gapColor = d => d == null ? '#c2c8cd'           // unknown date -> faded gray
+      : d <= 14 ? '#2563eb'                                // within 14 days -> blue
+      : d <= 30 ? '#f3d77a'                                // 14-30 days -> faded yellow
+      : d <= 60 ? '#f3b6c2'                                // 30-60 days -> faded pink
+      : '#c2c8cd';                                         // > 60 days -> faded gray
+    const star = (p, color) => L.marker([p.lat, p.lon], { icon: L.divIcon({
+      className: '', iconSize: [24, 24], iconAnchor: [12, 12],
+      html: '<div style="font-size:22px;line-height:1;color:' + color
+            + ';text-shadow:0 0 2px #fff,0 0 3px #0e6655">★</div>' }) });
 
     if (g.station) {
-      dot(g.station, '#16a085', '#0e6655').addTo(_wblayer)
-        .bindPopup('<b>Lab station</b><br>' + (g.station.code || '') + '<br>' + (g.station.name || ''));
+      star(g.station, '#16a085').addTo(_wblayer)
+        .bindPopup('<b>Lab sample</b><br>' + (g.station.code || '') + '<br>' + (g.station.name || ''));
       pts.push([g.station.lat, g.station.lon]);
     }
     if (g.linked) {
-      dot(g.linked, '#2563eb').addTo(_wblayer)
+      dot(g.linked, '#2563eb', '#0e3a8a', 9).addTo(_wblayer)
         .bindPopup('<b>Linked report</b><br><a href="/reports/' + g.linked.brid + '">R' + g.linked.brid + '</a> — ' + (g.linked.name || ''));
       pts.push([g.linked.lat, g.linked.lon]);
     }
     (g.candidates || []).forEach(c => {
-      dot(c, '#9bb8e8').addTo(_wblayer).bindPopup(
+      dot(c, gapColor(c.day_gap)).addTo(_wblayer).bindPopup(
         '<b>Nearby report</b><br><a href="/reports/' + c.brid + '">R' + c.brid + '</a> — ' + (c.name || '—')
-        + '<br>' + c.dist_m + ' m' + (c.day_gap != null ? ' · ' + c.day_gap + ' d apart' : '') + '<br>'
+        + '<br>' + c.dist_m + ' m' + (c.day_gap != null ? ' · ' + c.day_gap + ' d apart' : ' · date unknown') + '<br>'
         + '<form method="post" action="/lab/sample/' + sid + '/link" style="margin-top:4px">'
         + '<input type="hidden" name="bloom_report_id" value="' + c.brid + '">'
         + '<button>Link this sample → R' + c.brid + '</button></form>');
@@ -160,9 +170,11 @@ function openSampleMap(sid) {
 
     if (pts.length === 1) _wbmap.setView(pts[0], 13);
     else if (pts.length > 1) _wbmap.fitBounds(pts, { padding: [30, 30], maxZoom: 14 });
-    document.getElementById('mapNote').textContent = g.station || g.linked
-      ? ((g.candidates || []).length + ' nearby report(s). Teal = lab station, blue = linked report, '
-         + 'light blue = nearby reports (click to link).')
+    document.getElementById('mapNote').innerHTML = g.station || g.linked
+      ? ((g.candidates || []).length + ' nearby report(s). ★ = lab sample; nearby reports by '
+         + 'date gap: <b style="color:#2563eb">≤14d</b>, '
+         + '<b style="color:#d4a900">14–30d</b>, <b style="color:#d76a86">30–60d</b>, '
+         + '<b style="color:#9aa0a6">&gt;60d</b> — click a report to link.')
       : 'This sample has no mapped location (station not geocoded and not linked).';
   }).catch(() => { document.getElementById('mapNote').textContent = 'Could not load the map.'; });
 }
