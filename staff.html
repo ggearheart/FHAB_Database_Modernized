@@ -174,11 +174,13 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#review-the-submission-queue-submissions" id="toc-review-the-submission-queue-submissions" class="nav-link" data-scroll-target="#review-the-submission-queue-submissions">1. Review the submission queue (<em>Submissions</em>)</a></li>
   <li><a href="#enter-a-new-report-new-report" id="toc-enter-a-new-report-new-report" class="nav-link" data-scroll-target="#enter-a-new-report-new-report">2. Enter a new report (<em>New report</em>)</a></li>
   <li><a href="#open-a-report-reports-click-one" id="toc-open-a-report-reports-click-one" class="nav-link" data-scroll-target="#open-a-report-reports-click-one">3. Open a report (<em>Reports → click one</em>)</a></li>
-  <li><a href="#cases-cases" id="toc-cases-cases" class="nav-link" data-scroll-target="#cases-cases">4. Cases (<em>Cases</em>)</a></li>
-  <li><a href="#lab-batches-batch-lab-batch-reconciliation" id="toc-lab-batches-batch-lab-batch-reconciliation" class="nav-link" data-scroll-target="#lab-batches-batch-lab-batch-reconciliation">5. Lab batches (<em>Batch → Lab batch reconciliation</em>)</a></li>
-  <li><a href="#notifications" id="toc-notifications" class="nav-link" data-scroll-target="#notifications">6. Notifications (<em>🔔</em>)</a></li>
-  <li><a href="#open-data-open-data" id="toc-open-data-open-data" class="nav-link" data-scroll-target="#open-data-open-data">7. Open data (<em>Open data</em>)</a></li>
-  <li><a href="#admin-only-accounts-groups" id="toc-admin-only-accounts-groups" class="nav-link" data-scroll-target="#admin-only-accounts-groups">8. Admin only — Accounts &amp; Groups</a></li>
+  <li><a href="#explore-the-map-map" id="toc-explore-the-map-map" class="nav-link" data-scroll-target="#explore-the-map-map">4. Explore the map (<em>Map</em>)</a></li>
+  <li><a href="#cases-cases" id="toc-cases-cases" class="nav-link" data-scroll-target="#cases-cases">5. Cases (<em>Cases</em>)</a></li>
+  <li><a href="#lab-batches-batch-lab-batch-reconciliation" id="toc-lab-batches-batch-lab-batch-reconciliation" class="nav-link" data-scroll-target="#lab-batches-batch-lab-batch-reconciliation">6. Lab batches (<em>Batch → Lab batch reconciliation</em>)</a></li>
+  <li><a href="#lab-results-browser-lab" id="toc-lab-results-browser-lab" class="nav-link" data-scroll-target="#lab-results-browser-lab">7. Lab results browser (<em>Lab</em>)</a></li>
+  <li><a href="#notifications" id="toc-notifications" class="nav-link" data-scroll-target="#notifications">8. Notifications (<em>🔔</em>)</a></li>
+  <li><a href="#open-data-open-data" id="toc-open-data-open-data" class="nav-link" data-scroll-target="#open-data-open-data">9. Open data (<em>Open data</em>)</a></li>
+  <li><a href="#admin-only-accounts-groups-analytes" id="toc-admin-only-accounts-groups-analytes" class="nav-link" data-scroll-target="#admin-only-accounts-groups-analytes">10. Admin only — Accounts, Groups &amp; Analytes</a></li>
   </ul></li>
   <li><a href="#a-suggested-15-minute-test-script" id="toc-a-suggested-15-minute-test-script" class="nav-link" data-scroll-target="#a-suggested-15-minute-test-script">A suggested 15-minute test script</a></li>
   </ul>
@@ -286,36 +288,55 @@ ul.task-list li input[type="checkbox"] {
 <li>Staff-only: <strong>reporter contact</strong> and the <strong>suspected illness/death</strong> matrix.</li>
 </ul>
 </section>
+<section id="explore-the-map-map" class="level3">
+<h3 class="anchored" data-anchor-id="explore-the-map-map">4. Explore the map (<em>Map</em>)</h3>
+<ul>
+<li>The map plots reports, colored by outcome. Use the <strong>filters</strong> to narrow it:
+<ul>
+<li><strong>Region</strong>, <strong>County</strong>, <strong>Outcome</strong>, and <strong>Advisory</strong> dropdowns.</li>
+<li>Date-range buttons — <strong>15 / 30 / 60 / 120 days</strong> (or All) — by observation date.</li>
+<li><strong>Analytical data</strong> modes: <em>Events with lab data</em>, or <em>Lab data without events</em> (unlinked lab samples shown as teal markers at their station, with a link to reconcile them).</li>
+</ul></li>
+<li>Filters apply server-side, so they reach the whole dataset. Click a marker for the report popup; <strong>Clear all</strong> resets everything.</li>
+</ul>
+</section>
 <section id="cases-cases" class="level3">
-<h3 class="anchored" data-anchor-id="cases-cases">4. Cases (<em>Cases</em>)</h3>
+<h3 class="anchored" data-anchor-id="cases-cases">5. Cases (<em>Cases</em>)</h3>
 <ul>
 <li>Group related reports into a case (one region, one waterbody, one year); assign reports, set status/lead, and upload case-level lab data.</li>
 </ul>
 </section>
 <section id="lab-batches-batch-lab-batch-reconciliation" class="level3">
-<h3 class="anchored" data-anchor-id="lab-batches-batch-lab-batch-reconciliation">5. Lab batches (<em>Batch → Lab batch reconciliation</em>)</h3>
+<h3 class="anchored" data-anchor-id="lab-batches-batch-lab-batch-reconciliation">6. Lab batches (<em>Batch → Lab batch reconciliation</em>)</h3>
 <ul>
 <li>Upload a CEDEN chemistry template. The system stages it and fuzzy-matches each station+date group to candidate reports. Promote matches, link manually, or create a report from a station.</li>
 </ul>
 </section>
+<section id="lab-results-browser-lab" class="level3">
+<h3 class="anchored" data-anchor-id="lab-results-browser-lab">7. Lab results browser (<em>Lab</em>)</h3>
+<ul>
+<li>Browse <strong>all</strong> field and lab results across reports in one place. Filter by water body / analyte (search), analysis type, data type, region, sample-date range, and non-detects; sort by date, water body, analyte, or value; and <strong>Download CSV</strong> of the filtered set.</li>
+</ul>
+</section>
 <section id="notifications" class="level3">
-<h3 class="anchored" data-anchor-id="notifications">6. Notifications (<em>🔔</em>)</h3>
+<h3 class="anchored" data-anchor-id="notifications">8. Notifications (<em>🔔</em>)</h3>
 <ul>
 <li>Confirm you receive a notice when a new submission comes in (and an <strong>⚠ illness alert</strong> if one reports suspected illness). “Mark all read” clears the badge.</li>
 </ul>
 </section>
 <section id="open-data-open-data" class="level3">
-<h3 class="anchored" data-anchor-id="open-data-open-data">7. Open data (<em>Open data</em>)</h3>
+<h3 class="anchored" data-anchor-id="open-data-open-data">9. Open data (<em>Open data</em>)</h3>
 <ul>
-<li>Download the four data.ca.gov flat files (CSV or a zip), or view the <strong>provisional JSON API</strong>.</li>
+<li>Download the published flat files (CSV or a zip), or view the <strong>provisional JSON API</strong>. There are six datasets: the four FHAB files, plus <strong>CEDEN Chemistry Results</strong> (analyte results in the statewide CEDEN structure) and a <strong>crosswalk</strong> that links each chemistry result to its watershed/GeoConnex and to the FHAB report/case.</li>
 <li>Confirm these contain <strong>no</strong> reporter contact / illness / veterinary data.</li>
 </ul>
 </section>
-<section id="admin-only-accounts-groups" class="level3">
-<h3 class="anchored" data-anchor-id="admin-only-accounts-groups">8. Admin only — Accounts &amp; Groups</h3>
+<section id="admin-only-accounts-groups-analytes" class="level3">
+<h3 class="anchored" data-anchor-id="admin-only-accounts-groups-analytes">10. Admin only — Accounts, Groups &amp; Analytes</h3>
 <ul>
 <li><strong>Accounts:</strong> create users and grant/revoke roles.</li>
 <li><strong>Groups:</strong> register a community/partner group and mint an <strong>API key</strong> (shown once) so that group can submit attributed — and optionally “trusted” — reports.</li>
+<li><strong>Analytes:</strong> curate the analyte vocabulary — edit an analyte’s name/class/unit, <strong>merge</strong> aliases (e.g.&nbsp;“mcyE” → Microcystins) so results consolidate, and delete unused ones.</li>
 </ul>
 </section>
 </section>
@@ -327,6 +348,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Go to <strong>Submissions</strong>, <strong>Promote</strong> your test report to your region.</li>
 <li>Open the new report; set an <strong>outcome</strong>, add a <strong>field result</strong>, and post an <strong>advisory</strong>.</li>
 <li>Create a <strong>Case</strong> and assign the report to it.</li>
+<li>Open the <strong>Map</strong>; filter by your region and the last 30 days, and find your report.</li>
+<li>Open <strong>Lab</strong> and confirm your field result shows in the cross-report results browser.</li>
 <li>Go to <strong>Open data</strong>; download <strong>bloom-report.csv</strong>; confirm your report is in it and that no reporter name/illness columns appear.</li>
 <li>Note anything confusing along the way.</li>
 </ol>
