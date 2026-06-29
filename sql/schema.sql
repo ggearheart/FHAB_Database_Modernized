@@ -230,6 +230,22 @@ CREATE TABLE IF NOT EXISTS public_report_submission (
 );
 CREATE INDEX IF NOT EXISTS public_submission_status_idx ON public_report_submission(status);
 
+-- In-app notifications: routed to staff by role (and escalation for suspected illness). Each row
+-- is one recipient's copy; created on the privileged connection, read by the owner under RLS.
+CREATE TABLE IF NOT EXISTS notification (
+    id              bigserial PRIMARY KEY,
+    user_id         bigint NOT NULL,        -- recipient (app_user.id)
+    kind            text NOT NULL,          -- new_submission | illness_alert | ...
+    title           text NOT NULL,
+    body            text,
+    link            text,                   -- relative URL to act on it
+    submission_id   bigint,
+    bloom_report_id bigint,
+    read_at         timestamptz,
+    created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS notification_user_idx ON notification(user_id, read_at);
+
 -- Registered community/partner groups that submit via the public ingestion API. Each holds an
 -- API key; keyed submissions are attributed to the group and may be flagged trusted (a lighter
 -- review lane). Managed by program admins.

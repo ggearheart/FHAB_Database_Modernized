@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block body %}
+<h1>Notifications</h1>
+<div class="card">
+  {% if items %}
+  <form method="post" action="{{ url_for('notifications_read_all') }}" style="margin-bottom:.6rem">
+    <button class="secondary">Mark all read</button>
+  </form>
+  <table>
+    <tr><th></th><th>Notification</th><th>When</th><th></th></tr>
+    {% for n in items %}
+    <tr style="{% if not n.read_at %}background:#fffbe9{% endif %}">
+      <td>{% if n.kind == 'illness_alert' %}⚠{% elif not n.read_at %}●{% else %}{% endif %}</td>
+      <td><strong>{{ n.title }}</strong>{% if n.body %}<br><span class="muted">{{ n.body }}</span>{% endif %}</td>
+      <td class="muted">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}</td>
+      <td>{% if n.link %}<a class="btn" style="padding:.3rem .7rem"
+            href="{{ url_for('notification_open', nid=n.id, to=n.link) }}">Open</a>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">No notifications.</p>
+  {% endif %}
+</div>
+{% endblock %}

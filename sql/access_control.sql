@@ -259,6 +259,14 @@ BEGIN
     END LOOP;
 END $$;
 
+-- Notifications: a user reads/updates only their own (admins may see all). Inserts come from the
+-- privileged connection (system events), so no INSERT policy is needed for fhab_app here.
+ALTER TABLE notification ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS notification_own ON notification;
+CREATE POLICY notification_own ON notification FOR SELECT USING (user_id = fhab_user_id() OR fhab_is_admin());
+DROP POLICY IF EXISTS notification_upd ON notification;
+CREATE POLICY notification_upd ON notification FOR UPDATE USING (user_id = fhab_user_id()) WITH CHECK (user_id = fhab_user_id());
+
 -- Intake group registry (API keys for community/partner submitters): program admins only.
 ALTER TABLE intake_group ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS intake_group_all ON intake_group;
@@ -304,7 +312,7 @@ GRANT fhab_app TO current_user;
 GRANT INSERT, UPDATE, DELETE ON
     event, station, sample, result, hab_case, waterbody, location, response, advisory,
     lab_batch, lab_stage_sample, lab_stage_result, report_illness, report_photo,
-    public_report_submission, intake_group TO fhab_app;
+    public_report_submission, intake_group, notification TO fhab_app;
 -- analyte is reference vocabulary (no RLS); lab-result entry/upload may add new analytes.
 GRANT INSERT, UPDATE ON analyte TO fhab_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO fhab_app;

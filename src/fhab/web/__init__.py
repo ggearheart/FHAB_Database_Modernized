@@ -26,6 +26,7 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
                       promote_submission, promote_trusted_pending, reject_submission,
                       resolve_intake_group, set_group_active, submit_public_report)
 from ..export import DATASETS, fetch_flatfile
+from ..notify import (list_notifications, mark_read, on_new_submission, unread_count)
 from ..db import DEFAULT_DSN, connect
 
 # Simple in-memory per-IP rate limiter for the public submission endpoint. Process-local (resets
@@ -261,7 +262,35 @@ def create_app(dsn: str | None = None) -> Flask:
                  texture_options=TEXTURE_OPTIONS, illness_subjects=ILLNESS_SUBJECTS,
                  counties=COUNTIES)
 
+    @app.context_processor
+    def _inject_nav():
+        """Expose the logged-in user's unread-notification count to every template."""
+        if not session.get("uid"):
+            return {"nav_unread": 0}
+        try:
+            return {"nav_unread": unread_count(db(), session["uid"])}
+        except Exception:  # noqa: BLE001
+            return {"nav_unread": 0}
+
     # ---- routes ----
+    @app.route("/notifications")
+    @login_required
+    def notifications():
+        return render_template("notifications.html",
+                               items=list_notifications(db(), session["uid"]))
+
+    @app.route("/notifications/read-all", methods=["POST"])
+    @login_required
+    def notifications_read_all():
+        mark_read(db(), session["uid"])
+        return redirect(url_for("notifications"))
+
+    @app.route("/notifications/<int:nid>/open")
+    @login_required
+    def notification_open(nid):
+        mark_read(db(), session["uid"], nid)
+        return redirect(request.args.get("to") or url_for("notifications"))
+
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if request.method == "POST":
@@ -821,6 +850,14 @@ def create_app(dsn: str | None = None) -> Flask:
         except Exception:  # noqa: BLE001
             db().rollback()
             return fail("could not accept submission", 400)
+        try:  # best-effort: notify reviewers (and escalate suspected illness). Never blocks the 200.
+            row = db().execute(
+                "SELECT water_body_name, (illness IS NOT NULL) AS has_illness "
+                "FROM public_report_submission WHERE id=%s", (sid,)).fetchone()
+            on_new_submission(db(), sid, water_body=row["water_body_name"],
+                              has_illness=row["has_illness"], source=kw.get("source"))
+        except Exception:  # noqa: BLE001
+            db().rollback()
         return _cors(jsonify({"ok": True, "id": sid,
                               "message": "Thank you — your report was received for review."}), origin)
 
