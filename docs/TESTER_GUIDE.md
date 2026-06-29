@@ -114,26 +114,41 @@ another board.)
   public map). See the **Locations & GeoConnex** section and per-report map.
 - Staff-only: **reporter contact** and the **suspected illness/death** matrix.
 
-**4. Cases** (`Cases`)
+**4. Explore the map** (`Map`)
+- Reports plotted and colored by outcome. **Filters:** Region, County, Outcome, Advisory; date
+  buttons (**15 / 30 / 60 / 120 days**); and **Analytical data** modes — *Events with lab data*
+  or *Lab data without events* (unlinked lab samples as teal markers at their station). Filters
+  apply server-side; **Clear all** resets.
+
+**5. Cases** (`Cases`)
 - Group related reports into a case (one region, one waterbody, one year). Create a case, assign
   reports, set status/lead, and upload case-level lab data.
 
-**5. Lab batches** (`Batch` → "Lab batch reconciliation")
+**6. Lab batches** (`Batch` → "Lab batch reconciliation")
 - Upload a CEDEN chemistry template. The system stages it and fuzzy-matches each station+date
   group to candidate reports. Promote matches, link manually, or create a report from a station.
 
-**6. Notifications** (`🔔`)
+**7. Lab results browser** (`Lab`)
+- Browse **all** field/lab results across reports. Filter by search (water body / analyte),
+  analysis type, data type, region, sample-date range, and non-detects; sort; and **Download
+  CSV** of the filtered set.
+
+**8. Notifications** (`🔔`)
 - Confirm you receive a notice when a new submission comes in (and an **⚠ illness alert** if one
   reports suspected illness). "Mark all read" clears the badge.
 
-**7. Open data** (`Open data`)
-- Download the four data.ca.gov flat files (CSV or a zip), or view the **provisional JSON API**.
+**9. Open data** (`Open data`)
+- Download the published flat files (CSV or a zip), or view the **provisional JSON API**. Six
+  datasets: the four FHAB files plus **CEDEN Chemistry Results** and a **crosswalk** (links each
+  chemistry result to its watershed/GeoConnex and FHAB report/case).
 - Confirm these contain **no** reporter contact / illness / veterinary data (they shouldn't).
 
-**8. Admin only — Accounts & Groups**
+**10. Admin only — Accounts, Groups & Analytes**
 - **Accounts:** create users and grant/revoke roles.
 - **Groups:** register a community/partner group and mint an **API key** (shown once) so that
   group can submit attributed — and optionally "trusted" — reports.
+- **Analytes:** curate the analyte vocabulary — edit name/class/unit, **merge** aliases
+  (e.g. "mcyE" → Microcystins), and delete unused ones.
 
 ### A suggested 15-minute test script
 
@@ -142,9 +157,11 @@ another board.)
 3. Go to **Submissions**, **Promote** your test report to your region.
 4. Open the new report; set an **outcome**, add a **field result**, and post an **advisory**.
 5. Create a **Case** and assign the report to it.
-6. Go to **Open data**; download **bloom-report.csv**; confirm your report is in it and that no
+6. Open the **Map**; filter by your region and the last 30 days, and find your report.
+7. Open **Lab** and confirm your field result shows in the cross-report results browser.
+8. Go to **Open data**; download **bloom-report.csv**; confirm your report is in it and that no
    reporter name/illness columns appear.
-7. Note anything confusing along the way.
+9. Note anything confusing along the way.
 
 ---
 
