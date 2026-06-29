@@ -13,6 +13,19 @@ report of record. Test data may be wiped at any time. For a real suspected bloom
 official channels.
 :::
 
+::: {.callout-warning title="Data & privacy disclaimer"}
+All data in this demonstration and proof of concept is either **open data** (public,
+CISO-governed) or **fake / demo** report data.
+
+**Please do not enter any personally identifiable information (PII)** — or anything you suspect
+*could* be PII — that could be compromised if disclosed. Treat everything you enter as
+potentially visible to others.
+
+When a form asks for an **email address**, use a **work or otherwise publicly available** address,
+or one that would **not be a problem if it were leaked to a third party**. Do not use a private or
+sensitive personal email.
+:::
+
 ## Pick your track
 
 - **[Community tester](community.qmd)** — submit a bloom report from the CyanoSafe app, no login

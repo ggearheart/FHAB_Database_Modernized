@@ -19,6 +19,12 @@ submission reaches staff.
 Please put **TEST** in the description (e.g. "TEST – ignore") so staff know it's a drill.
 :::
 
+::: {.callout-warning title="Use a safe email"}
+This is a test system holding only open or demo data. If you provide an email, use a **work or
+publicly available** address — not a private/sensitive one — and **don't enter any PII** you
+wouldn't want disclosed. See the [data &amp; privacy disclaimer](index.qmd).
+:::
+
 ## What happens next
 
 - Your report does **not** appear on the public map immediately. It goes into a **staff review
