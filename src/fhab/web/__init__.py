@@ -572,6 +572,38 @@ def create_app(dsn: str | None = None) -> Flask:
     @login_required
     def reports_geojson():
         a = request.args
+        conn = db()
+        try:
+            days = int(a["days"]) if a.get("days") else None
+        except ValueError:
+            days = None
+
+        # "Analytical data without event connections": samples that have results but are not
+        # linked to any report/case, plotted at their station location (one marker per station).
+        if a.get("data") == "orphan":
+            cond, p = ["s.bloom_report_id IS NULL", "s.case_id IS NULL", "st.geom IS NOT NULL"], {}
+            if days:
+                cond.append("s.sample_date >= current_date - %(days)s"); p["days"] = days
+            with acting_as(conn, session["uid"]):
+                rows = conn.execute(
+                    f"""SELECT st.id AS station_id, ST_Y(st.geom) AS lat, ST_X(st.geom) AS lon,
+                               st.station_code, st.station_name,
+                               count(DISTINCT s.id) AS n_samples,
+                               max(s.sample_date)::text AS last_sample
+                        FROM sample s JOIN station st ON st.id = s.station_id
+                        WHERE {' AND '.join(cond)}
+                          AND EXISTS (SELECT 1 FROM result r WHERE r.sample_id = s.id)
+                        GROUP BY st.id, st.geom, st.station_code, st.station_name
+                        ORDER BY n_samples DESC LIMIT 2000""", p).fetchall()
+            features = [{
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]},
+                "properties": {"kind": "orphan", "station_code": r["station_code"],
+                               "station_name": r["station_name"], "n_samples": r["n_samples"],
+                               "last_sample": r["last_sample"]},
+            } for r in rows]
+            return jsonify({"type": "FeatureCollection", "features": features})
+
         cond, p = [], {}
         if a.get("region"):
             cond.append("w.regional_water_board = %(region)s"); p["region"] = a["region"]
@@ -589,9 +621,13 @@ def create_app(dsn: str | None = None) -> Flask:
             cond.append("adv.advisory_recommended IS NULL")
         elif adv:
             cond.append("adv.advisory_recommended = %(advisory)s"); p["advisory"] = adv
+        if days:
+            cond.append("e.observation_date >= current_date - %(days)s"); p["days"] = days
+        if a.get("data") == "with":            # events that have linked analytical results
+            cond.append("EXISTS (SELECT 1 FROM sample s JOIN result r ON r.sample_id = s.id "
+                        "WHERE s.bloom_report_id = e.bloom_report_id)")
         where = (" WHERE " + " AND ".join(cond)) if cond else ""
 
-        conn = db()
         with acting_as(conn, session["uid"]):
             # Kept lean for the free-tier DB: one lateral for the displayed advisory, no
             # per-row count subqueries (the detail page carries the full picture).

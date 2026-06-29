@@ -3,23 +3,50 @@
 {% block body %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <h1>Report map</h1>
+<style>
+  .fbtn { padding:.3rem .7rem; border:1px solid var(--line); background:#fff; border-radius:6px;
+          cursor:pointer; font:inherit; font-size:.85rem; color:var(--ink); }
+  .fbtn.active { background:var(--green); color:#fff; border-color:var(--green); }
+  .btn-group { display:inline-flex; gap:.25rem; }
+</style>
 <div class="card">
-  <form id="filters" style="display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end">
-    <div><label>Region</label>
-      <select name="region"><option value="">All regions</option>
-        {% for r in regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select></div>
-    <div><label>County</label>
-      <select name="county"><option value="">All counties</option>
-        {% for c in counties %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
-    <div><label>Outcome</label>
-      <select name="outcome"><option value="">All outcomes</option>
-        {% for d in determinations %}<option value="{{ d.code }}">{{ d.label }}</option>{% endfor %}</select></div>
-    <div><label>Advisory</label>
-      <select name="advisory"><option value="">All</option>
-        <option value="__any__">Any advisory posted</option>
-        <option value="__none__">No advisory</option>
-        {% for a in advisories %}<option value="{{ a.code }}">{{ a.label }}</option>{% endfor %}</select></div>
-    <button type="button" id="clear" class="secondary">Clear</button>
+  <form id="filters" onsubmit="return false">
+    <div class="row-wrap" style="display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end">
+      <div><label>Region</label>
+        <select name="region"><option value="">All regions</option>
+          {% for r in regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select></div>
+      <div><label>County</label>
+        <select name="county"><option value="">All counties</option>
+          {% for c in counties %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
+      <div><label>Outcome</label>
+        <select name="outcome"><option value="">All outcomes</option>
+          {% for d in determinations %}<option value="{{ d.code }}">{{ d.label }}</option>{% endfor %}</select></div>
+      <div><label>Advisory</label>
+        <select name="advisory"><option value="">All</option>
+          <option value="__any__">Any advisory posted</option>
+          <option value="__none__">No advisory</option>
+          {% for a in advisories %}<option value="{{ a.code }}">{{ a.label }}</option>{% endfor %}</select></div>
+    </div>
+    <input type="hidden" name="days"><input type="hidden" name="data">
+    <div style="margin-top:.8rem; display:flex; flex-wrap:wrap; gap:1.4rem; align-items:center">
+      <div><span class="muted" style="margin-right:.4rem">Last</span>
+        <span class="btn-group" data-field="days">
+          <button type="button" class="fbtn" data-val="15">15d</button>
+          <button type="button" class="fbtn" data-val="30">30d</button>
+          <button type="button" class="fbtn" data-val="60">60d</button>
+          <button type="button" class="fbtn" data-val="120">120d</button>
+          <button type="button" class="fbtn active" data-val="">All</button>
+        </span>
+      </div>
+      <div><span class="muted" style="margin-right:.4rem">Analytical data</span>
+        <span class="btn-group" data-field="data">
+          <button type="button" class="fbtn active" data-val="">All reports</button>
+          <button type="button" class="fbtn" data-val="with">Events with lab data</button>
+          <button type="button" class="fbtn" data-val="orphan">Lab data without events</button>
+        </span>
+      </div>
+      <button type="button" id="clear" class="secondary">Clear all</button>
+    </div>
   </form>
 </div>
 <div class="card" style="padding:0; overflow:hidden">
@@ -48,6 +75,7 @@ const LABELS = {
   under_investigation:'Under investigation / not recorded'
 };
 const colorFor = p => COLORS[p.determination_code] || COLORS.under_investigation;
+const ORPHAN = '#16a085';   // unlinked analytical data (no report)
 
 const map = L.map('map').setView([37.5, -120.0], 6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -62,13 +90,31 @@ Object.keys(LABELS).forEach(k => {
     + `background:${COLORS[k]};margin-right:.3rem;vertical-align:middle"></span>${LABELS[k]}`;
   leg.appendChild(el);
 });
+const orphanLeg = document.createElement('span');
+orphanLeg.innerHTML = `<span style="display:inline-block;width:.7rem;height:.7rem;border-radius:50%;`
+  + `background:${ORPHAN};margin-right:.3rem;vertical-align:middle"></span>Unlinked lab data (no report)`;
+leg.appendChild(orphanLeg);
 
 const geoOpts = {
-  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-    radius:6, weight:1, color:'#fff', fillColor:colorFor(f.properties), fillOpacity:0.9
-  }),
+  pointToLayer: (f, latlng) => {
+    const orphan = f.properties.kind === 'orphan';
+    return L.circleMarker(latlng, {
+      radius: orphan ? 7 : 6, weight: orphan ? 2 : 1, color: orphan ? '#0e6655' : '#fff',
+      fillColor: orphan ? ORPHAN : colorFor(f.properties), fillOpacity:0.9
+    });
+  },
   onEachFeature: (f, lyr) => {
     const p = f.properties;
+    if (p.kind === 'orphan') {
+      lyr.bindPopup(
+        `<b>Lab data at ${p.station_code || '—'}</b><br>`
+        + `${p.station_name || ''}<br>`
+        + `${p.n_samples} unlinked sample(s)<br>`
+        + `Last sample: ${p.last_sample || '—'}<br>`
+        + `<a href="/batch/lab-reconcile">Reconcile →</a>`
+      );
+      return;
+    }
     lyr.bindPopup(
       `<b><a href="/reports/${p.bloom_report_id}">Report ${p.bloom_report_id}</a></b><br>`
       + `${p.water_body_name || '—'}<br>`
@@ -85,25 +131,55 @@ const form = document.getElementById('filters');
 const countEl = document.getElementById('count');
 let layer = null;
 
+// In orphan mode the report dropdowns don't apply — disable them as a cue.
+function syncDisabled() {
+  const orphan = form.querySelector('[name=data]').value === 'orphan';
+  ['region', 'county', 'outcome', 'advisory'].forEach(n => {
+    form.querySelector(`[name=${n}]`).disabled = orphan;
+  });
+}
+
 function load() {
+  syncDisabled();
   const qs = new URLSearchParams();
   new FormData(form).forEach((v, k) => { if (v) qs.set(k, v); });
-  const filtered = qs.toString().length > 0;
+  const orphan = qs.get('data') === 'orphan';
+  const filtered = [...qs.keys()].length > 0;
   countEl.textContent = 'Loading…';
   fetch('{{ url_for("reports_geojson") }}' + (filtered ? '?' + qs : ''))
     .then(r => r.json()).then(fc => {
       if (layer) layer.remove();
       layer = L.geoJSON(fc, geoOpts).addTo(map);
       const n = fc.features.length;
-      countEl.textContent = `${n} report(s) shown${filtered ? ' (filtered)' : ''}`
+      const noun = orphan ? 'station(s) with unlinked lab data' : `report(s) shown${filtered ? ' (filtered)' : ''}`;
+      countEl.textContent = `${n} ${noun}`
         + (n >= 2000 ? ' — capped at 2000; narrow the filters to see all.' : '.');
       if (n) map.fitBounds(layer.getBounds().pad(0.1));
     })
-    .catch(() => { countEl.textContent = 'Could not load reports — reload to retry.'; });
+    .catch(() => { countEl.textContent = 'Could not load — reload to retry.'; });
 }
 
+// Toggle-button groups (days, data): set the hidden field, mark active, reload.
+document.querySelectorAll('.btn-group').forEach(group => {
+  const field = group.dataset.field;
+  group.addEventListener('click', e => {
+    const b = e.target.closest('.fbtn');
+    if (!b) return;
+    form.querySelector(`[name=${field}]`).value = b.dataset.val;
+    group.querySelectorAll('.fbtn').forEach(x => x.classList.toggle('active', x === b));
+    load();
+  });
+});
+
 form.addEventListener('change', load);
-document.getElementById('clear').addEventListener('click', () => { form.reset(); load(); });
+document.getElementById('clear').addEventListener('click', () => {
+  form.reset();
+  form.querySelector('[name=days]').value = '';
+  form.querySelector('[name=data]').value = '';
+  document.querySelectorAll('.btn-group').forEach(g => g.querySelectorAll('.fbtn')
+    .forEach(x => x.classList.toggle('active', x.dataset.val === '')));
+  load();
+});
 load();
 });
 </script>

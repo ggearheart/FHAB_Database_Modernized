@@ -479,6 +479,51 @@ def test_map_page_has_filters(app_client, conn):
     r = app_client.get("/map")
     assert b'name="region"' in r.data and b'name="county"' in r.data
     assert b'name="outcome"' in r.data and b'name="advisory"' in r.data
+    # date buttons + analytical-data mode buttons
+    assert b'data-val="15"' in r.data and b'data-val="120"' in r.data
+    assert b'data-val="with"' in r.data and b'data-val="orphan"' in r.data
+
+
+def test_geojson_date_and_data_connection_filters(app_client, conn):
+    import json
+    from fhab.auth import create_user, grant_role
+    from fhab.reports import add_result, enter_report
+    staff = create_user(conn, "mapdata@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    # An old report (no data) and a recent report WITH a lab result.
+    old = enter_report(conn, staff, water_body_name="Old Lake", region=R5, lat=38.6, lon=-121.5,
+                       observation_date="2020-01-01")
+    new = enter_report(conn, staff, water_body_name="Fresh Lake", region=R5, lat=38.7, lon=-121.6)
+    add_result(conn, staff, new, data_type="Laboratory", measurement_value=5)
+    # An orphan sample (results, no event) at a geocoded station.
+    st = conn.execute("INSERT INTO station (station_code, geom) "
+                      "VALUES ('ORP1', ST_SetSRID(ST_MakePoint(-121.4,38.5),4326)) RETURNING id"
+                      ).fetchone()["id"]
+    sid = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s, current_date) "
+                       "RETURNING id", (st,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) "
+                 "VALUES ('orp-1', %s, 'Laboratory')", (sid,))
+    conn.commit()
+
+    def names(qs=""):
+        fc = json.loads(app_client.get("/api/reports.geojson" + qs).data)
+        return [f["properties"] for f in fc["features"]]
+
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    wbs = {p.get("water_body_name") for p in names()}
+    assert {"Old Lake", "Fresh Lake"} <= wbs
+
+    # date range: 30 days excludes the 2020 report
+    recent = {p.get("water_body_name") for p in names("?days=30")}
+    assert "Fresh Lake" in recent and "Old Lake" not in recent
+
+    # events with analytical data
+    withdata = {p.get("water_body_name") for p in names("?data=with")}
+    assert "Fresh Lake" in withdata and "Old Lake" not in withdata
+
+    # analytical data without events -> orphan station markers
+    orphans = names("?data=orphan")
+    assert any(p.get("kind") == "orphan" and p.get("station_code") == "ORP1" for p in orphans)
+    assert all(p.get("kind") == "orphan" for p in orphans)
 
 
 def test_geojson_is_rls_filtered(app_client, conn):
