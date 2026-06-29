@@ -12,10 +12,11 @@ def _ids(path: Path, column: str) -> set[str]:
         return {r[column].strip() for r in csv.DictReader(fh) if r.get(column, "").strip()}
 
 
-def test_export_writes_four_files(loaded_conn, tmp_path):
+def test_export_writes_all_files(loaded_conn, tmp_path):
     counts = export_all(loaded_conn, tmp_path)
     assert set(counts) == {
         "bloom-report.csv", "hab-cases.csv", "hab-responses.csv", "hab-results.csv",
+        "chemistry-results.csv", "chemistry-crosswalk.csv",
     }
     for name in counts:
         assert (tmp_path / name).exists()
@@ -46,9 +47,29 @@ def test_export_headers_use_published_names(loaded_conn, tmp_path):
 
 def test_fetch_flatfile_returns_records_without_pii(loaded_conn):
     from fhab.export import DATASETS, fetch_flatfile
-    assert set(DATASETS) == {"bloom-report", "hab-cases", "hab-responses", "hab-results"}
+    assert set(DATASETS) == {"bloom-report", "hab-cases", "hab-responses", "hab-results",
+                             "chemistry-results", "chemistry-crosswalk"}
     headers, records = fetch_flatfile(loaded_conn, "bloom-report")
     assert "Bloom_Report_ID" in headers and records and isinstance(records[0], dict)
     # The published column set must never include reporter contact / illness.
     joined = " ".join(headers).lower()
     assert "reporter" not in joined and "illness" not in joined and "email" not in joined
+
+
+def test_chemistry_and_crosswalk_exports(loaded_conn):
+    from fhab.export import fetch_flatfile
+    chem_h, chem = fetch_flatfile(loaded_conn, "chemistry-results")
+    # CEDEN-structured columns, no PII.
+    for col in ("ResultRowID", "StationCode", "AnalyteName", "Result", "ResQualCode",
+                "TargetLatitude", "MatrixName"):
+        assert col in chem_h
+    joined = " ".join(chem_h).lower()
+    assert "reporter" not in joined and "illness" not in joined
+
+    xw_h, xw = fetch_flatfile(loaded_conn, "chemistry-crosswalk")
+    for col in ("ResultRowID", "Bloom_Report_ID", "Case_ID", "HUC12", "Latitude",
+                "Station_GeoConnex"):
+        assert col in xw_h
+    # Same row population and a shared join key (ResultRowID) across both files.
+    assert len(chem) == len(xw)
+    assert {r["ResultRowID"] for r in chem} == {r["ResultRowID"] for r in xw}

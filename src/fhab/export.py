@@ -73,6 +73,67 @@ RESULT_COLUMNS = [
     ("Taxa", "r.taxa"),
 ]
 
+# CEDEN Surface Water Chemistry Results structure (https://data.ca.gov/dataset/surface-water-chemistry-results).
+# ResultRowID (our unique result id) is the join key to the crosswalk below.
+CHEMISTRY_COLUMNS = [
+    ("ResultRowID", "r.result_id_unique"),
+    ("StationCode", "st.station_code"),
+    ("StationName", "st.station_name"),
+    ("SampleDate", "s.sample_date"),
+    ("CollectionTime", "s.sample_time"),
+    ("LocationCode", "s.sample_location"),
+    ("SampleTypeCode", "s.sample_type"),
+    ("MatrixName", "'samplewater'"),
+    ("MethodName", "r.method"),
+    ("AnalyteName", "an.analyte"),
+    ("FractionName", "r.fraction_name"),
+    ("UnitName", "coalesce(r.measurement_unit, an.default_unit)"),
+    ("Result", "coalesce(r.measurement_value::text, r.measurement_text)"),
+    ("ResQualCode", "r.res_qual_code"),
+    ("MDL", "r.mdl"),
+    ("RL", "r.rl"),
+    ("QACode", "r.qa_code"),
+    ("ComplianceCode", "r.compliance_code"),
+    ("ProjectCode", "s.project_code"),
+    ("AgencyCode", "s.lab_agency_code"),
+    ("LabSampleID", "s.lab_sample_id"),
+    ("LabBatch", "s.lab_batch"),
+    ("TargetLatitude", "ST_Y(st.geom)"),
+    ("TargetLongitude", "ST_X(st.geom)"),
+    ("Datum", "CASE WHEN st.geom IS NOT NULL THEN 'WGS84' END"),
+]
+
+# Crosswalk: each chemistry result -> geospatial backbone + FHAB report/case (where they exist).
+CROSSWALK_COLUMNS = [
+    ("ResultRowID", "r.result_id_unique"),
+    ("StationCode", "st.station_code"),
+    ("SampleDate", "s.sample_date"),
+    ("AnalyteName", "an.analyte"),
+    ("Bloom_Report_ID", "s.bloom_report_id"),
+    ("Case_ID", "coalesce(s.case_id, e.case_id)"),
+    ("Water_Body_Name", "w.water_body_name"),
+    ("Regional_Water_Board", "w.regional_water_board"),
+    ("County", "w.county"),
+    ("HUC12", "coalesce(st.huc12, l.huc12)"),
+    ("Latitude", "coalesce(ST_Y(st.geom), ST_Y(l.geom))"),
+    ("Longitude", "coalesce(ST_X(st.geom), ST_X(l.geom))"),
+    ("Station_GeoConnex", "st.geoconnex_uri"),
+    ("Event_GeoConnex", "e.geoconnex_uri"),
+]
+
+# Shared join for the chemistry + crosswalk exports (one row per non-veterinary result).
+_CHEM_FROM = """
+    FROM result r
+    JOIN sample s ON s.id = r.sample_id
+    LEFT JOIN station st ON st.id = s.station_id
+    LEFT JOIN analyte an ON an.id = r.analyte_id
+    LEFT JOIN event e ON e.bloom_report_id = s.bloom_report_id
+    LEFT JOIN location l ON l.id = e.location_id
+    LEFT JOIN waterbody w ON w.id = l.waterbody_id
+    WHERE r.data_type IS DISTINCT FROM 'Veterinary'
+    ORDER BY r.result_id_unique
+"""
+
 _QUERIES = {
     "bloom-report.csv": ("""
         SELECT {cols} FROM event e
@@ -96,6 +157,8 @@ _QUERIES = {
         WHERE r.data_type IS DISTINCT FROM 'Veterinary'
         ORDER BY r.result_id_unique
     """, RESULT_COLUMNS),
+    "chemistry-results.csv": ("SELECT {cols} " + _CHEM_FROM, CHEMISTRY_COLUMNS),
+    "chemistry-crosswalk.csv": ("SELECT {cols} " + _CHEM_FROM, CROSSWALK_COLUMNS),
 }
 
 
@@ -106,6 +169,12 @@ DATASETS = {
     "hab-cases": ("FHAB Cases", "Case records that group related reports for a waterbody/year."),
     "hab-responses": ("FHAB Responses", "Response actions and posted advisories."),
     "hab-results": ("FHAB Results", "Field and laboratory results (veterinary excluded)."),
+    "chemistry-results": ("CEDEN Chemistry Results",
+                          "Analyte results in the CEDEN Surface Water Chemistry structure "
+                          "(veterinary excluded). Joins to the crosswalk on ResultRowID."),
+    "chemistry-crosswalk": ("FHAB ↔ CEDEN Crosswalk",
+                            "Links each chemistry result to the geospatial backbone (HUC-12, "
+                            "lat/lon, GeoConnex) and to FHAB report/case IDs where they exist."),
 }
 
 

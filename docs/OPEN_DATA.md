@@ -1,6 +1,6 @@
-# Open data: the four flat files + the provisional API
+# Open data: the published flat files + the provisional API
 
-The app regenerates the four files published on
+The app regenerates the files published on
 [data.ca.gov](https://data.ca.gov/dataset/surface-water-freshwater-harmful-algal-blooms)
 directly from the live database, and serves a provisional read-only API.
 
@@ -10,10 +10,25 @@ directly from the live database, and serves a provisional read-only API.
 | FHAB Cases | `hab-cases` | `hab_case` |
 | FHAB Responses | `hab-responses` | `response` + `advisory` |
 | FHAB Results | `hab-results` | `result` + `sample` + `analyte` (veterinary excluded) |
+| CEDEN Chemistry Results | `chemistry-results` | analyte results in the [CEDEN Surface Water Chemistry](https://data.ca.gov/dataset/surface-water-chemistry-results) structure |
+| FHAB ↔ CEDEN Crosswalk | `chemistry-crosswalk` | links each chemistry result to the geospatial backbone + FHAB report/case |
 
 All outputs use the **published column names** only. Reporter contact, the suspected
 illness/death matrix, and veterinary results are **never** included — the export selects an
 explicit column allowlist (`fhab.export`), so new internal/PII fields can't leak.
+
+## CEDEN chemistry + crosswalk
+
+`chemistry-results` emits the analyte results in the statewide **CEDEN Surface Water Chemistry
+Results** structure (StationCode, SampleDate, AnalyteName, MatrixName, MethodName, Result,
+ResQualCode, MDL, RL, QACode, TargetLatitude/Longitude, …) — so HAB chemistry can sit alongside
+the rest of CEDEN chemistry. Each row carries a **`ResultRowID`** (our unique result id).
+
+`chemistry-crosswalk` is the join partner: one row per result, keyed by the same **`ResultRowID`**,
+adding the **geospatial backbone** (`HUC12`, `Latitude`/`Longitude`, station & event `GeoConnex`)
+and the **FHAB `Bloom_Report_ID` / `Case_ID`** *where they exist*. CEDEN chemistry users get the
+clean station-based results; FHAB users join the crosswalk to recover report/case/watershed
+context.
 
 ## Two delivery paths
 
