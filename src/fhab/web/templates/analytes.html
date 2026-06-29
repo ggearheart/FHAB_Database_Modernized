@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Analyte taxonomy{% endblock %}
+{% block body %}
+<h1>Analyte taxonomy</h1>
+<p class="muted">Curate the analyte vocabulary. <strong>Edit</strong> fixes an analyte's
+  analysis type, class, name, or unit. <strong>Merge</strong> folds an alias (e.g. “mcyE”,
+  “Microcystins total”) into a canonical analyte — all its results are repointed and the alias
+  removed. Unused analytes can be deleted.</p>
+
+<div class="card">
+  <table>
+    <tr><th>Analysis type</th><th>Class</th><th>Analyte</th><th>Unit</th><th>Results</th>
+        <th>Edit / merge</th></tr>
+    {% for a in analytes %}
+    <tr>
+      <td colspan="4">
+        <form method="post" action="{{ url_for('admin_analyte_edit', aid=a.id) }}"
+              style="display:flex; gap:.35rem; align-items:center; flex-wrap:wrap">
+          <select name="analysis_type" style="width:auto; padding:.25rem">
+            <option value="">—</option>
+            {% for t in analysis_types %}<option value="{{ t }}" {% if a.analysis_type==t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+            {% if a.analysis_type and a.analysis_type not in analysis_types %}<option selected>{{ a.analysis_type }}</option>{% endif %}
+          </select>
+          <input name="analyte_class" value="{{ a.analyte_class or '' }}" placeholder="class" style="width:150px; padding:.25rem">
+          <input name="analyte" value="{{ a.analyte or '' }}" placeholder="analyte *" style="width:170px; padding:.25rem">
+          <input name="default_unit" value="{{ a.default_unit or '' }}" placeholder="unit" style="width:70px; padding:.25rem">
+          <button class="secondary" style="padding:.25rem .6rem">Save</button>
+        </form>
+      </td>
+      <td>{{ a.n_results }}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin_analyte_merge', aid=a.id) }}"
+              style="display:inline-flex; gap:.3rem; align-items:center">
+          <select name="target_id" style="width:auto; padding:.25rem; max-width:170px">
+            <option value="">merge into…</option>
+            {% for o in analytes if o.id != a.id %}
+            <option value="{{ o.id }}">{{ o.analyte }}{% if o.analyte_class and o.analyte_class != o.analyte %} ({{ o.analyte_class }}){% endif %}</option>
+            {% endfor %}
+          </select>
+          <button class="secondary" style="padding:.25rem .6rem">Merge</button>
+        </form>
+        {% if a.n_results == 0 %}
+        <form method="post" action="{{ url_for('admin_analyte_delete', aid=a.id) }}" style="display:inline"
+              onsubmit="return confirm('Delete this unused analyte?')">
+          <button class="secondary" style="padding:.25rem .6rem; background:#b06">×</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">No analytes.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -45,7 +45,8 @@
     <a href="{{ url_for('lab_results') }}">Lab</a>
     <a href="{{ url_for('export_index') }}">Open data</a>{% endif %}
     {% if 'program_admin' in session.roles %}<a href="{{ url_for('admin_users') }}">Accounts</a>
-    <a href="{{ url_for('admin_intake_groups') }}">Groups</a>{% endif %}
+    <a href="{{ url_for('admin_intake_groups') }}">Groups</a>
+    <a href="{{ url_for('admin_analytes') }}">Analytes</a>{% endif %}
     <span class="spacer"></span>
     <a href="{{ url_for('notifications') }}" title="Notifications" style="font-weight:600">🔔{% if nav_unread %} <span style="background:#e8543f;color:#fff;border-radius:999px;padding:0 .4rem;font-size:.72rem">{{ nav_unread }}</span>{% endif %}</a>
     <span class="muted" style="color:#dff0e7">{{ session.name }}</span>

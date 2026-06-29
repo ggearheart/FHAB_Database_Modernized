@@ -27,6 +27,8 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
                       resolve_intake_group, set_group_active, submit_public_report)
 from ..export import DATASETS, fetch_flatfile
 from ..labquery import count_results, filter_options, query_results
+from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
+                        update_analyte)
 from ..notify import (list_notifications, mark_read, on_new_submission, unread_count)
 from ..db import DEFAULT_DSN, connect
 
@@ -992,6 +994,52 @@ def create_app(dsn: str | None = None) -> Flask:
         set_group_active(db(), session["uid"], gid, request.form.get("active") == "1")
         flash("Group updated.", "ok")
         return redirect(url_for("admin_intake_groups"))
+
+    # ---------- Analyte taxonomy admin ----------
+    @app.route("/admin/analytes")
+    @admin_required
+    def admin_analytes():
+        return render_template("analytes.html", analytes=list_analytes(db()),
+                               analysis_types=["Cyanotoxin", "Field Measurement", "Genetic",
+                                               "Microscopy", "Pigment", "Other"])
+
+    @app.route("/admin/analytes/<int:aid>/edit", methods=["POST"])
+    @admin_required
+    def admin_analyte_edit(aid):
+        f = request.form
+        try:
+            update_analyte(db(), aid,
+                           analysis_type=(f.get("analysis_type") or "").strip() or None,
+                           analyte_class=(f.get("analyte_class") or "").strip() or None,
+                           analyte=(f.get("analyte") or "").strip() or None,
+                           default_unit=(f.get("default_unit") or "").strip() or None)
+            flash("Analyte updated.", "ok")
+        except TaxonomyError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("admin_analytes"))
+
+    @app.route("/admin/analytes/<int:aid>/merge", methods=["POST"])
+    @admin_required
+    def admin_analyte_merge(aid):
+        target = request.form.get("target_id")
+        try:
+            moved = merge_analytes(db(), aid, int(target) if target else 0)
+            flash(f"Merged — moved {moved} result(s) to the canonical analyte.", "ok")
+        except TaxonomyError as exc:
+            flash(str(exc), "error")
+        except (ValueError, psycopg.Error) as exc:
+            db().rollback(); flash("Could not merge: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("admin_analytes"))
+
+    @app.route("/admin/analytes/<int:aid>/delete", methods=["POST"])
+    @admin_required
+    def admin_analyte_delete(aid):
+        try:
+            delete_analyte(db(), aid)
+            flash("Analyte deleted.", "ok")
+        except TaxonomyError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("admin_analytes"))
 
     # ---------- Open-data flat files (the four data.ca.gov files) ----------
     @app.route("/export")
