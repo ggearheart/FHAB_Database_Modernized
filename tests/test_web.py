@@ -452,6 +452,35 @@ def test_map_page_and_geojson(app_client, conn):
     assert -125 < feat["geometry"]["coordinates"][0] < -110  # lon
 
 
+def test_geojson_filters(app_client, conn):
+    import json
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    # Two reports in different counties; one gets a confirmed-HAB outcome.
+    app_client.post("/reports/new", data={"waterbody": "Alpha Lake", "region": R5, "county": "Lake",
+                                          "lat": "38.6", "lon": "-121.5",
+                                          "determination_code": "confirmed_hab"}, follow_redirects=True)
+    app_client.post("/reports/new", data={"waterbody": "Beta Pond", "region": R5, "county": "Yolo",
+                                          "lat": "38.7", "lon": "-121.6",
+                                          "determination_code": "no_bloom"}, follow_redirects=True)
+
+    def names(qs=""):
+        fc = json.loads(app_client.get("/api/reports.geojson" + qs).data)
+        return {f["properties"]["water_body_name"] for f in fc["features"]}
+
+    assert {"Alpha Lake", "Beta Pond"} <= names()
+    assert names("?county=Lake") == {"Alpha Lake"}
+    assert names("?outcome=confirmed_hab") == {"Alpha Lake"}
+    assert "Beta Pond" in names("?outcome=no_bloom") and "Alpha Lake" not in names("?outcome=no_bloom")
+    assert names("?region=" + R1.replace(" ", "%20")) == set()  # no R5 reports under R1 filter
+
+
+def test_map_page_has_filters(app_client, conn):
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    r = app_client.get("/map")
+    assert b'name="region"' in r.data and b'name="county"' in r.data
+    assert b'name="outcome"' in r.data and b'name="advisory"' in r.data
+
+
 def test_geojson_is_rls_filtered(app_client, conn):
     # A Region-1 report shouldn't appear for a Region-5 staffer (no published advisory).
     wb = conn.execute(

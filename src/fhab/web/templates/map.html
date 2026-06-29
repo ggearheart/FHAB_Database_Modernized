@@ -3,8 +3,27 @@
 {% block body %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <h1>Report map</h1>
+<div class="card">
+  <form id="filters" style="display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end">
+    <div><label>Region</label>
+      <select name="region"><option value="">All regions</option>
+        {% for r in regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select></div>
+    <div><label>County</label>
+      <select name="county"><option value="">All counties</option>
+        {% for c in counties %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></div>
+    <div><label>Outcome</label>
+      <select name="outcome"><option value="">All outcomes</option>
+        {% for d in determinations %}<option value="{{ d.code }}">{{ d.label }}</option>{% endfor %}</select></div>
+    <div><label>Advisory</label>
+      <select name="advisory"><option value="">All</option>
+        <option value="__any__">Any advisory posted</option>
+        <option value="__none__">No advisory</option>
+        {% for a in advisories %}<option value="{{ a.code }}">{{ a.label }}</option>{% endfor %}</select></div>
+    <button type="button" id="clear" class="secondary">Clear</button>
+  </form>
+</div>
 <div class="card" style="padding:0; overflow:hidden">
-  <div id="map" style="height:68vh; width:100%"></div>
+  <div id="map" style="height:62vh; width:100%"></div>
 </div>
 <div class="card">
   <strong>Outcome / determination</strong>
@@ -44,27 +63,48 @@ Object.keys(LABELS).forEach(k => {
   leg.appendChild(el);
 });
 
-fetch('{{ url_for("reports_geojson") }}').then(r => r.json()).then(fc => {
-  const layer = L.geoJSON(fc, {
-    pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-      radius:6, weight:1, color:'#fff', fillColor:colorFor(f.properties), fillOpacity:0.9
-    }),
-    onEachFeature: (f, lyr) => {
-      const p = f.properties;
-      lyr.bindPopup(
-        `<b><a href="/reports/${p.bloom_report_id}">Report ${p.bloom_report_id}</a></b><br>`
-        + `${p.water_body_name || '—'}<br>`
-        + `<span style="color:#777">${p.regional_water_board || ''}</span><br>`
-        + `Observed: ${p.obs || '—'}<br>`
-        + `Outcome: ${p.det_label || 'not recorded'}<br>`
-        + (p.advisory ? `Advisory: <b>${p.advisory}</b><br>` : '')
-        + `Case: ${p.case_id || '—'}`
-      );
-    }
-  }).addTo(map);
-  document.getElementById('count').textContent = `${fc.features.length} report(s) shown (your role/region).`;
-  if (fc.features.length) map.fitBounds(layer.getBounds().pad(0.1));
-});
+const geoOpts = {
+  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+    radius:6, weight:1, color:'#fff', fillColor:colorFor(f.properties), fillOpacity:0.9
+  }),
+  onEachFeature: (f, lyr) => {
+    const p = f.properties;
+    lyr.bindPopup(
+      `<b><a href="/reports/${p.bloom_report_id}">Report ${p.bloom_report_id}</a></b><br>`
+      + `${p.water_body_name || '—'}<br>`
+      + `<span style="color:#777">${p.regional_water_board || ''}</span><br>`
+      + `Observed: ${p.obs || '—'}<br>`
+      + `Outcome: ${p.det_label || 'not recorded'}<br>`
+      + (p.advisory ? `Advisory: <b>${p.advisory}</b><br>` : '')
+      + `Case: ${p.case_id || '—'}`
+    );
+  }
+};
+
+const form = document.getElementById('filters');
+const countEl = document.getElementById('count');
+let layer = null;
+
+function load() {
+  const qs = new URLSearchParams();
+  new FormData(form).forEach((v, k) => { if (v) qs.set(k, v); });
+  const filtered = qs.toString().length > 0;
+  countEl.textContent = 'Loading…';
+  fetch('{{ url_for("reports_geojson") }}' + (filtered ? '?' + qs : ''))
+    .then(r => r.json()).then(fc => {
+      if (layer) layer.remove();
+      layer = L.geoJSON(fc, geoOpts).addTo(map);
+      const n = fc.features.length;
+      countEl.textContent = `${n} report(s) shown${filtered ? ' (filtered)' : ''}`
+        + (n >= 2000 ? ' — capped at 2000; narrow the filters to see all.' : '.');
+      if (n) map.fitBounds(layer.getBounds().pad(0.1));
+    })
+    .catch(() => { countEl.textContent = 'Could not load reports — reload to retry.'; });
+}
+
+form.addEventListener('change', load);
+document.getElementById('clear').addEventListener('click', () => { form.reset(); load(); });
+load();
 });
 </script>
 {% endblock %}

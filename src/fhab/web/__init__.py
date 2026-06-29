@@ -562,17 +562,41 @@ def create_app(dsn: str | None = None) -> Flask:
     @app.route("/map")
     @login_required
     def report_map():
-        return render_template("map.html")
+        counties = [r["county"] for r in db().execute(
+            "SELECT DISTINCT county FROM waterbody WHERE county IS NOT NULL ORDER BY 1").fetchall()]
+        return render_template("map.html", regions=_regions(), counties=counties,
+                               determinations=_determinations(),
+                               advisories=_recommended_advisories())
 
     @app.route("/api/reports.geojson")
     @login_required
     def reports_geojson():
+        a = request.args
+        cond, p = [], {}
+        if a.get("region"):
+            cond.append("w.regional_water_board = %(region)s"); p["region"] = a["region"]
+        if a.get("county"):
+            cond.append("w.county = %(county)s"); p["county"] = a["county"]
+        outcome = a.get("outcome")
+        if outcome == "under_investigation":   # the "not recorded" bucket includes NULLs
+            cond.append("(e.determination_code = 'under_investigation' OR e.determination_code IS NULL)")
+        elif outcome:
+            cond.append("e.determination_code = %(outcome)s"); p["outcome"] = outcome
+        adv = a.get("advisory")                # filters on the displayed advisory (the lateral)
+        if adv == "__any__":
+            cond.append("adv.advisory_recommended IS NOT NULL")
+        elif adv == "__none__":
+            cond.append("adv.advisory_recommended IS NULL")
+        elif adv:
+            cond.append("adv.advisory_recommended = %(advisory)s"); p["advisory"] = adv
+        where = (" WHERE " + " AND ".join(cond)) if cond else ""
+
         conn = db()
         with acting_as(conn, session["uid"]):
             # Kept lean for the free-tier DB: one lateral for the displayed advisory, no
             # per-row count subqueries (the detail page carries the full picture).
             rows = conn.execute(
-                """SELECT e.bloom_report_id, ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon,
+                f"""SELECT e.bloom_report_id, ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon,
                           w.water_body_name, w.regional_water_board, e.observation_date::text AS obs,
                           e.event_status, e.determination_code, rd.label AS det_label, e.case_id,
                           adv.advisory_recommended AS advisory
@@ -586,7 +610,8 @@ def create_app(dsn: str | None = None) -> Flask:
                        WHERE r.bloom_report_id = e.bloom_report_id AND a.display_advisory_on_map
                        ORDER BY a.advisory_start_date DESC NULLS LAST LIMIT 1
                    ) adv ON true
-                   ORDER BY e.bloom_report_id DESC LIMIT 2000"""
+                   {where}
+                   ORDER BY e.bloom_report_id DESC LIMIT 2000""", p
             ).fetchall()
         props = ("bloom_report_id", "water_body_name", "regional_water_board", "obs",
                  "event_status", "determination_code", "det_label", "case_id", "advisory")
