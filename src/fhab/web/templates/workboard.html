@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Lab workboard{% endblock %}
+{% set PILL = {'unlinked':'#fff6e0','linked':'#e7efe9','approved':'#e3f4ea','flagged':'#fbe6e6'} %}
+{% block body %}
+<h1>Lab data workboard</h1>
+<p class="muted">Assign lab samples to team members, link each to a report or case, and QA-review
+  the links. Re-linking a sample sends it back for review. To bring in <em>new</em> historic
+  data, use <a href="{{ url_for('lab_reconcile') }}">batch lab reconciliation</a>.</p>
+
+<div class="card">
+  {% for key, label in [('unlinked','Unlinked'),('linked','Linked · awaiting QA'),('flagged','Flagged for rework'),('approved','QA approved')] %}
+  <a class="pill" style="background:{{ PILL[key] }}; padding:.25rem .7rem; margin-right:.4rem; text-decoration:none"
+     href="{{ url_for('lab_workboard', status=key) }}"><strong>{{ tallies.get(key, 0) }}</strong> {{ label }}</a>
+  {% endfor %}
+  <a class="pill" style="padding:.25rem .7rem" href="{{ url_for('lab_workboard') }}">All</a>
+</div>
+
+<div class="card">
+  <form method="get" style="display:flex; flex-wrap:wrap; gap:.7rem; align-items:flex-end">
+    <div><label>Status</label>
+      <select name="status" onchange="this.form.submit()"><option value="">Any</option>
+        {% for s in ['unlinked','linked','flagged','approved'] %}<option value="{{ s }}" {% if f.status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select></div>
+    <div><label>Assignee</label>
+      <select name="assignee" onchange="this.form.submit()"><option value="">Anyone</option>
+        <option value="me" {% if f.assignee=='me' %}selected{% endif %}>Me</option>
+        <option value="unassigned" {% if f.assignee=='unassigned' %}selected{% endif %}>Unassigned</option>
+        {% for m in team %}<option value="{{ m.id }}" {% if f.assignee==m.id|string %}selected{% endif %}>{{ m.email }}</option>{% endfor %}
+      </select></div>
+    <div><label>Region</label>
+      <select name="region" onchange="this.form.submit()"><option value="">Any</option>
+        {% for r in regions %}<option value="{{ r }}" {% if f.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select></div>
+    <div><label>Search station / water body</label><input name="q" value="{{ f.q or '' }}"></div>
+    <button>Apply</button>
+    <a class="btn secondary" href="{{ url_for('lab_workboard') }}">Clear</a>
+  </form>
+  <form id="assignForm" method="post" action="{{ url_for('lab_workboard_assign') }}"
+        style="margin-top:.6rem; display:flex; gap:.4rem; align-items:center">
+    <span class="muted">With checked rows →</span>
+    <select name="assignee_id"><option value="">— unassign —</option>
+      {% for m in team %}<option value="{{ m.id }}">{{ m.email }}</option>{% endfor %}</select>
+    <button class="secondary">Assign</button>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Samples <span class="muted">({{ '{:,}'.format(total) }})</span></h1>
+  <table>
+    <tr><th></th><th>Status</th><th>Station / sample</th><th>Results</th><th>Linked to</th>
+        <th>Assignee</th><th>QA</th><th>Actions</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td><input type="checkbox" name="sample_ids" value="{{ r.id }}" form="assignForm"></td>
+      <td><span class="pill" style="background:{{ PILL.get(r.status,'#eee') }}">{{ r.status }}</span></td>
+      <td>{{ r.station_code or '—' }}<br><span class="muted">{{ r.sample_date or '—' }}{% if r.water_body_name %} · {{ r.water_body_name }}{% endif %}</span></td>
+      <td>{{ r.n_results }}</td>
+      <td>{% if r.bloom_report_id %}<a href="{{ url_for('report_detail', brid=r.bloom_report_id) }}">R{{ r.bloom_report_id }}</a>{% endif %}
+          {% if r.case_id %} · C{{ r.case_id }}{% endif %}{% if not r.bloom_report_id and not r.case_id %}—{% endif %}</td>
+      <td class="muted">{{ r.assignee or '—' }}</td>
+      <td>{% if r.qa_status %}<span class="pill" style="background:{{ PILL.get(r.qa_status,'#eee') }}">{{ r.qa_status }}</span>{% if r.qa_note %}<br><span class="muted">{{ r.qa_note }}</span>{% endif %}{% else %}—{% endif %}</td>
+      <td>
+        <form method="post" action="{{ url_for('lab_sample_link', sid=r.id) }}" style="display:inline-flex; gap:.2rem">
+          <input name="bloom_report_id" placeholder="R#" style="width:60px; padding:.2rem" inputmode="numeric">
+          <input name="case_id" placeholder="C#" style="width:55px; padding:.2rem" inputmode="numeric">
+          <button class="secondary" style="padding:.2rem .5rem">{{ 'Re-link' if r.bloom_report_id or r.case_id else 'Link' }}</button>
+        </form>
+        {% if r.status == 'unlinked' %}
+        <form method="post" action="{{ url_for('lab_sample_create_report', sid=r.id) }}" style="display:inline">
+          <button class="secondary" style="padding:.2rem .5rem" title="Create a report from this station">+Report</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('lab_sample_qa', sid=r.id) }}" style="display:inline">
+          <input type="hidden" name="action" value="approve">
+          <button class="btn" style="padding:.2rem .5rem">✓ QA</button>
+        </form>
+        <form method="post" action="{{ url_for('lab_sample_qa', sid=r.id) }}" style="display:inline-flex; gap:.2rem">
+          <input name="note" placeholder="reason" style="width:70px; padding:.2rem">
+          <input type="hidden" name="action" value="flag">
+          <button class="secondary" style="padding:.2rem .5rem; background:#b06">⚑</button>
+        </form>
+        <form method="post" action="{{ url_for('lab_sample_unlink', sid=r.id) }}" style="display:inline">
+          <button class="secondary" style="padding:.2rem .5rem; background:#9aa6a1">Unlink</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">No samples match.</td></tr>
+    {% endfor %}
+  </table>
+  {% set start = page * per %}
+  {% if total > per %}
+  <p style="margin-top:.6rem; display:flex; gap:.8rem; align-items:center">
+    {% if page > 0 %}<a class="btn secondary" style="padding:.3rem .7rem" href="{{ url_for('lab_workboard', **dict(base_args, page=page-1)) }}">← Prev</a>{% endif %}
+    <span class="muted">{{ '{:,}'.format(start+1) }}–{{ '{:,}'.format(start + rows|length) }} of {{ '{:,}'.format(total) }}</span>
+    {% if start + per < total %}<a class="btn secondary" style="padding:.3rem .7rem" href="{{ url_for('lab_workboard', **dict(base_args, page=page+1)) }}">Next →</a>{% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

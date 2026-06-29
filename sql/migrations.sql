@@ -39,6 +39,13 @@ ALTER TABLE sample ADD COLUMN IF NOT EXISTS project_code text;
 ALTER TABLE sample ADD COLUMN IF NOT EXISTS lab_agency_code text;
 ALTER TABLE sample ADD COLUMN IF NOT EXISTS sample_location text;
 ALTER TABLE sample ADD COLUMN IF NOT EXISTS site text;
+-- Lab-data workboard (assignment + QA of the event/report/case link).
+ALTER TABLE sample ADD COLUMN IF NOT EXISTS assigned_to bigint;
+ALTER TABLE sample ADD COLUMN IF NOT EXISTS qa_status text;
+ALTER TABLE sample ADD COLUMN IF NOT EXISTS qa_by bigint;
+ALTER TABLE sample ADD COLUMN IF NOT EXISTS qa_at timestamptz;
+ALTER TABLE sample ADD COLUMN IF NOT EXISTS qa_note text;
+CREATE INDEX IF NOT EXISTS sample_assigned_idx ON sample(assigned_to);
 
 -- result
 ALTER TABLE result ADD COLUMN IF NOT EXISTS res_qual_code text;

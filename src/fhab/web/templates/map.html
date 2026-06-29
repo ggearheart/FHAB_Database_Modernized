@@ -111,7 +111,7 @@ const geoOpts = {
         + `${p.station_name || ''}<br>`
         + `${p.n_samples} unlinked sample(s)<br>`
         + `Last sample: ${p.last_sample || '—'}<br>`
-        + `<a href="/batch/lab-reconcile">Reconcile →</a>`
+        + `<a href="/lab/workboard?status=unlinked">Reconcile →</a>`
       );
       return;
     }

@@ -6,7 +6,9 @@
 {% endmacro %}
 {% block body %}
 <h1>Lab &amp; field results</h1>
-<p class="muted">Browse results across all reports. Use the filters, then download the filtered set.</p>
+<p class="muted">Browse results across all reports. Use the filters, then download the filtered set.
+  Need to assign, link, or QA-review lab data? Use the
+  <a href="{{ url_for('lab_workboard') }}">lab data workboard →</a></p>
 
 <div class="card">
   <form method="get" action="{{ url_for('lab_results') }}">

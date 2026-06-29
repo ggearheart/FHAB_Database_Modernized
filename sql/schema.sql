@@ -339,7 +339,13 @@ CREATE TABLE IF NOT EXISTS sample (
     lab_sample_id   text,
     lab_batch       text,
     project_code    text,
-    lab_agency_code text
+    lab_agency_code text,
+    -- Lab-data reconciliation workboard: assignment + QA of the link to an event/report/case.
+    assigned_to     bigint,      -- team member responsible (app_user.id)
+    qa_status       text,        -- NULL = not reviewed | 'approved' | 'flagged'
+    qa_by           bigint,
+    qa_at           timestamptz,
+    qa_note         text
 );
 
 -- CRM-6: one analyte result per sample. Value may be numeric or categorical.

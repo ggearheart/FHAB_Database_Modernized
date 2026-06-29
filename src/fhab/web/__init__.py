@@ -27,6 +27,8 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
                       resolve_intake_group, set_group_active, submit_public_report)
 from ..export import DATASETS, fetch_flatfile
 from ..labquery import count_results, filter_options, query_results
+from ..labtasks import (assign_samples, count_workboard, create_report_from_sample, link_sample,
+                        qa_review, status_tallies, team_members, unlink_sample, workboard)
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
                         update_analyte)
 from ..notify import (list_notifications, mark_read, on_new_submission, unread_count)
@@ -910,6 +912,85 @@ def create_app(dsn: str | None = None) -> Flask:
         resp = Response(out, mimetype="text/csv")
         resp.headers["Content-Disposition"] = f'attachment; filename="fhab_results_{stamp}.csv"'
         return resp
+
+    # ---------- Lab-data reconciliation workboard ----------
+    @app.route("/lab/workboard")
+    @staff_required
+    def lab_workboard():
+        a = request.args
+        f = {k: (a.get(k) or "").strip() or None for k in ("status", "assignee", "region", "q")}
+        sort = a.get("sort") if a.get("sort") in ("date", "station", "status") else "date"
+        try:
+            page = max(0, int(a.get("page", 0)))
+        except ValueError:
+            page = 0
+        per, conn = 100, db()
+        rows = workboard(conn, f, me=session["uid"], sort=sort, limit=per, offset=page * per)
+        total = count_workboard(conn, f, me=session["uid"])
+        base_args = {k: v for k, v in a.items() if k != "page"}
+        return render_template("workboard.html", rows=rows, total=total, page=page, per=per, f=f,
+                               sort=sort, tallies=status_tallies(conn), team=team_members(conn),
+                               regions=_regions(), base_args=base_args)
+
+    @app.route("/lab/workboard/assign", methods=["POST"])
+    @staff_required
+    def lab_workboard_assign():
+        f = request.form
+        ids = [int(x) for x in f.getlist("sample_ids") if x.isdigit()]
+        who = f.get("assignee_id")
+        assignee = int(who) if who and who.isdigit() else None
+        n = assign_samples(db(), session["uid"], ids, assignee)
+        flash(f"{'Assigned' if assignee else 'Unassigned'} {n} sample(s).", "ok")
+        return redirect(request.referrer or url_for("lab_workboard"))
+
+    @app.route("/lab/sample/<int:sid>/link", methods=["POST"])
+    @staff_required
+    def lab_sample_link(sid):
+        conn, f = db(), request.form
+        ev = (f.get("bloom_report_id") or "").strip()
+        case = (f.get("case_id") or "").strip()
+        if not ev.isdigit() and not case.isdigit():
+            flash("Enter a report ID or case ID to link to.", "error")
+            return redirect(request.referrer or url_for("lab_workboard"))
+        try:
+            link_sample(conn, session["uid"], sid,
+                        bloom_report_id=int(ev) if ev.isdigit() else None,
+                        case_id=int(case) if case.isdigit() else None)
+            flash("Sample linked — pending QA review.", "ok")
+        except psycopg.errors.ForeignKeyViolation:
+            conn.rollback(); flash("No such report/case ID.", "error")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not link: " + str(exc).splitlines()[0], "error")
+        return redirect(request.referrer or url_for("lab_workboard"))
+
+    @app.route("/lab/sample/<int:sid>/unlink", methods=["POST"])
+    @staff_required
+    def lab_sample_unlink(sid):
+        unlink_sample(db(), session["uid"], sid)
+        flash("Sample unlinked.", "ok")
+        return redirect(request.referrer or url_for("lab_workboard"))
+
+    @app.route("/lab/sample/<int:sid>/create-report", methods=["POST"])
+    @staff_required
+    def lab_sample_create_report(sid):
+        conn = db()
+        try:
+            brid = create_report_from_sample(conn, session["uid"], sid,
+                                             region=(request.form.get("region") or "").strip() or None)
+            _record_activity(brid, "created report from lab sample")
+            flash(f"Created report {brid} and linked the sample.", "ok")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not create report: " + str(exc).splitlines()[0], "error")
+        return redirect(request.referrer or url_for("lab_workboard"))
+
+    @app.route("/lab/sample/<int:sid>/qa", methods=["POST"])
+    @staff_required
+    def lab_sample_qa(sid):
+        f = request.form
+        qa_review(db(), session["uid"], sid, approve=(f.get("action") == "approve"),
+                  note=(f.get("note") or "").strip() or None)
+        flash("QA " + ("approved." if f.get("action") == "approve" else "flagged for rework."), "ok")
+        return redirect(request.referrer or url_for("lab_workboard"))
 
     # ---------- Public submission API (external apps, e.g. the CyanoSafe phone demo) ----------
     def _cors(resp, origin):
