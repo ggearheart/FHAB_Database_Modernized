@@ -73,3 +73,26 @@ def test_chemistry_and_crosswalk_exports(loaded_conn):
     # Same row population and a shared join key (ResultRowID) across both files.
     assert len(chem) == len(xw)
     assert {r["ResultRowID"] for r in chem} == {r["ResultRowID"] for r in xw}
+
+
+def test_matrix_and_datum_in_chemistry_export(conn):
+    from fhab.auth import create_user, grant_role
+    from fhab.export import fetch_flatfile
+    from fhab.reports import enter_report
+    staff = create_user(conn, "mx@wb.ca.gov")
+    grant_role(conn, staff, "wb_staff", region="Region 5 - Central Valley")
+    brid = enter_report(conn, staff, water_body_name="Mx Lake", region="Region 5 - Central Valley")
+    st = conn.execute("""INSERT INTO station (station_code, geom, datum)
+                         VALUES ('MX1', ST_SetSRID(ST_MakePoint(-121,38),4326), 'NAD83')
+                         RETURNING id""").fetchone()["id"]
+    sid = conn.execute("INSERT INTO sample (bloom_report_id, station_id) VALUES (%s,%s) RETURNING id",
+                       (brid, st)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type, matrix_name) "
+                 "VALUES ('mx-a', %s, 'Laboratory', 'sediment')", (sid,))
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) "
+                 "VALUES ('mx-b', %s, 'Laboratory')", (sid,))   # null matrix -> default
+    conn.commit()
+    by = {r["ResultRowID"]: r for r in fetch_flatfile(conn, "chemistry-results")[1]}
+    assert by["mx-a"]["MatrixName"] == "sediment"        # real captured value
+    assert by["mx-b"]["MatrixName"] == "samplewater"     # fallback when null
+    assert by["mx-a"]["Datum"] == "NAD83"                # real station datum

@@ -360,6 +360,7 @@ CREATE TABLE IF NOT EXISTS result (
     lab               text,       -- LabCode / lab identity (adopted from legacy review)
     results_date      date,
     -- CEDEN chemistry fields (populated when filled from the Bend->CEDEN workflow).
+    matrix_name       text,       -- CEDEN MatrixName (e.g. samplewater)
     res_qual_code     text,       -- '=', 'ND', '<', …
     fraction_name     text,       -- 'Total'
     mdl               numeric,    -- method detection limit
@@ -389,6 +390,7 @@ CREATE TABLE IF NOT EXISTS station (
     station_name  text,
     waterbody_id  bigint REFERENCES waterbody(id),
     geom          geometry(Point, 4326),       -- enriched from a CEDEN station registry
+    datum         text,                         -- coordinate datum (e.g. NAD83 / WGS84)
     huc12         char(12) REFERENCES huc12(huc12),
     geoconnex_uri text UNIQUE,
     owner_org     text   -- contributor org that owns this station (NULL = State)
@@ -452,6 +454,7 @@ CREATE TABLE IF NOT EXISTS lab_stage_result (
     method_name     text,
     fraction_name   text,
     unit_name       text,
+    matrix_name     text,
     result          text,
     res_qual_code   text,
     mdl             text,

@@ -40,16 +40,17 @@ def _resolve_station(conn, code):
     if row:
         return row["id"]
     reg = conn.execute(
-        "SELECT station_name, latitude, longitude FROM station_registry WHERE station_code = %s",
+        "SELECT station_name, latitude, longitude, datum FROM station_registry WHERE station_code = %s",
         (code,)).fetchone()
     if reg and reg["latitude"] is not None and reg["longitude"] is not None:
         return conn.execute(
-            """INSERT INTO station (station_code, station_name, geom)
-               VALUES (%s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326))
+            """INSERT INTO station (station_code, station_name, geom, datum)
+               VALUES (%s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326), %s)
                ON CONFLICT (station_code) DO UPDATE
                  SET station_name = COALESCE(EXCLUDED.station_name, station.station_name)
                RETURNING id""",
-            (code, clean(reg["station_name"]), reg["longitude"], reg["latitude"])).fetchone()["id"]
+            (code, clean(reg["station_name"]), reg["longitude"], reg["latitude"],
+             clean(reg["datum"]))).fetchone()["id"]
     # Unknown code: record it (geomless) so it surfaces for manual geocoding.
     return conn.execute(
         """INSERT INTO station (station_code) VALUES (%s)
@@ -95,10 +96,12 @@ def stage_batch(conn, user_id, path, *, filename=None, radius_m=2000, days=14) -
                 conn.execute(
                     """INSERT INTO lab_stage_result
                          (stage_sample_id, analyte_name, method_name, fraction_name, unit_name,
-                          result, res_qual_code, mdl, rl, qa_code, dilution_factor, result_comments)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                          matrix_name, result, res_qual_code, mdl, rl, qa_code, dilution_factor,
+                          result_comments)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                     (sid, clean(r.get("AnalyteName")), clean(r.get("MethodName")),
-                     clean(r.get("FractionName")), clean(r.get("UnitName")), clean(r.get("Result")),
+                     clean(r.get("FractionName")), clean(r.get("UnitName")),
+                     clean(r.get("MatrixName")), clean(r.get("Result")),
                      clean(r.get("ResQualCode")), clean(r.get("MDL")), clean(r.get("RL")),
                      clean(r.get("QACode")), clean(r.get("DilutionFactor")),
                      clean(r.get("LabResultComments"))))
@@ -169,13 +172,13 @@ def _materialize(conn, user_id, stage_sample_id, *, bloom_report_id=None, case_i
         conn.execute(
             """INSERT INTO result
                  (result_id_unique, sample_id, analyte_id, data_type, method, measurement_value,
-                  measurement_unit, res_qual_code, fraction_name, mdl, rl)
-               VALUES (%s,%s,%s,'Laboratory',%s,%s,%s,%s,%s,%s,%s)
+                  measurement_unit, matrix_name, res_qual_code, fraction_name, mdl, rl)
+               VALUES (%s,%s,%s,'Laboratory',%s,%s,%s,%s,%s,%s,%s,%s)
                ON CONFLICT (result_id_unique) DO UPDATE SET
                  measurement_value = EXCLUDED.measurement_value""",
             (f"labstage:{stage_sample_id}:{r['id']}", sample_id, analyte_id, r["method_name"],
-             parse_float(r["result"]), r["unit_name"], r["res_qual_code"], r["fraction_name"],
-             parse_float(r["mdl"]), parse_float(r["rl"])))
+             parse_float(r["result"]), r["unit_name"], r["matrix_name"], r["res_qual_code"],
+             r["fraction_name"], parse_float(r["mdl"]), parse_float(r["rl"])))
     conn.execute(
         """UPDATE lab_stage_sample SET status='linked', linked_event=%s, linked_case=%s,
                linked_sample=%s, decided_by=%s, decided_at=now() WHERE id=%s""",

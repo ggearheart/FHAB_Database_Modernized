@@ -83,7 +83,7 @@ CHEMISTRY_COLUMNS = [
     ("CollectionTime", "s.sample_time"),
     ("LocationCode", "s.sample_location"),
     ("SampleTypeCode", "s.sample_type"),
-    ("MatrixName", "'samplewater'"),
+    ("MatrixName", "coalesce(r.matrix_name, 'samplewater')"),
     ("MethodName", "r.method"),
     ("AnalyteName", "an.analyte"),
     ("FractionName", "r.fraction_name"),
@@ -100,7 +100,7 @@ CHEMISTRY_COLUMNS = [
     ("LabBatch", "s.lab_batch"),
     ("TargetLatitude", "ST_Y(st.geom)"),
     ("TargetLongitude", "ST_X(st.geom)"),
-    ("Datum", "CASE WHEN st.geom IS NOT NULL THEN 'WGS84' END"),
+    ("Datum", "coalesce(st.datum, CASE WHEN st.geom IS NOT NULL THEN 'WGS84' END)"),
 ]
 
 # Crosswalk: each chemistry result -> geospatial backbone + FHAB report/case (where they exist).

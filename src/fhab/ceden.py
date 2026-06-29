@@ -141,18 +141,18 @@ class CedenLoader:
             self.conn.execute(
                 """INSERT INTO result
                      (result_id_unique, sample_id, analyte_id, data_type, method,
-                      measurement_value, measurement_unit, res_qual_code, fraction_name,
-                      mdl, rl, qa_code, compliance_code, results_date)
-                   VALUES (%s,%s,%s,'Laboratory',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                      measurement_value, measurement_unit, matrix_name, res_qual_code,
+                      fraction_name, mdl, rl, qa_code, compliance_code, results_date)
+                   VALUES (%s,%s,%s,'Laboratory',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                    ON CONFLICT (result_id_unique) DO UPDATE SET
                      measurement_value = EXCLUDED.measurement_value,
                      res_qual_code = EXCLUDED.res_qual_code""",
                 (ruid, samples[skey], analyte_id, clean(row.get("MethodName")),
                  parse_float(row.get("Result")), clean(row.get("Units")),
-                 clean(row.get("ResQualCode")), clean(row.get("Fraction")),
-                 parse_float(row.get("MDL")), parse_float(row.get("RL")),
-                 clean(row.get("QACode")), clean(row.get("ComplianceCode")),
-                 parse_date(row.get("LabCompletionDate"))),
+                 clean(row.get("MatrixName")), clean(row.get("ResQualCode")),
+                 clean(row.get("Fraction")), parse_float(row.get("MDL")),
+                 parse_float(row.get("RL")), clean(row.get("QACode")),
+                 clean(row.get("ComplianceCode")), parse_date(row.get("LabCompletionDate"))),
             )
             n_results += 1
         self.report.counts["samples"] = len(samples)
@@ -188,7 +188,8 @@ def enrich_station_geom(conn: psycopg.Connection) -> int:
     n = conn.execute(
         """
         UPDATE station s
-        SET geom = ST_SetSRID(ST_MakePoint(r.longitude, r.latitude), 4326)
+        SET geom = ST_SetSRID(ST_MakePoint(r.longitude, r.latitude), 4326),
+            datum = COALESCE(s.datum, r.datum)
         FROM station_registry r
         WHERE s.station_code = r.station_code
           AND r.latitude IS NOT NULL AND r.longitude IS NOT NULL
@@ -344,17 +345,17 @@ def _load_chemistry_pinned(conn: psycopg.Connection, user_id: int, chemistry_csv
             conn.execute(
                 """INSERT INTO result
                      (result_id_unique, sample_id, analyte_id, data_type, method,
-                      measurement_value, measurement_unit, res_qual_code, fraction_name, mdl, rl,
-                      results_date)
-                   VALUES (%s,%s,%s,'Laboratory',%s,%s,%s,%s,%s,%s,%s,%s)
+                      measurement_value, measurement_unit, matrix_name, res_qual_code,
+                      fraction_name, mdl, rl, results_date)
+                   VALUES (%s,%s,%s,'Laboratory',%s,%s,%s,%s,%s,%s,%s,%s,%s)
                    ON CONFLICT (result_id_unique) DO UPDATE SET
                      measurement_value = EXCLUDED.measurement_value,
                      res_qual_code = EXCLUDED.res_qual_code""",
                 (ruid, samples[skey], analyte_id, clean(row.get("MethodName")),
                  parse_float(row.get("Result")), clean(row.get("Units")),
-                 clean(row.get("ResQualCode")), clean(row.get("Fraction")),
-                 parse_float(row.get("MDL")), parse_float(row.get("RL")),
-                 parse_date(row.get("LabCompletionDate"))),
+                 clean(row.get("MatrixName")), clean(row.get("ResQualCode")),
+                 clean(row.get("Fraction")), parse_float(row.get("MDL")),
+                 parse_float(row.get("RL")), parse_date(row.get("LabCompletionDate"))),
             )
             n_results += 1
         conn.commit()

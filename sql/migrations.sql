@@ -53,6 +53,11 @@ ALTER TABLE result ADD COLUMN IF NOT EXISTS lab text;
 -- station
 ALTER TABLE station ADD COLUMN IF NOT EXISTS owner_org text;
 ALTER TABLE station ADD COLUMN IF NOT EXISTS geoconnex_uri text;
+ALTER TABLE station ADD COLUMN IF NOT EXISTS datum text;          -- coordinate datum (NAD83/WGS84)
+
+-- CEDEN MatrixName captured on ingest (result + lab-batch staging predate these columns).
+ALTER TABLE result ADD COLUMN IF NOT EXISTS matrix_name text;
+ALTER TABLE lab_stage_result ADD COLUMN IF NOT EXISTS matrix_name text;
 
 -- advisory
 ALTER TABLE advisory ADD COLUMN IF NOT EXISTS advisory_detail text;
