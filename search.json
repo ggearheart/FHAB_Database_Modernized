@@ -1,0 +1,162 @@
+[
+  {
+    "objectID": "glossary.html",
+    "href": "glossary.html",
+    "title": "Glossary",
+    "section": "",
+    "text": "Term\nMeaning\n\n\n\n\nReport\nOne observed/suspected bloom event.\n\n\nEvent\nThe first-class record a report becomes; some events become cases.\n\n\nCase\nA grouping of related reports for a waterbody (one region, one year).\n\n\nResponse / Advisory\nA staff action; an advisory is the public-facing caution/warning/danger.\n\n\nDetermination / outcome\nWhat a report turned out to be.\n\n\nSubmission\nA public/community report awaiting staff review (not yet a tracked report).\n\n\nPromote\nTurn a pending submission into a tracked report.\n\n\nProvisional data\nLive data from this system, not the official data.ca.gov release.\n\n\nCEDEN\nThe state environmental data exchange (lab results format).\n\n\nHUC-12 / GeoConnex\nWatershed coding / persistent identifiers for locations.",
+    "crumbs": [
+      "Glossary"
+    ]
+  },
+  {
+    "objectID": "community.html",
+    "href": "community.html",
+    "title": "Community tester",
+    "section": "",
+    "text": "You don’t need an account. You’re testing the “Report a Bloom” flow and confirming a submission reaches staff.",
+    "crumbs": [
+      "Community tester"
+    ]
+  },
+  {
+    "objectID": "community.html#submit-a-test-bloom-report-phone-pwa",
+    "href": "community.html#submit-a-test-bloom-report-phone-pwa",
+    "title": "Community tester",
+    "section": "Submit a test bloom report (phone / PWA)",
+    "text": "Submit a test bloom report (phone / PWA)\n\nOn your phone, open the CyanoSafe phone app. (Optional: use your browser’s “Add to Home Screen” to install it like an app.)\nTap Bloom List (bottom), then expand 📋 Report a Bloom.\n(Optional) Tap 📷 Take / Choose Photo — this also captures your GPS location.\nFill in at least the Water body name (required) and a location (your GPS, or pick a County). Add date, bloom size, and a short description if you can.\nTap Submit report. You should see “Thank you — your report was received for review.”\n\n\n\n\n\n\n\nTip\n\n\n\nPlease put TEST in the description (e.g. “TEST – ignore”) so staff know it’s a drill.",
+    "crumbs": [
+      "Community tester"
+    ]
+  },
+  {
+    "objectID": "community.html#what-happens-next",
+    "href": "community.html#what-happens-next",
+    "title": "Community tester",
+    "section": "What happens next",
+    "text": "What happens next\n\nYour report does not appear on the public map immediately. It goes into a staff review queue, where a staffer promotes it to a tracked report or rejects it.\nIf you reported a suspected illness (you or an animal got sick), that automatically alerts the program’s illness team.",
+    "crumbs": [
+      "Community tester"
+    ]
+  },
+  {
+    "objectID": "community.html#what-to-test-look-for",
+    "href": "community.html#what-to-test-look-for",
+    "title": "Community tester",
+    "section": "What to test / look for",
+    "text": "What to test / look for\n\nDoes the form submit successfully? Does the thank-you message appear?\nDoes 📷 + location work on your phone? Is the GPS roughly right?\nTry submitting with only a water body name + county (no GPS). Does it still work?\nTry an obviously bad entry (no water body name). Do you get a clear error?\nIs anything confusing, mislabeled, or hard to tap?",
+    "crumbs": [
+      "Community tester"
+    ]
+  },
+  {
+    "objectID": "staff.html",
+    "href": "staff.html",
+    "title": "Program staff",
+    "section": "",
+    "text": "You’ll log in to the FHAB Staff app at https://fhab-web.onrender.com.",
+    "crumbs": [
+      "Program staff"
+    ]
+  },
+  {
+    "objectID": "staff.html#roles",
+    "href": "staff.html#roles",
+    "title": "Program staff",
+    "section": "Roles",
+    "text": "Roles\nWhat you can see and do depends on your role.\n\n\n\n\n\n\n\nRole\nCan do\n\n\n\n\nprogram_admin\nEverything, incl. account management and community-group API keys\n\n\nwb_staff\nEnter/edit reports, review submissions, cases, advisories, lab data\n\n\nfield_staff\nField verification + results entry\n\n\nlab_analyst\nLab results / CEDEN data\n\n\nillness_workgroup\nReceives suspected-illness escalations\n\n\nddw_staff\nDrinking-water focus\n\n\n\nYour data is scoped to your Regional Water Board — you generally see and manage your region’s records. (Cross-region report entry is allowed with a confirmation, for filing on behalf of another board.)",
+    "crumbs": [
+      "Program staff"
+    ]
+  },
+  {
+    "objectID": "staff.html#first-login",
+    "href": "staff.html#first-login",
+    "title": "Program staff",
+    "section": "First login",
+    "text": "First login\n\nGo to https://fhab-web.onrender.com and sign in with the credentials provided.\nYou land on the Dashboard: quick actions, and the reports you’ve recently worked on.\nNote the 🔔 bell (top right) — your notifications, including new submissions and illness alerts.",
+    "crumbs": [
+      "Program staff"
+    ]
+  },
+  {
+    "objectID": "staff.html#the-main-things-to-test",
+    "href": "staff.html#the-main-things-to-test",
+    "title": "Program staff",
+    "section": "The main things to test",
+    "text": "The main things to test\n\n1. Review the submission queue (Submissions)\n\nNew community/app reports land here as pending.\nFor each: choose a region and Promote (creates a tracked report) or Reject.\nPromoting carries over everything the reporter sent (location, bloom details, photo, and any suspected-illness info) and starts the report as under investigation.\nTry the filters (pending / promoted / rejected) and the trusted groups filter.\n\n\n\n2. Enter a new report (New report)\n\nMirrors the official MyWaterQuality bloom form: report type, water body, county, landmark, coordinates, bloom characteristics (size, textures, weather, signs), reporter contact, suspected illness, and photos.\nWater body has a type-ahead that suggests existing waterbodies — pick one to avoid duplicates; a near-duplicate name prompts a confirm.\nCounty is a controlled dropdown.\n\n\n\n3. Open a report (Reports → click one)\n\nEdit field-verification details and set the outcome / determination.\nAdd field/lab results, or upload a CEDEN lab CSV.\nRecord a response / advisory (an advisory with “display on map” drives the public map).\nStaff-only: reporter contact and the suspected illness/death matrix.\n\n\n\n4. Cases (Cases)\n\nGroup related reports into a case (one region, one waterbody, one year); assign reports, set status/lead, and upload case-level lab data.\n\n\n\n5. Lab batches (Batch → Lab batch reconciliation)\n\nUpload a CEDEN chemistry template. The system stages it and fuzzy-matches each station+date group to candidate reports. Promote matches, link manually, or create a report from a station.\n\n\n\n6. Notifications (🔔)\n\nConfirm you receive a notice when a new submission comes in (and an ⚠ illness alert if one reports suspected illness). “Mark all read” clears the badge.\n\n\n\n7. Open data (Open data)\n\nDownload the four data.ca.gov flat files (CSV or a zip), or view the provisional JSON API.\nConfirm these contain no reporter contact / illness / veterinary data.\n\n\n\n8. Admin only — Accounts & Groups\n\nAccounts: create users and grant/revoke roles.\nGroups: register a community/partner group and mint an API key (shown once) so that group can submit attributed — and optionally “trusted” — reports.",
+    "crumbs": [
+      "Program staff"
+    ]
+  },
+  {
+    "objectID": "staff.html#a-suggested-15-minute-test-script",
+    "href": "staff.html#a-suggested-15-minute-test-script",
+    "title": "Program staff",
+    "section": "A suggested 15-minute test script",
+    "text": "A suggested 15-minute test script\n\nSubmit a test report from the CyanoSafe phone app (Community track) — include a suspected illness.\nLog in to the Staff app; confirm the 🔔 bell shows new + illness notifications.\nGo to Submissions, Promote your test report to your region.\nOpen the new report; set an outcome, add a field result, and post an advisory.\nCreate a Case and assign the report to it.\nGo to Open data; download bloom-report.csv; confirm your report is in it and that no reporter name/illness columns appear.\nNote anything confusing along the way.",
+    "crumbs": [
+      "Program staff"
+    ]
+  },
+  {
+    "objectID": "feedback.html",
+    "href": "feedback.html",
+    "title": "Feedback & limitations",
+    "section": "",
+    "text": "For each issue, please tell us:\n\nWhich app (CyanoSafe phone / desktop / FHAB Staff) and which page.\nWhat you did, what you expected, and what happened.\nA screenshot if you can, and the date/time and your browser/device.\nSeverity: blocker / annoying / cosmetic / suggestion.\n\nSend feedback to [contact provided separately]. There’s no in-app bug button yet.",
+    "crumbs": [
+      "Feedback & limitations"
+    ]
+  },
+  {
+    "objectID": "feedback.html#giving-feedback",
+    "href": "feedback.html#giving-feedback",
+    "title": "Feedback & limitations",
+    "section": "",
+    "text": "For each issue, please tell us:\n\nWhich app (CyanoSafe phone / desktop / FHAB Staff) and which page.\nWhat you did, what you expected, and what happened.\nA screenshot if you can, and the date/time and your browser/device.\nSeverity: blocker / annoying / cosmetic / suggestion.\n\nSend feedback to [contact provided separately]. There’s no in-app bug button yet.",
+    "crumbs": [
+      "Feedback & limitations"
+    ]
+  },
+  {
+    "objectID": "feedback.html#known-limitations-no-need-to-report-these",
+    "href": "feedback.html#known-limitations-no-need-to-report-these",
+    "title": "Feedback & limitations",
+    "section": "Known limitations (no need to report these)",
+    "text": "Known limitations (no need to report these)\nThese are known and on the roadmap — please don’t file them as bugs:\n\nNo email yet by default — notifications are in-app (the 🔔 bell). Email escalation is only active if the program configures SMTP.\nNo password reset / SSO yet — if you’re locked out, an admin resets your login.\nNo full audit history yet (only a light “recent activity” log).\nPublishing to data.ca.gov is manual — the app generates the files; uploading them is a manual/scheduled step.\nGeoConnex IDs are shown but not yet publicly resolvable.\nThe free hosting tier can be slow on the first request after idle (it “wakes up”); give it a few seconds.",
+    "crumbs": [
+      "Feedback & limitations"
+    ]
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "FHAB Database Modernized — Tester Guide",
+    "section": "",
+    "text": "Welcome, and thank you for helping test the new FHAB system. This guide is for program staff and community volunteers. Please report anything confusing or broken — see Giving feedback.",
+    "crumbs": [
+      "Overview"
+    ]
+  },
+  {
+    "objectID": "index.html#pick-your-track",
+    "href": "index.html#pick-your-track",
+    "title": "FHAB Database Modernized — Tester Guide",
+    "section": "Pick your track",
+    "text": "Pick your track\n\nCommunity tester — submit a bloom report from the CyanoSafe app, no login needed.\nProgram staff — log in to the FHAB Staff app to review reports, enter data, manage cases, and more.",
+    "crumbs": [
+      "Overview"
+    ]
+  },
+  {
+    "objectID": "index.html#systems-and-links",
+    "href": "index.html#systems-and-links",
+    "title": "FHAB Database Modernized — Tester Guide",
+    "section": "Systems and links",
+    "text": "Systems and links\n\n\n\nSystem\nWhat it is\nLink\n\n\n\n\nCyanoSafe map (desktop)\nPublic HAB map + “Report a Bloom” form\nOpen\n\n\nCyanoSafe app (phone / PWA)\nThe mobile app most community users will use\nOpen\n\n\nFHAB Staff app\nStaff workspace (login required)\nOpen\n\n\n\n\n\n\n\n\n\nNote\n\n\n\nYour staff login and any community-group API key are provided separately — they are not in this guide.",
+    "crumbs": [
+      "Overview"
+    ]
+  }
+]
