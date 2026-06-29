@@ -133,17 +133,30 @@ another board.)
   analysis type, data type, region, sample-date range, and non-detects; sort; and **Download
   CSV** of the filtered set.
 
-**8. Notifications** (`🔔`)
+**8. Lab data workboard** (`Lab` → "lab data workboard")
+- A task board to connect lab samples to events/reports/cases and **QA-review** the links. The
+  lead **assigns** work; team members **link**; a reviewer **approves/flags**.
+- **Status chips:** Unlinked / Linked·awaiting QA / Flagged / QA approved (click to filter).
+- **Filters:** status, assignee (incl. **Me** / Unassigned), region, station/water-body search.
+- **Assign:** check rows → pick a team member → **Assign**.
+- **Per sample:** **Link / Re-link** by report (R#) or case (C#) ID; **+Report** (create one from
+  the station); **✓ QA** approve; **⚑** flag with a reason; **Unlink**. *Re-linking clears QA so
+  it returns to the review queue.*
+- Unlinked samples are also reachable from the **Map** → *Lab data without events* → **Reconcile**.
+- (Use **batch lab reconciliation** in section 6 to bring in *new* CEDEN data; the workboard
+  manages samples already in the system.)
+
+**9. Notifications** (`🔔`)
 - Confirm you receive a notice when a new submission comes in (and an **⚠ illness alert** if one
   reports suspected illness). "Mark all read" clears the badge.
 
-**9. Open data** (`Open data`)
+**10. Open data** (`Open data`)
 - Download the published flat files (CSV or a zip), or view the **provisional JSON API**. Six
   datasets: the four FHAB files plus **CEDEN Chemistry Results** and a **crosswalk** (links each
   chemistry result to its watershed/GeoConnex and FHAB report/case).
 - Confirm these contain **no** reporter contact / illness / veterinary data (they shouldn't).
 
-**10. Admin only — Accounts, Groups & Analytes**
+**11. Admin only — Accounts, Groups & Analytes**
 - **Accounts:** create users and grant/revoke roles.
 - **Groups:** register a community/partner group and mint an **API key** (shown once) so that
   group can submit attributed — and optionally "trusted" — reports.
