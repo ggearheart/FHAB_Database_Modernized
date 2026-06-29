@@ -271,15 +271,69 @@ def create_app(dsn: str | None = None) -> Flask:
 
     @app.context_processor
     def _inject_nav():
-        """Expose the logged-in user's unread-notification count to every template."""
-        if not session.get("uid"):
-            return {"nav_unread": 0}
-        try:
-            return {"nav_unread": unread_count(db(), session["uid"])}
-        except Exception:  # noqa: BLE001
-            return {"nav_unread": 0}
+        """Expose the nav's unread count + the user's staff/admin flags to every template."""
+        roles = set(session.get("roles", []))
+        ctx = {"is_staff": bool(roles & STAFF_WRITER_ROLES),
+               "is_admin": "program_admin" in roles, "nav_unread": 0}
+        if session.get("uid"):
+            try:
+                ctx["nav_unread"] = unread_count(db(), session["uid"])
+            except Exception:  # noqa: BLE001
+                pass
+        return ctx
 
     # ---- routes ----
+    @app.route("/new")
+    @login_required
+    def new_reports_home():
+        items = [{"title": "Enter a new report", "href": url_for("new_report"),
+                  "desc": "File a bloom report (the full MyWaterQuality form)."}]
+        if set(session.get("roles", [])) & STAFF_WRITER_ROLES:
+            try:
+                pending = db().execute("SELECT count(*) AS c FROM public_report_submission "
+                                       "WHERE status='pending'").fetchone()["c"]
+            except Exception:  # noqa: BLE001
+                pending = None
+            items.append({"title": "Review submissions", "href": url_for("intake_review"),
+                          "desc": "Triage public/community reports — promote or reject.",
+                          "badge": pending or None})
+        return render_template("hub.html", hub_title="New Reports",
+                               hub_intro="Create a report, or review what's come in from the public and partner apps.",
+                               items=items)
+
+    @app.route("/ingest")
+    @staff_required
+    def ingest_home():
+        items = [
+            {"title": "Upload CEDEN lab data", "href": url_for("batch_ceden"),
+             "desc": "Ingest a CEDEN WaterChemistry CSV, or pull from a URL."},
+            {"title": "Lab batch reconciliation", "href": url_for("lab_reconcile"),
+             "desc": "Stage a CEDEN chemistry template and link by station + date."},
+            {"title": "Lab data workboard", "href": url_for("lab_workboard"),
+             "desc": "Assign, link, and QA-review lab samples against reports/cases."},
+            {"title": "Batch update outcomes", "href": url_for("batch_determination"),
+             "desc": "Set the final outcome on many reports at once."},
+        ]
+        return render_template("hub.html", hub_title="Ingest Data",
+                               hub_intro="Bring lab data into the system and connect it to events, reports, and cases.",
+                               items=items)
+
+    @app.route("/admin")
+    @admin_required
+    def admin_home():
+        items = [
+            {"title": "Accounts", "href": url_for("admin_users"),
+             "desc": "Create users and grant or revoke roles."},
+            {"title": "Intake groups", "href": url_for("admin_intake_groups"),
+             "desc": "Register community/partner groups and mint API keys."},
+            {"title": "Analyte taxonomy", "href": url_for("admin_analytes"),
+             "desc": "Curate analytes; merge aliases into canonical names."},
+            {"title": "Reset / maintenance", "href": url_for("admin_reset"),
+             "desc": "Purge lab data to reset the test environment."},
+        ]
+        return render_template("hub.html", hub_title="Admin",
+                               hub_intro="Accounts, partner groups, the analyte vocabulary, and test-environment reset.",
+                               items=items)
     @app.route("/notifications")
     @login_required
     def notifications():

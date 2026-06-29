@@ -579,3 +579,37 @@ def test_cross_region_requires_confirmation(app_client, conn):
                         follow_redirects=True)
     assert b"Report entered" in r.data
     assert conn.execute("SELECT count(*) c FROM waterbody WHERE water_body_name='XR Pond'").fetchone()["c"] == 1
+
+
+def test_two_level_nav_and_hub_pages(app_client, conn):
+    from fhab.auth import create_user, grant_role, set_password
+    admin = create_user(conn, "navadmin@fhab.local"); grant_role(conn, admin, "program_admin")
+    set_password(conn, admin, "pw")
+    _login(app_client, "navadmin@fhab.local", "pw")
+    # Top-level nav consolidated to topics
+    dash = app_client.get("/")
+    assert b"New Reports" in dash.data and b"Ingest Data" in dash.data and b">Admin<" in dash.data
+    # Old top-level items folded into hubs
+    assert b">Submissions<" not in dash.data and b">Accounts<" not in dash.data and b">Reset<" not in dash.data
+    # Hub landing pages show child buttons
+    nr = app_client.get("/new")
+    assert b"Enter a new report" in nr.data and b"Review submissions" in nr.data
+    ing = app_client.get("/ingest")
+    assert b"Lab batch reconciliation" in ing.data and b"Lab data workboard" in ing.data
+    adm = app_client.get("/admin")
+    assert b"Accounts" in adm.data and b"Analyte taxonomy" in adm.data and b"Reset / maintenance" in adm.data
+
+
+def test_hub_gating_by_role(app_client, conn):
+    # A non-admin staffer sees New Reports + Ingest but not the Admin hub.
+    _login(app_client, "staff@wb.ca.gov", "staffpw")
+    dash = app_client.get("/")
+    assert b"Ingest Data" in dash.data and b">Admin<" not in dash.data
+    assert app_client.get("/admin", follow_redirects=True).status_code in (200, 403)
+    assert b"Analyte taxonomy" not in app_client.get("/admin", follow_redirects=True).data
+    # New Reports hub hides Submissions for a non-staff public user
+    from fhab.auth import create_user, grant_role, set_password
+    pub = create_user(conn, "pubnav@x.org"); grant_role(conn, pub, "public"); set_password(conn, pub, "pw")
+    _login(app_client, "pubnav@x.org", "pw")
+    nr = app_client.get("/new")
+    assert b"Enter a new report" in nr.data and b"Review submissions" not in nr.data

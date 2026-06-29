@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ hub_title }}{% endblock %}
+{% block body %}
+<h1>{{ hub_title }}</h1>
+{% if hub_intro %}<p class="muted">{{ hub_intro }}</p>{% endif %}
+<div style="display:flex; flex-wrap:wrap; gap:1rem; margin-top:.4rem">
+  {% for it in items %}
+  <a href="{{ it.href }}" class="card" style="flex:1 1 260px; min-width:230px; margin:0;
+     text-decoration:none; color:inherit; display:block">
+    <strong style="color:var(--green); font-size:1.05rem">{{ it.title }}
+      {%- if it.badge %} <span class="pill" style="background:#e8543f; color:#fff">{{ it.badge }}</span>{% endif %} →</strong>
+    <p class="muted" style="margin:.4rem 0 0">{{ it.desc }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}
