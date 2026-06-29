@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Lab results{% endblock %}
+{% macro sortlink(key, label) %}
+  {% set d = 'asc' if (sort==key and desc) else 'desc' %}
+  <a href="{{ url_for('lab_results', **dict(base_args, sort=key, dir=d)) }}">{{ label }}{% if sort==key %} {{ '▾' if desc else '▴' }}{% endif %}</a>
+{% endmacro %}
+{% block body %}
+<h1>Lab &amp; field results</h1>
+<p class="muted">Browse results across all reports. Use the filters, then download the filtered set.</p>
+
+<div class="card">
+  <form method="get" action="{{ url_for('lab_results') }}">
+    <div class="row">
+      <div><label>Search (water body / analyte)</label><input name="q" value="{{ f.q or '' }}"></div>
+      <div><label>Analysis type</label>
+        <select name="analysis_type"><option value="">— any —</option>
+          {% for a in options.analysis_types %}<option value="{{ a }}" {% if f.analysis_type==a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Data type</label>
+        <select name="data_type"><option value="">— any —</option>
+          {% for d in options.data_types %}<option value="{{ d }}" {% if f.data_type==d %}selected{% endif %}>{{ d }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Region</label>
+        <select name="region"><option value="">— any —</option>
+          {% for r in options.regions %}<option value="{{ r }}" {% if f.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>Sample date from</label><input name="date_from" type="date" value="{{ f.date_from or '' }}"></div>
+      <div><label>to</label><input name="date_to" type="date" value="{{ f.date_to or '' }}"></div>
+      <div><label>Non-detects</label>
+        <select name="nd"><option value="">include</option>
+          <option value="exclude" {% if f.nd=='exclude' %}selected{% endif %}>exclude ND</option>
+          <option value="only" {% if f.nd=='only' %}selected{% endif %}>ND only</option>
+        </select>
+      </div>
+    </div>
+    <p></p>
+    <button>Apply filters</button>
+    <a class="btn secondary" href="{{ url_for('lab_results') }}">Clear</a>
+    <a class="btn" style="background:#6b7c76" href="{{ url_for('lab_results_csv', **base_args) }}">⬇ Download CSV</a>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Results <span class="muted">({{ '{:,}'.format(total) }} match{{ '' if total==1 else 'es' }})</span></h1>
+  <table>
+    <tr>
+      <th>{{ sortlink('date', 'Sample date') }}</th>
+      <th>{{ sortlink('waterbody', 'Water body') }}</th>
+      <th>Region</th><th>Report</th>
+      <th>{{ sortlink('analyte', 'Analyte') }}</th>
+      <th>Type</th>
+      <th>{{ sortlink('value', 'Result') }}</th>
+      <th>Qual</th><th>Method</th><th>MDL / RL</th>
+    </tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.sample_date or '—' }}</td>
+      <td>{{ r.water_body_name or '—' }}{% if r.county %}<br><span class="muted">{{ r.county }}</span>{% endif %}</td>
+      <td class="muted">{{ r.regional_water_board or '—' }}</td>
+      <td>{% if r.bloom_report_id %}<a href="{{ url_for('report_detail', brid=r.bloom_report_id) }}">R{{ r.bloom_report_id }}</a>{% else %}—{% endif %}</td>
+      <td>{{ r.analyte or '—' }}{% if r.analyte_class and r.analyte_class != r.analyte %}<br><span class="muted">{{ r.analyte_class }}</span>{% endif %}</td>
+      <td class="muted">{{ r.data_type or '—' }}</td>
+      <td>{% if r.measurement_value is not none %}{{ r.measurement_value }} {{ r.measurement_unit or '' }}{% elif r.measurement_text %}{{ r.measurement_text }}{% else %}—{% endif %}</td>
+      <td>{{ r.res_qual_code or '' }}</td>
+      <td class="muted">{{ r.method or '—' }}</td>
+      <td class="muted">{{ r.mdl if r.mdl is not none else '' }}{% if r.rl is not none %} / {{ r.rl }}{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="10" class="muted">No results match these filters.</td></tr>
+    {% endfor %}
+  </table>
+
+  {% set start = page * per %}
+  {% if total > per %}
+  <p style="margin-top:.6rem; display:flex; gap:.8rem; align-items:center">
+    {% if page > 0 %}<a class="btn secondary" style="padding:.3rem .7rem" href="{{ url_for('lab_results', **dict(base_args, page=page-1)) }}">← Prev</a>{% endif %}
+    <span class="muted">{{ '{:,}'.format(start+1) }}–{{ '{:,}'.format(start + rows|length) }} of {{ '{:,}'.format(total) }}</span>
+    {% if start + per < total %}<a class="btn secondary" style="padding:.3rem .7rem" href="{{ url_for('lab_results', **dict(base_args, page=page+1)) }}">Next →</a>{% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

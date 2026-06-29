@@ -26,6 +26,7 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
                       promote_submission, promote_trusted_pending, reject_submission,
                       resolve_intake_group, set_group_active, submit_public_report)
 from ..export import DATASETS, fetch_flatfile
+from ..labquery import count_results, filter_options, query_results
 from ..notify import (list_notifications, mark_read, on_new_submission, unread_count)
 from ..db import DEFAULT_DSN, connect
 
@@ -804,6 +805,48 @@ def create_app(dsn: str | None = None) -> Flask:
     @login_required
     def api_waterbodies():
         return jsonify(suggest_waterbodies(db(), request.args.get("q", "")))
+
+    # ---------- Lab results browser ----------
+    def _lab_filters(args):
+        f = {k: (args.get(k) or "").strip() or None
+             for k in ("analysis_type", "analyte", "region", "data_type", "q",
+                       "date_from", "date_to", "nd")}
+        sort = args.get("sort") if args.get("sort") in ("date", "value", "waterbody", "analyte") else "date"
+        desc = args.get("dir", "desc") != "asc"
+        return f, sort, desc
+
+    @app.route("/lab")
+    @staff_required
+    def lab_results():
+        f, sort, desc = _lab_filters(request.args)
+        per = 100
+        try:
+            page = max(0, int(request.args.get("page", 0)))
+        except ValueError:
+            page = 0
+        conn = db()
+        rows = query_results(conn, f, sort=sort, desc=desc, limit=per, offset=page * per)
+        total = count_results(conn, f)
+        base_args = {k: v for k, v in request.args.items() if k != "page"}
+        return render_template("lab_results.html", rows=rows, total=total, page=page, per=per,
+                               f=f, sort=sort, desc=desc, options=filter_options(conn),
+                               data_types=DATA_TYPES, base_args=base_args)
+
+    @app.route("/lab.csv")
+    @staff_required
+    def lab_results_csv():
+        from flask import Response
+        f, sort, desc = _lab_filters(request.args)
+        rows = query_results(db(), f, sort=sort, desc=desc, limit=50000, offset=0)
+        cols = ["sample_date", "water_body_name", "regional_water_board", "county",
+                "bloom_report_id", "analysis_type", "analyte_class", "analyte", "data_type",
+                "measurement_value", "measurement_text", "measurement_unit", "res_qual_code",
+                "method", "mdl", "rl", "site"]
+        out = _csv_text([c.title() for c in cols], [{c.title(): r[c] for c in cols} for r in rows])
+        stamp = __import__("datetime").date.today().isoformat()
+        resp = Response(out, mimetype="text/csv")
+        resp.headers["Content-Disposition"] = f'attachment; filename="fhab_results_{stamp}.csv"'
+        return resp
 
     # ---------- Public submission API (external apps, e.g. the CyanoSafe phone demo) ----------
     def _cors(resp, origin):
