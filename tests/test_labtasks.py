@@ -151,6 +151,54 @@ def test_sample_geo_context(conn):
     assert all(c["brid"] != near for c in g2["candidates"])
 
 
+def test_batch_reconcile_links_confident_skips_others(conn):
+    from fhab.labtasks import batch_reconcile_samples
+    staff = _staff(conn)
+    # A report right next to the station and same date -> confident match.
+    near = enter_report(conn, staff, water_body_name="Match Lake", region=R5,
+                        lat=38.5, lon=-121.401, observation_date="2026-06-15")
+    st = conn.execute("INSERT INTO station (station_code, geom) "
+                      "VALUES ('M1', ST_SetSRID(ST_MakePoint(-121.4,38.5),4326)) RETURNING id"
+                      ).fetchone()["id"]
+    s_match = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s,'2026-06-15') "
+                           "RETURNING id", (st,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('m1',%s,'Laboratory')",
+                 (s_match,))
+    # A sample with no nearby report (far station) -> should be skipped.
+    far = conn.execute("INSERT INTO station (station_code, geom) "
+                       "VALUES ('F1', ST_SetSRID(ST_MakePoint(-118.0,34.0),4326)) RETURNING id"
+                       ).fetchone()["id"]
+    s_far = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s,'2026-06-15') "
+                         "RETURNING id", (far,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('f1',%s,'Laboratory')",
+                 (s_far,))
+    conn.commit()
+
+    res = batch_reconcile_samples(conn, [s_match, s_far], days=14)
+    assert res["linked"] == 1 and res["skipped"] == 1
+    assert conn.execute("SELECT bloom_report_id FROM sample WHERE id=%s", (s_match,)).fetchone()["bloom_report_id"] == near
+    assert conn.execute("SELECT bloom_report_id FROM sample WHERE id=%s", (s_far,)).fetchone()["bloom_report_id"] is None
+
+
+def test_batch_reconcile_via_web_filter(client, conn):
+    from fhab.reports import enter_report
+    staff = create_user(conn, "rec@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    near = enter_report(conn, staff, water_body_name="WebMatch Lake", region=R5,
+                        lat=38.5, lon=-121.401, observation_date="2026-06-15")
+    st = conn.execute("INSERT INTO station (station_code, geom) "
+                      "VALUES ('WB-M', ST_SetSRID(ST_MakePoint(-121.4,38.5),4326)) RETURNING id"
+                      ).fetchone()["id"]
+    sid = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s,'2026-06-15') "
+                       "RETURNING id", (st,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('wbm',%s,'Laboratory')",
+                 (sid,)); conn.commit()
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+    # no sample_ids -> reconcile the filtered (unlinked) batch
+    r = client.post("/lab/workboard/reconcile", data={"days": "14"}, follow_redirects=True)
+    assert b"Batch reconcile" in r.data
+    assert conn.execute("SELECT bloom_report_id FROM sample WHERE id=%s", (sid,)).fetchone()["bloom_report_id"] == near
+
+
 def test_sample_geo_endpoint(client, conn):
     sid = _orphan_sample(conn, "GEOWEB")
     client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)

@@ -133,6 +133,61 @@ def qa_review(conn, user_id, sample_id, *, approve: bool, note=None) -> None:
         conn.commit()
 
 
+def _best_match(conn, sample_id, radius_m, days):
+    """Best candidate event for an unlinked, geocoded sample: confident + unambiguous, else None."""
+    s = conn.execute(
+        """SELECT s.sample_date, ST_Y(st.geom) AS lat, ST_X(st.geom) AS lon
+           FROM sample s JOIN station st ON st.id = s.station_id
+           WHERE s.id = %s AND s.bloom_report_id IS NULL AND s.case_id IS NULL
+             AND st.geom IS NOT NULL AND s.sample_date IS NOT NULL""", (sample_id,)).fetchone()
+    if not s or s["lat"] is None:
+        return None
+    pt = "ST_SetSRID(ST_MakePoint(%(lon)s,%(lat)s),4326)::geography"
+    rows = conn.execute(
+        f"""SELECT e.bloom_report_id, ST_Distance(l.geom::geography, {pt}) AS dist_m,
+                   abs(e.observation_date - %(d)s) AS gap
+            FROM event e JOIN location l ON l.id = e.location_id
+            WHERE l.geom IS NOT NULL AND e.observation_date IS NOT NULL
+              AND ST_DWithin(l.geom::geography, {pt}, %(r)s)
+              AND e.observation_date BETWEEN %(d)s::date - %(days)s::int AND %(d)s::date + %(days)s::int
+            ORDER BY dist_m LIMIT 2""",
+        {"lon": s["lon"], "lat": s["lat"], "d": s["sample_date"], "r": radius_m, "days": days}
+    ).fetchall()
+    if not rows:
+        return None
+
+    def score(r):
+        sp = max(0.0, 1 - r["dist_m"] / radius_m) if radius_m else 0.0
+        tp = max(0.0, 1 - r["gap"] / days) if days else 0.0
+        return 0.6 * sp + 0.4 * tp
+
+    scored = sorted(((score(r), r["bloom_report_id"]) for r in rows), reverse=True)
+    if scored[0][0] < 0.6:                              # not close enough in space+time
+        return None
+    if len(scored) > 1 and scored[0][0] - scored[1][0] < 0.1:   # two plausible matches — ambiguous
+        return None
+    return scored[0][1]
+
+
+def batch_reconcile_samples(conn, sample_ids, *, radius_m=8000, days=14) -> dict:
+    """Auto-link each unlinked, geocoded sample to its best-matching event (within distance +
+    the ±days window) when the match is confident and unambiguous. Skips the rest for manual
+    review. Runs on the privileged connection (staff-only bulk action). Returns counts.
+    """
+    linked = skipped = 0
+    for sid in sample_ids:
+        brid = _best_match(conn, sid, radius_m, days)
+        if brid is None:
+            skipped += 1
+            continue
+        conn.execute(
+            """UPDATE sample SET bloom_report_id = %s, qa_status = NULL, qa_by = NULL, qa_at = NULL
+               WHERE id = %s AND bloom_report_id IS NULL AND case_id IS NULL""", (brid, sid))
+        linked += 1
+    conn.commit()
+    return {"linked": linked, "skipped": skipped}
+
+
 def sample_geo(conn, sample_id, *, radius_m=8000, limit=8) -> dict:
     """Geospatial context for one sample: its station, its linked event, and nearby candidate
     reports (events within `radius_m` of the station/linked point). For the workboard's map.

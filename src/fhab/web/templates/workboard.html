@@ -37,11 +37,22 @@
     <a class="btn secondary" href="{{ url_for('lab_workboard') }}">Clear</a>
   </form>
   <form id="assignForm" method="post" action="{{ url_for('lab_workboard_assign') }}"
-        style="margin-top:.6rem; display:flex; gap:.4rem; align-items:center">
+        style="margin-top:.6rem; display:flex; gap:.4rem; align-items:center; flex-wrap:wrap">
     <span class="muted">With checked rows →</span>
     <select name="assignee_id"><option value="">— unassign —</option>
       {% for m in team %}<option value="{{ m.id }}">{{ m.email }}</option>{% endfor %}</select>
     <button class="secondary">Assign</button>
+    <span class="muted" style="margin-left:.6rem">· auto-link within ±</span>
+    <input name="days" value="14" style="width:48px; padding:.2rem" inputmode="numeric"> d
+    <button class="secondary" formaction="{{ url_for('lab_workboard_reconcile') }}">Reconcile checked</button>
+  </form>
+  <form method="post" action="{{ url_for('lab_workboard_reconcile') }}"
+        style="margin-top:.5rem; display:flex; gap:.4rem; align-items:center; flex-wrap:wrap"
+        onsubmit="return confirm('Auto-link every unlinked sample in the current filter to its nearest report? Confident matches only; the rest stay for manual review.')">
+    <span class="muted">Batch reconcile the whole filtered view — auto-link unlinked samples within ±</span>
+    <input name="days" value="14" style="width:48px; padding:.2rem" inputmode="numeric"> days
+    {% for k in ['assignee','region','q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+    <button class="secondary">Reconcile all unlinked in this view</button>
   </form>
 </div>
 

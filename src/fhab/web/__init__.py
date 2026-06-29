@@ -27,9 +27,9 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
                       resolve_intake_group, set_group_active, submit_public_report)
 from ..export import DATASETS, fetch_flatfile
 from ..labquery import count_results, filter_options, query_results
-from ..labtasks import (assign_samples, count_workboard, create_report_from_sample, link_sample,
-                        qa_review, sample_geo, status_tallies, team_members, unlink_sample,
-                        workboard)
+from ..labtasks import (assign_samples, batch_reconcile_samples, count_workboard,
+                        create_report_from_sample, link_sample, qa_review, sample_geo,
+                        status_tallies, team_members, unlink_sample, workboard)
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
                         update_analyte)
@@ -987,6 +987,24 @@ def create_app(dsn: str | None = None) -> Flask:
         return render_template("workboard.html", rows=rows, total=total, page=page, per=per, f=f,
                                sort=sort, tallies=status_tallies(conn), team=team_members(conn),
                                regions=_regions(), base_args=base_args)
+
+    @app.route("/lab/workboard/reconcile", methods=["POST"])
+    @staff_required
+    def lab_workboard_reconcile():
+        f = request.form
+        try:
+            days = max(1, int(f.get("days") or 14))
+        except ValueError:
+            days = 14
+        ids = [int(x) for x in f.getlist("sample_ids") if x.isdigit()]
+        if not ids:  # no checked rows -> reconcile every UNLINKED sample matching the current filter
+            filt = {k: (f.get(k) or "").strip() or None for k in ("assignee", "region", "q")}
+            filt["status"] = "unlinked"
+            ids = [r["id"] for r in workboard(db(), filt, me=session["uid"], limit=5000)]
+        res = batch_reconcile_samples(db(), ids, days=days)
+        flash(f"Batch reconcile (±{days} d): linked {res['linked']}, "
+              f"skipped {res['skipped']} (no confident match — review manually).", "ok")
+        return redirect(request.referrer or url_for("lab_workboard"))
 
     @app.route("/lab/workboard/assign", methods=["POST"])
     @staff_required
