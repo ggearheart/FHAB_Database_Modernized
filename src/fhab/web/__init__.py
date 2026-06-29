@@ -583,7 +583,7 @@ def create_app(dsn: str | None = None) -> Flask:
         if a.get("data") == "orphan":
             cond, p = ["s.bloom_report_id IS NULL", "s.case_id IS NULL", "st.geom IS NOT NULL"], {}
             if days:
-                cond.append("s.sample_date >= current_date - %(days)s"); p["days"] = days
+                cond.append("s.sample_date >= current_date - %(days)s::int"); p["days"] = days
             with acting_as(conn, session["uid"]):
                 rows = conn.execute(
                     f"""SELECT st.id AS station_id, ST_Y(st.geom) AS lat, ST_X(st.geom) AS lon,
@@ -622,7 +622,7 @@ def create_app(dsn: str | None = None) -> Flask:
         elif adv:
             cond.append("adv.advisory_recommended = %(advisory)s"); p["advisory"] = adv
         if days:
-            cond.append("e.observation_date >= current_date - %(days)s"); p["days"] = days
+            cond.append("e.observation_date >= current_date - %(days)s::int"); p["days"] = days
         if a.get("data") == "with":            # events that have linked analytical results
             cond.append("EXISTS (SELECT 1 FROM sample s JOIN result r ON r.sample_id = s.id "
                         "WHERE s.bloom_report_id = e.bloom_report_id)")

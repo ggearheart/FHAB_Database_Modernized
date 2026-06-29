@@ -526,6 +526,16 @@ def test_geojson_date_and_data_connection_filters(app_client, conn):
     assert all(p.get("kind") == "orphan" for p in orphans)
 
 
+def test_date_filter_is_bigint_param_safe(conn):
+    import pytest as _pytest
+    # The map date filter does `current_date - %(days)s::int`. The ::int cast matters: on envs
+    # where psycopg adapts the int as int8, `date - bigint` has no operator and would 500.
+    assert conn.execute("SELECT current_date - %s::int AS d", (30,)).fetchone()["d"] is not None
+    with _pytest.raises(Exception):                 # the uncast form fails for an int8-range value
+        conn.execute("SELECT current_date - %s AS d", (3_000_000_000,)).fetchone()
+    conn.rollback()
+
+
 def test_geojson_is_rls_filtered(app_client, conn):
     # A Region-1 report shouldn't appear for a Region-5 staffer (no published advisory).
     wb = conn.execute(
