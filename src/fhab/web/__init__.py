@@ -30,6 +30,7 @@ from ..labquery import count_results, filter_options, query_results
 from ..labtasks import (assign_samples, count_workboard, create_report_from_sample, link_sample,
                         qa_review, sample_geo, status_tallies, team_members, unlink_sample,
                         workboard)
+from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
                         update_analyte)
 from ..notify import (list_notifications, mark_read, on_new_submission, unread_count)
@@ -1188,6 +1189,32 @@ def create_app(dsn: str | None = None) -> Flask:
         except TaxonomyError as exc:
             flash(str(exc), "error")
         return redirect(url_for("admin_analytes"))
+
+    # ---------- Reset / maintenance (test environment) ----------
+    @app.route("/admin/reset")
+    @admin_required
+    def admin_reset():
+        counts = lab_data_counts(db())
+        return render_template("admin_reset.html", counts=counts,
+                               lab_tables=LAB_TABLES, kept_tables=KEPT_TABLES,
+                               lab_total=sum(counts[t] for t in LAB_TABLES))
+
+    @app.route("/admin/reset/purge-lab", methods=["POST"])
+    @admin_required
+    def admin_reset_purge_lab():
+        if (request.form.get("confirm") or "").strip().upper() != "RESET":
+            flash("Type RESET to confirm — nothing was deleted.", "error")
+            return redirect(url_for("admin_reset"))
+        conn = db()
+        try:
+            deleted = purge_lab_data(conn)
+            n = sum(deleted.values())
+            flash(f"Lab data purged — deleted {n:,} row(s) "
+                  f"({deleted.get('sample', 0):,} samples, {deleted.get('result', 0):,} results).", "ok")
+        except psycopg.Error as exc:
+            conn.rollback()
+            flash("Purge failed: " + str(exc).splitlines()[0], "error")
+        return redirect(url_for("admin_reset"))
 
     # ---------- Open-data flat files (the four data.ca.gov files) ----------
     @app.route("/export")

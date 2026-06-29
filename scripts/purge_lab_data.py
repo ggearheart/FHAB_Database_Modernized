@@ -19,14 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fhab.db import connect  # noqa: E402
-
-# Children first so foreign keys are satisfied.
-TABLES = ["result", "sample_link", "lab_stage_result", "lab_stage_sample", "lab_batch", "sample"]
-KEPT = ["event", "hab_case", "analyte", "station", "public_report_submission"]
-
-
-def _count(conn, t):
-    return conn.execute(f"SELECT count(*) AS c FROM {t}").fetchone()["c"]
+from fhab.maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data  # noqa: E402
 
 
 def main() -> None:
@@ -35,32 +28,25 @@ def main() -> None:
     args = ap.parse_args()
 
     conn = connect()
+    counts = lab_data_counts(conn)
     print("Lab-data tables to clear (rows):")
-    total = 0
-    for t in TABLES:
-        n = _count(conn, t)
-        total += n
-        print(f"  {t:18} {n:>9,}")
+    total = sum(counts[t] for t in LAB_TABLES)
+    for t in LAB_TABLES:
+        print(f"  {t:18} {counts[t]:>9,}")
     print(f"  {'TOTAL':18} {total:>9,}")
 
     if not args.yes:
         print("\nDry run — nothing deleted. Re-run with --yes to delete the rows above.")
         return
 
-    try:
-        for t in TABLES:
-            conn.execute(f"DELETE FROM {t}")
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-
+    purge_lab_data(conn)
+    after = lab_data_counts(conn)
     print("\nDeleted. Remaining in cleared tables:")
-    for t in TABLES:
-        print(f"  {t:18} {_count(conn, t):>9,}")
+    for t in LAB_TABLES:
+        print(f"  {t:18} {after[t]:>9,}")
     print("Preserved (untouched):")
-    for t in KEPT:
-        print(f"  {t:18} {_count(conn, t):>9,}")
+    for t in KEPT_TABLES:
+        print(f"  {t:18} {after[t]:>9,}")
 
 
 if __name__ == "__main__":

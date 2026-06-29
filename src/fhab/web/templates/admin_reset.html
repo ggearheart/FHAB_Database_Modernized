@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Reset{% endblock %}
+{% block body %}
+<h1>Reset / maintenance</h1>
+<p class="muted">Tools for the test phase. These actions are <strong>irreversible</strong> — make sure
+  the database is backed up if the data matters.</p>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Purge all lab data</h1>
+  <p class="muted">Deletes every lab sample and result (and the lab-batch staging tables). Reports,
+    events, cases, the public submission queue, the analyte vocabulary, and the station registry
+    are <strong>kept</strong>.</p>
+
+  <table style="max-width:420px">
+    <tr><th>Will be cleared</th><th style="text-align:right">Rows</th></tr>
+    {% for t in lab_tables %}
+    <tr><td>{{ t }}</td><td style="text-align:right">{{ '{:,}'.format(counts[t]) }}</td></tr>
+    {% endfor %}
+    <tr><td><strong>Total</strong></td><td style="text-align:right"><strong>{{ '{:,}'.format(lab_total) }}</strong></td></tr>
+  </table>
+  <p class="muted" style="margin-top:.6rem">Kept untouched:
+    {% for t in kept_tables %}{{ t }} ({{ '{:,}'.format(counts[t]) }}){% if not loop.last %}, {% endif %}{% endfor %}.</p>
+
+  <div class="warn">
+    <strong>This permanently deletes {{ '{:,}'.format(lab_total) }} row(s).</strong>
+    <form method="post" action="{{ url_for('admin_reset_purge_lab') }}"
+          style="display:flex; gap:.5rem; align-items:center; margin-top:.5rem"
+          onsubmit="return confirm('Permanently delete all lab data? This cannot be undone.')">
+      <input name="confirm" placeholder="type RESET" autocomplete="off" style="width:140px">
+      <button {% if lab_total == 0 %}disabled{% endif %}>Purge all lab data</button>
+      {% if lab_total == 0 %}<span class="muted">— already empty.</span>{% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}
