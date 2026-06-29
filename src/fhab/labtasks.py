@@ -142,24 +142,26 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8) -> dict:
                   ST_Y(st.geom) AS st_lat, ST_X(st.geom) AS st_lon
            FROM sample s LEFT JOIN station st ON st.id = s.station_id WHERE s.id = %s""",
         (sample_id,)).fetchone()
-    out = {"label": None, "station": None, "linked": None, "candidates": []}
+    out = {"label": None, "sample_date": None, "station": None, "linked": None, "candidates": []}
     if not s:
         return out
     out["label"] = f"{s['station_code'] or 'sample'} · {s['sample_date'] or '—'}"
+    out["sample_date"] = str(s["sample_date"]) if s["sample_date"] else None
     if s["st_lat"] is not None:
         out["station"] = {"lat": s["st_lat"], "lon": s["st_lon"],
                           "code": s["station_code"], "name": s["station_name"]}
 
     if s["bloom_report_id"]:
         ev = conn.execute(
-            """SELECT ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon, w.water_body_name
+            """SELECT ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon, w.water_body_name,
+                      e.observation_date::text AS obs
                FROM event e JOIN location l ON l.id = e.location_id
                LEFT JOIN waterbody w ON w.id = l.waterbody_id
                WHERE e.bloom_report_id = %s AND l.geom IS NOT NULL""",
             (s["bloom_report_id"],)).fetchone()
         if ev and ev["lat"] is not None:
-            out["linked"] = {"lat": ev["lat"], "lon": ev["lon"],
-                             "brid": s["bloom_report_id"], "name": ev["water_body_name"]}
+            out["linked"] = {"lat": ev["lat"], "lon": ev["lon"], "brid": s["bloom_report_id"],
+                             "name": ev["water_body_name"], "obs": ev["obs"]}
 
     # Anchor for "nearby" = the station, else the linked event.
     anchor = out["station"] or out["linked"]

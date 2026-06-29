@@ -148,23 +148,31 @@ function openSampleMap(sid) {
       html: '<div style="font-size:22px;line-height:1;color:' + color
             + ';text-shadow:0 0 2px #fff,0 0 3px #0e6655">★</div>' }) });
 
+    const sDate = g.sample_date || 'date unknown';
     if (g.station) {
       star(g.station, '#16a085').addTo(_wblayer)
-        .bindPopup('<b>Lab sample</b><br>' + (g.station.code || '') + '<br>' + (g.station.name || ''));
+        .bindTooltip('Lab sample · ' + sDate)
+        .bindPopup('<b>Lab sample</b><br>' + (g.station.code || '') + '<br>' + (g.station.name || '')
+          + '<br>Sampled: <b>' + sDate + '</b>');
       pts.push([g.station.lat, g.station.lon]);
     }
     if (g.linked) {
       dot(g.linked, '#2563eb', '#0e3a8a', 9).addTo(_wblayer)
-        .bindPopup('<b>Linked report</b><br><a href="/reports/' + g.linked.brid + '">R' + g.linked.brid + '</a> — ' + (g.linked.name || ''));
+        .bindTooltip('R' + g.linked.brid + ' · ' + (g.linked.obs || 'date unknown'))
+        .bindPopup('<b>Linked report</b><br><a href="/reports/' + g.linked.brid + '">R' + g.linked.brid + '</a> — ' + (g.linked.name || '')
+          + '<br>Observed: <b>' + (g.linked.obs || '—') + '</b>');
       pts.push([g.linked.lat, g.linked.lon]);
     }
     (g.candidates || []).forEach(c => {
-      dot(c, gapColor(c.day_gap)).addTo(_wblayer).bindPopup(
-        '<b>Nearby report</b><br><a href="/reports/' + c.brid + '">R' + c.brid + '</a> — ' + (c.name || '—')
-        + '<br>' + c.dist_m + ' m' + (c.day_gap != null ? ' · ' + c.day_gap + ' d apart' : ' · date unknown') + '<br>'
-        + '<form method="post" action="/lab/sample/' + sid + '/link" style="margin-top:4px">'
-        + '<input type="hidden" name="bloom_report_id" value="' + c.brid + '">'
-        + '<button>Link this sample → R' + c.brid + '</button></form>');
+      dot(c, gapColor(c.day_gap)).addTo(_wblayer)
+        .bindTooltip('R' + c.brid + ' · ' + (c.obs || 'date unknown'))
+        .bindPopup(
+          '<b>Nearby report</b><br><a href="/reports/' + c.brid + '">R' + c.brid + '</a> — ' + (c.name || '—')
+          + '<br>Observed: <b>' + (c.obs || '—') + '</b>'
+          + '<br>' + c.dist_m + ' m' + (c.day_gap != null ? ' · ' + c.day_gap + ' d from sample' : '') + '<br>'
+          + '<form method="post" action="/lab/sample/' + sid + '/link" style="margin-top:4px">'
+          + '<input type="hidden" name="bloom_report_id" value="' + c.brid + '">'
+          + '<button>Link this sample → R' + c.brid + '</button></form>');
       pts.push([c.lat, c.lon]);
     });
 

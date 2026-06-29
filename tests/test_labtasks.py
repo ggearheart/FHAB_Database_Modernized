@@ -139,13 +139,15 @@ def test_sample_geo_context(conn):
     sid = _orphan_sample(conn, "GEO1")            # station at (-121.4, 38.5)
     g = sample_geo(conn, sid)
     assert g["station"] and g["station"]["code"] == "GEO1"
+    assert g["sample_date"]                                   # actual sample date for the tooltip
     assert g["linked"] is None
-    assert any(c["brid"] == near for c in g["candidates"])
+    cand = next(c for c in g["candidates"] if c["brid"] == near)
+    assert cand["obs"]                                        # candidate's actual observation date
 
-    # Once linked, it appears as 'linked' and drops out of candidates.
+    # Once linked, it appears as 'linked' (with its date) and drops out of candidates.
     link_sample(conn, staff, sid, bloom_report_id=near)
     g2 = sample_geo(conn, sid)
-    assert g2["linked"] and g2["linked"]["brid"] == near
+    assert g2["linked"] and g2["linked"]["brid"] == near and "obs" in g2["linked"]
     assert all(c["brid"] != near for c in g2["candidates"])
 
 
