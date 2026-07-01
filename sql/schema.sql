@@ -346,7 +346,11 @@ CREATE TABLE IF NOT EXISTS sample (
     qa_by           bigint,
     qa_at           timestamptz,
     qa_note         text,
-    lab_batch_id    bigint       -- ingest batch this sample came from (FK added in migrations)
+    lab_batch_id    bigint,      -- ingest batch this sample came from (FK added in migrations)
+    -- Not every sample belongs to a bloom report/case: some are routine monitoring. Tagging a
+    -- sample 'routine' resolves it out of the unlinked queue (subtypes to be added later).
+    sampling_type   text,        -- NULL | 'routine'
+    routine_subtype text
 );
 
 -- CRM-6: one analyte result per sample. Value may be numeric or categorical.

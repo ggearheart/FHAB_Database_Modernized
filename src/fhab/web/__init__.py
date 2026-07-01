@@ -30,10 +30,10 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
                       resolve_intake_group, set_group_active, submit_public_report)
 from ..export import DATASETS, fetch_flatfile
 from ..labquery import count_results, filter_options, query_results
-from ..labtasks import (assign_samples, batch_reconcile_samples, count_workboard,
+from ..labtasks import (assign_samples, batch_reconcile_samples, clear_routine, count_workboard,
                         create_report_from_sample, link_sample, qa_review, sample_geo,
-                        set_sample_location, status_tallies, team_members, unlink_sample,
-                        workboard)
+                        set_sample_location, status_tallies, tag_routine, team_members,
+                        unlink_sample, workboard)
 from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
@@ -1062,12 +1062,34 @@ def create_app(dsn: str | None = None) -> Flask:
     def lab_sample_create_report(sid):
         conn = db()
         try:
+            at = _coords_arg(request.form)   # optional: geocode the sample first (from the map)
+            if at:
+                set_sample_location(conn, sid, at[0], at[1])
             brid = create_report_from_sample(conn, session["uid"], sid,
                                              region=(request.form.get("region") or "").strip() or None)
             _record_activity(brid, "created report from lab sample")
             flash(f"Created report {brid} and linked the sample.", "ok")
-        except psycopg.Error as exc:
+        except (psycopg.Error, ValueError) as exc:
             conn.rollback(); flash("Could not create report: " + str(exc).splitlines()[0], "error")
+        return redirect(request.referrer or url_for("lab_workboard"))
+
+    @app.route("/lab/sample/<int:sid>/routine", methods=["POST"])
+    @staff_required
+    def lab_sample_routine(sid):
+        conn = db()
+        if request.form.get("undo"):
+            clear_routine(conn, session["uid"], sid)
+            flash("Sample returned to the unlinked queue.", "ok")
+            return redirect(request.referrer or url_for("lab_workboard"))
+        try:
+            at = _coords_arg(request.form)   # optional: also geocode it (from the map)
+            if at:
+                set_sample_location(conn, sid, at[0], at[1])
+            tag_routine(conn, session["uid"], sid,
+                        subtype=(request.form.get("subtype") or "").strip() or None)
+            flash("Tagged as routine sampling.", "ok")
+        except (psycopg.Error, ValueError) as exc:
+            conn.rollback(); flash("Could not tag sample: " + str(exc).splitlines()[0], "error")
         return redirect(request.referrer or url_for("lab_workboard"))
 
     def _coords_arg(src):

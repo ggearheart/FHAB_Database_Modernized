@@ -253,6 +253,42 @@ def test_geocode_and_ocr_routes_web(client, conn):
     assert client.get(f"/lab/sample/{sid}/ocr-coords").status_code == 404   # no CoC -> graceful
 
 
+def test_tag_routine_status_and_untag(conn):
+    from fhab.labtasks import clear_routine, status_tallies, tag_routine
+    _staff(conn)
+    sid = _orphan_sample(conn, "ROUT1")
+    assert _status(conn, sid) == "unlinked"
+    tag_routine(conn, _staff(conn, "r2@wb.ca.gov"), sid)
+    assert _status(conn, sid) == "routine"
+    assert status_tallies(conn).get("routine", 0) >= 1
+    clear_routine(conn, _staff(conn, "r3@wb.ca.gov"), sid)
+    assert _status(conn, sid) == "unlinked"
+
+
+def test_routine_and_create_report_with_coords_web(client, conn):
+    from fhab.reports import enter_report
+    staff = create_user(conn, "rt@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+
+    # (b) tag routine, then undo
+    s1 = _orphan_sample(conn, "WROUT")
+    client.post(f"/lab/sample/{s1}/routine", follow_redirects=True)
+    assert conn.execute("SELECT sampling_type FROM sample WHERE id=%s", (s1,)).fetchone()["sampling_type"] == "routine"
+    client.post(f"/lab/sample/{s1}/routine", data={"undo": "1"}, follow_redirects=True)
+    assert conn.execute("SELECT sampling_type FROM sample WHERE id=%s", (s1,)).fetchone()["sampling_type"] is None
+
+    # (a) create a report from an ungeocoded sample using coordinates from the map
+    st = conn.execute("INSERT INTO station (station_code) VALUES ('CRPT') RETURNING id").fetchone()["id"]
+    s2 = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s, current_date) RETURNING id",
+                      (st,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('crp',%s,'Laboratory')", (s2,)); conn.commit()
+    client.post(f"/lab/sample/{s2}/create-report", data={"lat": "38.5", "lon": "-121.4", "region": R5},
+                follow_redirects=True)
+    row = conn.execute("SELECT bloom_report_id FROM sample WHERE id=%s", (s2,)).fetchone()
+    assert row["bloom_report_id"] is not None
+    assert conn.execute("SELECT geom IS NOT NULL AS g FROM station WHERE id=%s", (st,)).fetchone()["g"]
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")

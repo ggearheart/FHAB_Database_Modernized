@@ -96,6 +96,8 @@ ALTER TABLE lab_batch ADD COLUMN IF NOT EXISTS region text;
 ALTER TABLE lab_batch ADD COLUMN IF NOT EXISTS n_samples integer DEFAULT 0;
 ALTER TABLE lab_batch ADD COLUMN IF NOT EXISTS n_geocoded integer DEFAULT 0;
 ALTER TABLE sample ADD COLUMN IF NOT EXISTS lab_batch_id bigint;
+ALTER TABLE sample ADD COLUMN IF NOT EXISTS sampling_type text;    -- NULL | 'routine'
+ALTER TABLE sample ADD COLUMN IF NOT EXISTS routine_subtype text;
 DO $$ BEGIN
     ALTER TABLE sample ADD CONSTRAINT sample_lab_batch_fk
         FOREIGN KEY (lab_batch_id) REFERENCES lab_batch(id) ON DELETE SET NULL;
