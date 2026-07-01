@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Bulk sample coordinates{% endblock %}
+{% block body %}
+<h1>Bulk sample coordinates</h1>
+<div class="card">
+  <p class="muted">Paste one row per line: a <strong>station code</strong> (or a numeric
+    <strong>sample id</strong>), then <strong>latitude</strong>, then <strong>longitude</strong>,
+    separated by commas or tabs. Useful for entering coordinates read off chain-of-custody forms.
+    A station code that contains spaces or commas is fine — the last two numbers on the line are
+    taken as lat/long. Matching a station geocodes every sample at that station.</p>
+  <form method="post">
+    <textarea name="rows" rows="10" style="width:100%; font-family:monospace"
+      placeholder="630BPRV01, 38.28412, -119.21802&#10;CLOAKS01, 39.019289, -122.675139&#10;El Dorado E. RP, North Pond, 33.79, -118.09">{{ text }}</textarea>
+    <p></p>
+    <button>Apply coordinates</button>
+  </form>
+</div>
+
+{% if result %}
+<div class="card">
+  <h1 style="font-size:1.05rem">Results — {{ result.applied }} applied, {{ result.samples }} sample(s) geocoded</h1>
+  <table>
+    <tr><th>Row</th><th>Latitude</th><th>Longitude</th><th>Result</th></tr>
+    {% for r in result.rows %}
+    <tr>
+      <td>{{ r.key if r.status != 'unparsed' else r.raw }}</td>
+      <td>{{ '%.6f'|format(r.lat) if r.lat is defined else '—' }}</td>
+      <td>{{ '%.6f'|format(r.lon) if r.lon is defined else '—' }}</td>
+      <td>{% if '✓' in r.status %}<span class="pill" style="background:#e3f4ea">{{ r.status }}</span>
+          {% else %}<span class="muted">{{ r.status }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="muted" style="margin-top:.5rem">Geocoded samples now appear on the map and are eligible
+    for <a href="{{ url_for('lab_workboard', status='unlinked') }}">batch reconcile</a>.</p>
+</div>
+{% endif %}
+{% endblock %}

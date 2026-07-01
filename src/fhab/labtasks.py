@@ -13,6 +13,8 @@ which brings *new* CEDEN data in; the workboard manages already-materialized sam
 
 from __future__ import annotations
 
+import re
+
 import psycopg
 
 from .auth import acting_as
@@ -302,6 +304,57 @@ def set_sample_location(conn, sample_id, lat: float, lon: float) -> dict:
            WHERE id = %s""", (lon, lat, station_id))
     conn.commit()
     return {"station_id": station_id, "lat": lat, "lon": lon}
+
+
+# Each line: a station code (or sample id) followed by latitude then longitude. The key may
+# contain spaces and commas (e.g. "El Dorado E. RP, North Pond") so we anchor on the two
+# trailing numeric tokens and treat everything before them as the key.
+_COORD_LINE = re.compile(
+    r"^(?P<key>.*?)[\s,]+(?P<lat>-?\d{1,3}(?:\.\d+)?)[\s,]+(?P<lon>-?\d{1,3}(?:\.\d+)?)\s*$")
+
+
+def parse_coord_rows(text: str) -> list[dict]:
+    """Parse pasted 'station, lat, lon' lines into {key, lat, lon} rows (status='parsed'|'unparsed')."""
+    rows = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line or line.lower().startswith(("station", "#", "key")):
+            continue
+        m = _COORD_LINE.match(line)
+        if not m:
+            rows.append({"raw": line, "status": "unparsed"}); continue
+        rows.append({"key": m.group("key").strip().strip(",").strip(),
+                     "lat": float(m.group("lat")), "lon": float(m.group("lon")),
+                     "status": "parsed"})
+    return rows
+
+
+def bulk_geocode(conn, user_id, text: str) -> dict:
+    """Geocode many samples at once from pasted 'station_code|sample_id, lat, lon' lines.
+
+    Matches each key against station_code (geocoding every sample at that station), or a numeric
+    sample id. Returns {applied, samples, rows:[...with per-row status]}.
+    """
+    rows = parse_coord_rows(text)
+    applied = samples = 0
+    for r in rows:
+        if r["status"] != "parsed":
+            continue
+        if not (-90 <= r["lat"] <= 90 and -180 <= r["lon"] <= 180):
+            r["status"] = "out of range"; continue
+        hit = conn.execute(
+            """UPDATE station SET geom = ST_SetSRID(ST_MakePoint(%s, %s), 4326),
+                   datum = COALESCE(datum, 'WGS84') WHERE station_code = %s RETURNING id""",
+            (r["lon"], r["lat"], r["key"])).fetchall()
+        if hit:
+            n = conn.execute("SELECT count(*) c FROM sample WHERE station_id = %s", (hit[0]["id"],)).fetchone()["c"]
+            r["status"] = f"✓ station · {n} sample(s)"; applied += 1; samples += n; continue
+        if r["key"].isdigit() and conn.execute("SELECT 1 FROM sample WHERE id=%s", (int(r["key"]),)).fetchone():
+            set_sample_location(conn, int(r["key"]), r["lat"], r["lon"])
+            r["status"] = "✓ sample"; applied += 1; samples += 1; continue
+        r["status"] = "no matching station / sample"
+    conn.commit()
+    return {"applied": applied, "samples": samples, "rows": rows}
 
 
 def create_report_from_sample(conn, user_id, sample_id, *, region=None) -> int:

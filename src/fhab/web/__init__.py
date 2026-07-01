@@ -30,10 +30,10 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
                       resolve_intake_group, set_group_active, submit_public_report)
 from ..export import DATASETS, fetch_flatfile
 from ..labquery import count_results, filter_options, query_results
-from ..labtasks import (assign_samples, batch_reconcile_samples, clear_routine, count_workboard,
-                        create_report_from_sample, link_sample, qa_review, sample_geo,
-                        set_sample_location, status_tallies, tag_routine, team_members,
-                        unlink_sample, workboard)
+from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, clear_routine,
+                        count_workboard, create_report_from_sample, link_sample, qa_review,
+                        sample_geo, set_sample_location, status_tallies, tag_routine,
+                        team_members, unlink_sample, workboard)
 from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
@@ -318,6 +318,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Stage a CEDEN chemistry template and link by station + date."},
             {"title": "Lab data workboard", "href": url_for("lab_workboard"),
              "desc": "Assign, link, and QA-review lab samples against reports/cases."},
+            {"title": "Bulk sample coordinates", "href": url_for("lab_coordinates"),
+             "desc": "Paste station/lat/long rows (e.g. read off chain-of-custody forms) to geocode many samples at once."},
             {"title": "Batch update outcomes", "href": url_for("batch_determination"),
              "desc": "Set the final outcome on many reports at once."},
         ]
@@ -1516,6 +1518,23 @@ def create_app(dsn: str | None = None) -> Flask:
         for b in batches:
             b["files"] = batch_files(conn, b["id"])
         return render_template("folder_ingest.html", batches=batches)
+
+    @app.route("/lab/coordinates", methods=["GET", "POST"])
+    @staff_required
+    def lab_coordinates():
+        conn, result = db(), None
+        text = request.form.get("rows", "") if request.method == "POST" else ""
+        if request.method == "POST":
+            try:
+                result = bulk_geocode(conn, session["uid"], text)
+                if result["applied"]:
+                    flash(f"Geocoded {result['applied']} station/sample entr(ies), "
+                          f"{result['samples']} sample(s).", "ok")
+                else:
+                    flash("No rows matched a station or sample.", "error")
+            except Exception as exc:  # noqa: BLE001
+                conn.rollback(); flash("Could not apply coordinates: " + str(exc).splitlines()[0], "error")
+        return render_template("bulk_coordinates.html", result=result, text=text)
 
     @app.route("/batch/<int:bid>/file/<int:fid>")
     @staff_required
