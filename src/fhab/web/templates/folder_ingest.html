@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Ingest lab email folders{% endblock %}
+{% block body %}
+<h1>Ingest lab email folders</h1>
+<div class="card">
+  <p class="muted">Drop in the files that arrived with a Bend Genetics / partner lab email — the
+    wide-format <strong>results CSV</strong> plus any chain-of-custody, transmittal, and
+    sample-receipt PDFs. The chemistry is converted to CEDEN long form and materialized as
+    <em>unlinked</em> samples (geocoded from the CEDEN station registry where the station code is
+    known), ready to reconcile on the workboard. The original files are kept on the batch.</p>
+  <form method="post" enctype="multipart/form-data">
+    <div class="row">
+      <div><label>Folder files * (select all)</label><input type="file" name="files" multiple required></div>
+      <div><label>Source label</label><input name="source" placeholder="e.g. Clear Lake (RB5)"></div>
+    </div>
+    <p></p>
+    <button>Ingest folder</button>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Ingested batches</h1>
+  <table>
+    <tr><th>Batch</th><th>Source</th><th>Region</th><th>Samples</th><th>Results</th><th>Uploaded</th><th>Files</th></tr>
+    {% for b in batches %}
+    <tr>
+      <td><a href="{{ url_for('lab_workboard', batch=b.id, status='unlinked') }}">{{ b.id }}</a></td>
+      <td>{{ b.source or b.filename or '—' }}</td>
+      <td>{{ b.region or '—' }}</td>
+      <td>{{ b.n_samples }}{% if b.n_samples %} <span class="muted">({{ b.n_geocoded }} geo)</span>{% endif %}</td>
+      <td>{{ b.n_results }}</td>
+      <td>{{ b.uploaded_at.strftime('%Y-%m-%d %H:%M') if b.uploaded_at else '—' }}</td>
+      <td>
+        {% for f in b.files %}
+          <a href="{{ url_for('batch_file_download', bid=b.id, fid=f.id) }}" title="{{ f.filename }}">{{ f.category }}</a>{% if not loop.last %} · {% endif %}
+        {% else %}<span class="muted">—</span>{% endfor %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="muted">No folders ingested yet.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

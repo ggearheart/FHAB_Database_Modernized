@@ -8,6 +8,21 @@
   the links. Re-linking a sample sends it back for review. To bring in <em>new</em> historic
   data, use <a href="{{ url_for('lab_reconcile') }}">batch lab reconciliation</a>.</p>
 
+{% if batch %}
+<div class="card" style="border-left:4px solid #2563eb">
+  <strong>Ingest batch {{ batch.id }}</strong> · {{ batch.source or batch.filename or '—' }}
+  {% if batch.region %}· {{ batch.region }}{% endif %}
+  <span class="muted">— {{ batch.n_samples }} sample(s), {{ batch.n_geocoded }} geocoded.</span>
+  {% if batch_files %}
+  <div style="margin-top:.4rem">Source files:
+    {% for f in batch_files %}
+      <a href="{{ url_for('batch_file_download', bid=batch.id, fid=f.id) }}" title="{{ f.filename }}">{{ f.category }}</a>{% if not loop.last %} · {% endif %}
+    {% endfor %}
+  </div>{% endif %}
+  <div style="margin-top:.3rem"><a href="{{ url_for('lab_workboard') }}">← all samples</a></div>
+</div>
+{% endif %}
+
 <div class="card">
   {% for key, label in [('unlinked','Unlinked'),('linked','Linked · awaiting QA'),('flagged','Flagged for rework'),('approved','QA approved')] %}
   <a class="pill" style="background:{{ PILL[key] }}; padding:.25rem .7rem; margin-right:.4rem; text-decoration:none"

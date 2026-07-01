@@ -8,10 +8,12 @@ to `program_admin` at the app layer. See docs/USER_ROLES.md.
 from __future__ import annotations
 
 import os
+import shutil
 from functools import wraps
 
 import psycopg
-from flask import (Flask, flash, g, jsonify, redirect, render_template, request, session, url_for)
+from flask import (Flask, Response, flash, g, jsonify, redirect, render_template, request,
+                   session, url_for)
 
 import tempfile
 
@@ -19,6 +21,7 @@ from ..auth import (acting_as, authenticate, create_user, grant_role, list_roles
                     revoke_role, set_password, user_regions)
 from ..cases import (CASE_STATUSES, assign_report_to_case, create_case, update_case)
 from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_for_event)
+from ..bendlab import (batch_file, batch_files, ingest_bend_folder, ingested_batches)
 from ..labmatch import (_candidates, auto_match, create_event_from_stage, link_stage_sample,
                         skip_stage_sample, stage_batch)
 from ..places import COUNTIES, similar_waterbodies, suggest_waterbodies
@@ -307,6 +310,8 @@ def create_app(dsn: str | None = None) -> Flask:
         items = [
             {"title": "Upload CEDEN lab data", "href": url_for("batch_ceden"),
              "desc": "Ingest a CEDEN WaterChemistry CSV, or pull from a URL."},
+            {"title": "Ingest lab email folders", "href": url_for("folder_ingest"),
+             "desc": "Load a Bend/partner results folder (CSV + CoC/transmittal PDFs); files kept on the batch."},
             {"title": "Lab batch reconciliation", "href": url_for("lab_reconcile"),
              "desc": "Stage a CEDEN chemistry template and link by station + date."},
             {"title": "Lab data workboard", "href": url_for("lab_workboard"),
@@ -974,7 +979,8 @@ def create_app(dsn: str | None = None) -> Flask:
     @staff_required
     def lab_workboard():
         a = request.args
-        f = {k: (a.get(k) or "").strip() or None for k in ("status", "assignee", "region", "q")}
+        f = {k: (a.get(k) or "").strip() or None
+             for k in ("status", "assignee", "region", "q", "batch")}
         sort = a.get("sort") if a.get("sort") in ("date", "station", "status") else "date"
         try:
             page = max(0, int(a.get("page", 0)))
@@ -984,9 +990,14 @@ def create_app(dsn: str | None = None) -> Flask:
         rows = workboard(conn, f, me=session["uid"], sort=sort, limit=per, offset=page * per)
         total = count_workboard(conn, f, me=session["uid"])
         base_args = {k: v for k, v in a.items() if k != "page"}
+        # When scoped to one ingest batch, surface the batch header + its source files.
+        batch = files = None
+        if str(f.get("batch") or "").isdigit():
+            batch = conn.execute("SELECT * FROM lab_batch WHERE id=%s", (int(f["batch"]),)).fetchone()
+            files = batch_files(conn, int(f["batch"])) if batch else None
         return render_template("workboard.html", rows=rows, total=total, page=page, per=per, f=f,
                                sort=sort, tallies=status_tallies(conn), team=team_members(conn),
-                               regions=_regions(), base_args=base_args)
+                               regions=_regions(), base_args=base_args, batch=batch, batch_files=files)
 
     @app.route("/lab/workboard/reconcile", methods=["POST"])
     @staff_required
@@ -1402,8 +1413,49 @@ def create_app(dsn: str | None = None) -> Flask:
                 """SELECT b.*,
                           (SELECT count(*) FROM lab_stage_sample s WHERE s.batch_id=b.id AND s.status='linked') AS linked,
                           (SELECT count(*) FROM lab_stage_sample s WHERE s.batch_id=b.id AND s.status='unmatched') AS unmatched
-                   FROM lab_batch b ORDER BY b.id DESC LIMIT 50""").fetchall()
+                   FROM lab_batch b WHERE b.kind='staged' ORDER BY b.id DESC LIMIT 50""").fetchall()
         return render_template("lab_reconcile.html", batches=batches)
+
+    @app.route("/ingest/folders", methods=["GET", "POST"])
+    @staff_required
+    def folder_ingest():
+        conn = db()
+        if request.method == "POST":
+            uploads = [f for f in request.files.getlist("files") if f and f.filename]
+            source = (request.form.get("source") or "").strip()
+            if not uploads:
+                flash("Choose the files from one lab email folder (results CSV + any PDFs).", "error")
+                return redirect(url_for("folder_ingest"))
+            tmpdir = tempfile.mkdtemp()
+            try:
+                for up in uploads:
+                    up.save(os.path.join(tmpdir, os.path.basename(up.filename)))
+                r = ingest_bend_folder(conn, tmpdir, source=source or None)
+                flash(f"Ingested {r['samples']} sample(s) ({r['geocoded']} geocoded), "
+                      f"{r['results']} result(s); stored {r['files']} file(s).", "ok")
+                return redirect(url_for("lab_workboard", batch=r["batch_id"], status="unlinked"))
+            except Exception as exc:  # noqa: BLE001
+                conn.rollback()
+                flash("Could not ingest folder: " + str(exc).splitlines()[0], "error")
+            finally:
+                shutil.rmtree(tmpdir, ignore_errors=True)
+        batches = ingested_batches(conn)
+        for b in batches:
+            b["files"] = batch_files(conn, b["id"])
+        return render_template("folder_ingest.html", batches=batches)
+
+    @app.route("/batch/<int:bid>/file/<int:fid>")
+    @staff_required
+    def batch_file_download(bid, fid):
+        conn = db()
+        f = batch_file(conn, fid)
+        if not f:
+            flash("File not found.", "error")
+            return redirect(url_for("folder_ingest"))
+        return Response(bytes(f["data"]),
+                        mimetype=f["content_type"] or "application/octet-stream",
+                        headers={"Content-Disposition":
+                                 f'inline; filename="{f["filename"]}"'})
 
     @app.route("/batch/lab-reconcile/<int:bid>")
     @staff_required

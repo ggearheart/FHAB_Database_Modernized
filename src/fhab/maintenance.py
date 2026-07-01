@@ -9,7 +9,8 @@ from __future__ import annotations
 import psycopg
 
 # Lab-data tables, children first so foreign keys are satisfied on delete.
-LAB_TABLES = ["result", "sample_link", "lab_stage_result", "lab_stage_sample", "lab_batch", "sample"]
+LAB_TABLES = ["result", "sample_link", "lab_stage_result", "lab_stage_sample",
+              "lab_batch_file", "lab_batch", "sample"]
 # Shown for reassurance; never touched by purge_lab_data.
 KEPT_TABLES = ["event", "hab_case", "analyte", "station", "public_report_submission"]
 
