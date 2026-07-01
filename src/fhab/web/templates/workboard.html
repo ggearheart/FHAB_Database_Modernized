@@ -137,15 +137,29 @@
       <strong id="mapTitle" style="flex:1">Sample location</strong>
       <button type="button" class="secondary" onclick="document.getElementById('mapModal').style.display='none'">Close ✕</button>
     </div>
-    <div id="wbmap" style="height:380px; border:1px solid var(--line); border-radius:6px"></div>
+    <div style="display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; margin-bottom:.5rem">
+      <input id="wbLat" placeholder="latitude" inputmode="decimal" style="width:8.5rem">
+      <input id="wbLon" placeholder="longitude" inputmode="decimal" style="width:8.5rem">
+      <button type="button" class="secondary" onclick="wbSearchCoords()">Search nearby</button>
+      <button type="button" onclick="wbSaveCoords()">Save to sample</button>
+      <button type="button" class="secondary" onclick="wbScanCoC()">Scan CoC (OCR)</button>
+      <span id="wbCoordMsg" class="muted" style="flex-basis:100%"></span>
+    </div>
+    <div id="wbmap" style="height:360px; border:1px solid var(--line); border-radius:6px"></div>
     <p class="muted" id="mapNote" style="margin:.5rem 0 0"></p>
   </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-let _wbmap = null, _wblayer = null;
+let _wbmap = null, _wblayer = null, _wbsid = null;
+function _wbmsg(t) { document.getElementById('wbCoordMsg').textContent = t || ''; }
+
 function openSampleMap(sid) {
+  _wbsid = sid;
+  document.getElementById('wbLat').value = '';
+  document.getElementById('wbLon').value = '';
+  _wbmsg('');
   const modal = document.getElementById('mapModal');
   modal.style.display = 'flex';
   if (typeof L === 'undefined') { document.getElementById('mapNote').textContent = 'Map library failed to load.'; return; }
@@ -155,8 +169,15 @@ function openSampleMap(sid) {
       { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(_wbmap);
   }
   setTimeout(() => _wbmap.invalidateSize(), 50);
+  renderSampleMap();
+}
+
+// probe = optional {lat, lon} to search nearby reports around a typed/OCR'd point.
+function renderSampleMap(probe) {
+  const sid = _wbsid;
+  const q = probe ? ('?lat=' + probe.lat + '&lon=' + probe.lon) : '';
   document.getElementById('mapNote').textContent = 'Loading…';
-  fetch('/lab/sample/' + sid + '/geo.json').then(r => r.json()).then(g => {
+  fetch('/lab/sample/' + sid + '/geo.json' + q).then(r => r.json()).then(g => {
     if (_wblayer) _wblayer.remove();
     _wblayer = L.layerGroup().addTo(_wbmap);
     document.getElementById('mapTitle').textContent = 'Sample: ' + (g.label || sid);
@@ -169,18 +190,22 @@ function openSampleMap(sid) {
       : d <= 30 ? '#f3d77a'                                // 14-30 days -> faded yellow
       : d <= 60 ? '#f3b6c2'                                // 30-60 days -> faded pink
       : '#c2c8cd';                                         // > 60 days -> faded gray
-    const star = (p, color) => L.marker([p.lat, p.lon], { icon: L.divIcon({
+    const glyph = (p, color, ch, size) => L.marker([p.lat, p.lon], { icon: L.divIcon({
       className: '', iconSize: [24, 24], iconAnchor: [12, 12],
-      html: '<div style="font-size:22px;line-height:1;color:' + color
-            + ';text-shadow:0 0 2px #fff,0 0 3px #0e6655">★</div>' }) });
+      html: '<div style="font-size:' + (size || 22) + 'px;line-height:1;color:' + color
+            + ';text-shadow:0 0 2px #fff,0 0 3px #0e6655">' + ch + '</div>' }) });
 
     const sDate = g.sample_date || 'date unknown';
     if (g.station) {
-      star(g.station, '#16a085').addTo(_wblayer)
+      glyph(g.station, '#16a085', '★').addTo(_wblayer)
         .bindTooltip('Lab sample · ' + sDate)
         .bindPopup('<b>Lab sample</b><br>' + (g.station.code || '') + '<br>' + (g.station.name || '')
           + '<br>Sampled: <b>' + sDate + '</b>');
       pts.push([g.station.lat, g.station.lon]);
+    }
+    if (g.probe) {
+      glyph(g.probe, '#c026d3', '◆', 20).addTo(_wblayer).bindTooltip('Searched location');
+      pts.push([g.probe.lat, g.probe.lon]);
     }
     if (g.linked) {
       dot(g.linked, '#2563eb', '#0e3a8a', 9).addTo(_wblayer)
@@ -190,27 +215,71 @@ function openSampleMap(sid) {
       pts.push([g.linked.lat, g.linked.lon]);
     }
     (g.candidates || []).forEach(c => {
+      const caseBtn = c.case_id
+        ? '<form method="post" action="/lab/sample/' + sid + '/link" style="margin-top:3px">'
+          + '<input type="hidden" name="case_id" value="' + c.case_id + '">'
+          + '<button class="secondary">Link → Case ' + c.case_id + '</button></form>' : '';
       dot(c, gapColor(c.day_gap)).addTo(_wblayer)
         .bindTooltip('R' + c.brid + ' · ' + (c.obs || 'date unknown'))
         .bindPopup(
           '<b>Nearby report</b><br><a href="/reports/' + c.brid + '">R' + c.brid + '</a> — ' + (c.name || '—')
+          + (c.case_id ? ' · Case ' + c.case_id : '')
           + '<br>Observed: <b>' + (c.obs || '—') + '</b>'
           + '<br>' + c.dist_m + ' m' + (c.day_gap != null ? ' · ' + c.day_gap + ' d from sample' : '') + '<br>'
           + '<form method="post" action="/lab/sample/' + sid + '/link" style="margin-top:4px">'
           + '<input type="hidden" name="bloom_report_id" value="' + c.brid + '">'
-          + '<button>Link this sample → R' + c.brid + '</button></form>');
+          + '<button>Link this sample → R' + c.brid + '</button></form>' + caseBtn);
       pts.push([c.lat, c.lon]);
     });
 
     if (pts.length === 1) _wbmap.setView(pts[0], 13);
     else if (pts.length > 1) _wbmap.fitBounds(pts, { padding: [30, 30], maxZoom: 14 });
-    document.getElementById('mapNote').innerHTML = g.station || g.linked
-      ? ((g.candidates || []).length + ' nearby report(s). ★ = lab sample; nearby reports by '
+    const anchored = g.station || g.linked || g.probe;
+    document.getElementById('mapNote').innerHTML = anchored
+      ? ((g.candidates || []).length + ' nearby report(s). '
+         + (g.probe ? '◆ = searched point; ' : '') + '★ = lab sample; nearby reports by '
          + 'date gap: <b style="color:#2563eb">≤14d</b>, '
          + '<b style="color:#d4a900">14–30d</b>, <b style="color:#d76a86">30–60d</b>, '
-         + '<b style="color:#9aa0a6">&gt;60d</b> — click a report to link.')
-      : 'This sample has no mapped location (station not geocoded and not linked).';
+         + '<b style="color:#9aa0a6">&gt;60d</b> — click a report to link, or “Save to sample” to geocode it.')
+      : 'This sample has no mapped location. Enter latitude/longitude (from the CoC) above and “Search nearby”.';
   }).catch(() => { document.getElementById('mapNote').textContent = 'Could not load the map.'; });
+}
+
+function _wbReadCoords() {
+  const lat = parseFloat(document.getElementById('wbLat').value);
+  const lon = parseFloat(document.getElementById('wbLon').value);
+  if (isNaN(lat) || isNaN(lon)) { _wbmsg('Enter a numeric latitude and longitude.'); return null; }
+  return { lat: lat, lon: lon };
+}
+function wbSearchCoords() {
+  const c = _wbReadCoords();
+  if (c) { _wbmsg('Showing reports near ' + c.lat + ', ' + c.lon + '.'); renderSampleMap(c); }
+}
+function wbSaveCoords() {
+  const c = _wbReadCoords();
+  if (!c) return;
+  _wbmsg('Saving…');
+  fetch('/lab/sample/' + _wbsid + '/geocode',
+        { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'lat=' + c.lat + '&lon=' + c.lon })
+    .then(r => r.json().then(j => ({ ok: r.ok, j })))
+    .then(({ ok, j }) => { if (!ok) { _wbmsg(j.error || 'Could not save.'); return; }
+      _wbmsg('Saved — the sample is now geocoded.'); renderSampleMap(); })
+    .catch(() => _wbmsg('Could not save the location.'));
+}
+function wbScanCoC() {
+  _wbmsg('Scanning chain-of-custody form…');
+  fetch('/lab/sample/' + _wbsid + '/ocr-coords')
+    .then(r => r.json())
+    .then(j => {
+      if (j.lat != null && j.lon != null) {
+        document.getElementById('wbLat').value = j.lat;
+        document.getElementById('wbLon').value = j.lon;
+        _wbmsg('Found ' + j.lat + ', ' + j.lon + ' on ' + (j.file || 'the CoC') + ' — review, then Search or Save.');
+        renderSampleMap({ lat: j.lat, lon: j.lon });
+      } else { _wbmsg(j.error || 'No coordinates found on the CoC.'); }
+    })
+    .catch(() => _wbmsg('Could not scan the CoC.'));
 }
 document.getElementById('mapModal').addEventListener('click', e => {
   if (e.target.id === 'mapModal') e.target.style.display = 'none';   // click backdrop to close

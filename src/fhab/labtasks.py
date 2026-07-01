@@ -190,16 +190,20 @@ def batch_reconcile_samples(conn, sample_ids, *, radius_m=8000, days=14) -> dict
     return {"linked": linked, "skipped": skipped}
 
 
-def sample_geo(conn, sample_id, *, radius_m=8000, limit=8) -> dict:
+def sample_geo(conn, sample_id, *, radius_m=8000, limit=8, at=None) -> dict:
     """Geospatial context for one sample: its station, its linked event, and nearby candidate
-    reports (events within `radius_m` of the station/linked point). For the workboard's map.
+    reports (events within `radius_m` of an anchor point). For the workboard's map.
+
+    `at=(lat, lon)` overrides the anchor with a typed/searched point (returned as `probe`), so
+    an ungeocoded sample can still find nearby reports/cases around coordinates read off the CoC.
     """
     s = conn.execute(
         """SELECT s.sample_date, s.bloom_report_id, st.station_code, st.station_name,
                   ST_Y(st.geom) AS st_lat, ST_X(st.geom) AS st_lon
            FROM sample s LEFT JOIN station st ON st.id = s.station_id WHERE s.id = %s""",
         (sample_id,)).fetchone()
-    out = {"label": None, "sample_date": None, "station": None, "linked": None, "candidates": []}
+    out = {"label": None, "sample_date": None, "station": None, "linked": None,
+           "candidates": [], "probe": None}
     if not s:
         return out
     out["label"] = f"{s['station_code'] or 'sample'} · {s['sample_date'] or '—'}"
@@ -207,6 +211,8 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8) -> dict:
     if s["st_lat"] is not None:
         out["station"] = {"lat": s["st_lat"], "lon": s["st_lon"],
                           "code": s["station_code"], "name": s["station_name"]}
+    if at is not None:
+        out["probe"] = {"lat": float(at[0]), "lon": float(at[1])}
 
     if s["bloom_report_id"]:
         ev = conn.execute(
@@ -220,11 +226,12 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8) -> dict:
             out["linked"] = {"lat": ev["lat"], "lon": ev["lon"], "brid": s["bloom_report_id"],
                              "name": ev["water_body_name"], "obs": ev["obs"]}
 
-    # Anchor for "nearby" = the station, else the linked event.
-    anchor = out["station"] or out["linked"]
+    # Anchor for "nearby" = the searched probe point, else the station, else the linked event.
+    anchor = out["probe"] or out["station"] or out["linked"]
     if anchor:
         rows = conn.execute(
-            """SELECT e.bloom_report_id, w.water_body_name, e.observation_date::text AS obs,
+            """SELECT e.bloom_report_id, e.case_id, w.water_body_name,
+                      e.observation_date::text AS obs,
                       ST_Y(l.geom) AS lat, ST_X(l.geom) AS lon,
                       round(ST_Distance(l.geom::geography,
                             ST_SetSRID(ST_MakePoint(%(lon)s,%(lat)s),4326)::geography)) AS dist_m,
@@ -239,10 +246,38 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8) -> dict:
             {"lon": anchor["lon"], "lat": anchor["lat"], "d": s["sample_date"], "r": radius_m,
              "linked": s["bloom_report_id"], "lim": limit}).fetchall()
         out["candidates"] = [
-            {"brid": r["bloom_report_id"], "name": r["water_body_name"], "obs": r["obs"],
-             "lat": r["lat"], "lon": r["lon"], "dist_m": r["dist_m"],
+            {"brid": r["bloom_report_id"], "case_id": r["case_id"], "name": r["water_body_name"],
+             "obs": r["obs"], "lat": r["lat"], "lon": r["lon"], "dist_m": r["dist_m"],
              "day_gap": r["day_gap"]} for r in rows]
     return out
+
+
+def set_sample_location(conn, sample_id, lat: float, lon: float) -> dict:
+    """Set the geographic location of a sample's station from typed/OCR'd coordinates.
+
+    Used for samples whose station is not in the CEDEN registry (coordinates live on the
+    chain-of-custody form). Updates the station geom so the sample becomes geocoded — it then
+    appears on the main map and is eligible for batch auto-reconcile. Creates a station for the
+    sample if it somehow has none. Returns {station_id, lat, lon}.
+    """
+    lat, lon = float(lat), float(lon)
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValueError("Latitude must be -90..90 and longitude -180..180.")
+    row = conn.execute("SELECT station_id FROM sample WHERE id=%s", (sample_id,)).fetchone()
+    if not row:
+        raise ValueError("Sample not found.")
+    station_id = row["station_id"]
+    if station_id is None:
+        station_id = conn.execute(
+            "INSERT INTO station (station_code) VALUES (%s) RETURNING id",
+            (f"SAMPLE-{sample_id}",)).fetchone()["id"]
+        conn.execute("UPDATE sample SET station_id=%s WHERE id=%s", (station_id, sample_id))
+    conn.execute(
+        """UPDATE station
+           SET geom = ST_SetSRID(ST_MakePoint(%s, %s), 4326), datum = COALESCE(datum, 'WGS84')
+           WHERE id = %s""", (lon, lat, station_id))
+    conn.commit()
+    return {"station_id": station_id, "lat": lat, "lon": lon}
 
 
 def create_report_from_sample(conn, user_id, sample_id, *, region=None) -> int:

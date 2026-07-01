@@ -206,6 +206,53 @@ def test_sample_geo_endpoint(client, conn):
     assert j["station"]["code"] == "GEOWEB" and "candidates" in j
 
 
+def test_set_location_geocodes_and_probe_finds_reports(conn):
+    from fhab.labtasks import sample_geo, set_sample_location
+    staff = _staff(conn)
+    near = enter_report(conn, staff, water_body_name="Probe Lake", region=R5,
+                        lat=38.5, lon=-121.401, observation_date="2026-06-15")
+    st = conn.execute("INSERT INTO station (station_code) VALUES ('NOGEO1') RETURNING id").fetchone()["id"]
+    sid = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s,'2026-06-15') "
+                       "RETURNING id", (st,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('ng1',%s,'Laboratory')", (sid,))
+    conn.commit()
+
+    g0 = sample_geo(conn, sid)
+    assert g0["station"] is None and g0["candidates"] == []          # nothing to anchor on
+    g1 = sample_geo(conn, sid, at=(38.5, -121.4))                    # probe around CoC coords
+    assert g1["probe"] == {"lat": 38.5, "lon": -121.4}
+    assert any(c["brid"] == near for c in g1["candidates"])
+
+    set_sample_location(conn, sid, 38.5, -121.4)                     # persist -> geocoded
+    g2 = sample_geo(conn, sid)
+    assert g2["station"] and abs(g2["station"]["lat"] - 38.5) < 1e-6
+
+
+def test_set_location_validates_range(conn):
+    from fhab.labtasks import set_sample_location
+    sid = _orphan_sample(conn, "RNG1")
+    with pytest.raises(ValueError):
+        set_sample_location(conn, sid, 999, -121.4)
+
+
+def test_geocode_and_ocr_routes_web(client, conn):
+    staff = create_user(conn, "geo@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    near = enter_report(conn, staff, water_body_name="WebProbe Lake", region=R5,
+                        lat=38.5, lon=-121.401, observation_date="2026-06-15")
+    st = conn.execute("INSERT INTO station (station_code) VALUES ('WEBNOGEO') RETURNING id").fetchone()["id"]
+    sid = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s,'2026-06-15') RETURNING id",
+                       (st,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('wg1',%s,'Laboratory')", (sid,)); conn.commit()
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+
+    j = client.get(f"/lab/sample/{sid}/geo.json?lat=38.5&lon=-121.4").get_json()
+    assert j["probe"]["lat"] == 38.5 and any(c["brid"] == near for c in j["candidates"])
+    r = client.post(f"/lab/sample/{sid}/geocode", data={"lat": "38.5", "lon": "-121.4"})
+    assert r.status_code == 200 and r.get_json()["station"]["lat"]
+    assert conn.execute("SELECT geom IS NOT NULL AS g FROM station WHERE id=%s", (st,)).fetchone()["g"]
+    assert client.get(f"/lab/sample/{sid}/ocr-coords").status_code == 404   # no CoC -> graceful
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")

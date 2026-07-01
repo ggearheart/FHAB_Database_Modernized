@@ -32,7 +32,9 @@ from ..export import DATASETS, fetch_flatfile
 from ..labquery import count_results, filter_options, query_results
 from ..labtasks import (assign_samples, batch_reconcile_samples, count_workboard,
                         create_report_from_sample, link_sample, qa_review, sample_geo,
-                        status_tallies, team_members, unlink_sample, workboard)
+                        set_sample_location, status_tallies, team_members, unlink_sample,
+                        workboard)
+from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
                         update_analyte)
@@ -1068,10 +1070,59 @@ def create_app(dsn: str | None = None) -> Flask:
             conn.rollback(); flash("Could not create report: " + str(exc).splitlines()[0], "error")
         return redirect(request.referrer or url_for("lab_workboard"))
 
+    def _coords_arg(src):
+        """Parse lat/lon from a request source; returns (lat, lon) floats or None."""
+        try:
+            lat, lon = src.get("lat"), src.get("lon")
+            if lat in (None, "") or lon in (None, ""):
+                return None
+            return float(lat), float(lon)
+        except (TypeError, ValueError):
+            return None
+
     @app.route("/lab/sample/<int:sid>/geo.json")
     @staff_required
     def lab_sample_geo(sid):
-        return jsonify(sample_geo(db(), sid))
+        return jsonify(sample_geo(db(), sid, at=_coords_arg(request.args)))
+
+    @app.route("/lab/sample/<int:sid>/geocode", methods=["POST"])
+    @staff_required
+    def lab_sample_geocode(sid):
+        conn = db()
+        at = _coords_arg(request.form)
+        if not at:
+            return jsonify({"error": "Enter a valid latitude and longitude."}), 400
+        try:
+            set_sample_location(conn, sid, at[0], at[1])
+        except ValueError as exc:
+            conn.rollback()
+            return jsonify({"error": str(exc)}), 400
+        return jsonify(sample_geo(conn, sid))
+
+    @app.route("/lab/sample/<int:sid>/ocr-coords")
+    @staff_required
+    def lab_sample_ocr_coords(sid):
+        conn = db()
+        coc = conn.execute(
+            """SELECT f.filename, f.data FROM lab_batch_file f
+               JOIN sample s ON s.lab_batch_id = f.batch_id
+               WHERE s.id = %s AND f.category = 'coc' ORDER BY f.id LIMIT 1""", (sid,)).fetchone()
+        if not coc:
+            return jsonify({"error": "No chain-of-custody file stored for this sample's batch."}), 404
+        tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
+        try:
+            tmp.write(bytes(coc["data"])); tmp.close()
+            found = ocr_pdf_coords(tmp.name)
+        except OcrUnavailable as exc:
+            return jsonify({"error": "OCR not available in this environment. "
+                                     "Read the coordinates off the CoC and type them in. "
+                                     f"({str(exc).splitlines()[0]})", "file": coc["filename"]}), 503
+        finally:
+            os.unlink(tmp.name)
+        if not found:
+            return jsonify({"error": "No coordinates recognized on the CoC. Enter them manually.",
+                            "file": coc["filename"]}), 200
+        return jsonify({**found, "file": coc["filename"]})
 
     @app.route("/lab/sample/<int:sid>/qa", methods=["POST"])
     @staff_required
