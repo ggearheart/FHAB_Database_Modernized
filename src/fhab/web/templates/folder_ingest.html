@@ -32,7 +32,7 @@
       <td>{{ b.uploaded_at.strftime('%Y-%m-%d %H:%M') if b.uploaded_at else '—' }}</td>
       <td>
         {% for f in b.files %}
-          <a href="{{ url_for('batch_file_download', bid=b.id, fid=f.id) }}" title="{{ f.filename }}">{{ f.category }}</a>{% if not loop.last %} · {% endif %}
+          <a href="{{ url_for('batch_file_download', bid=b.id, fid=f.id) }}" title="{{ f.filename }}" target="_blank" rel="noopener">{{ f.category }}</a>{% if not loop.last %} · {% endif %}
         {% else %}<span class="muted">—</span>{% endfor %}
       </td>
     </tr>

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Lab workboard{% endblock %}
-{% set PILL = {'unlinked':'#fff6e0','linked':'#e7efe9','approved':'#e3f4ea','flagged':'#fbe6e6'} %}
+{% set PILL = {'unlinked':'#fff6e0','linked':'#e7efe9','approved':'#e3f4ea','flagged':'#fbe6e6','routine':'#e6eefb'} %}
 {% block body %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <h1>Lab data workboard</h1>
@@ -16,7 +16,7 @@
   {% if batch_files %}
   <div style="margin-top:.4rem">Source files:
     {% for f in batch_files %}
-      <a href="{{ url_for('batch_file_download', bid=batch.id, fid=f.id) }}" title="{{ f.filename }}">{{ f.category }}</a>{% if not loop.last %} · {% endif %}
+      <a href="{{ url_for('batch_file_download', bid=batch.id, fid=f.id) }}" title="{{ f.filename }}" target="_blank" rel="noopener">{{ f.category }}</a>{% if not loop.last %} · {% endif %}
     {% endfor %}
   </div>{% endif %}
   <div style="margin-top:.3rem"><a href="{{ url_for('lab_workboard') }}">← all samples</a></div>
@@ -24,7 +24,7 @@
 {% endif %}
 
 <div class="card">
-  {% for key, label in [('unlinked','Unlinked'),('linked','Linked · awaiting QA'),('flagged','Flagged for rework'),('approved','QA approved')] %}
+  {% for key, label in [('unlinked','Unlinked'),('linked','Linked · awaiting QA'),('flagged','Flagged for rework'),('approved','QA approved'),('routine','Routine sampling')] %}
   <a class="pill" style="background:{{ PILL[key] }}; padding:.25rem .7rem; margin-right:.4rem; text-decoration:none"
      href="{{ url_for('lab_workboard', status=key) }}"><strong>{{ tallies.get(key, 0) }}</strong> {{ label }}</a>
   {% endfor %}
@@ -35,7 +35,7 @@
   <form method="get" style="display:flex; flex-wrap:wrap; gap:.7rem; align-items:flex-end">
     <div><label>Status</label>
       <select name="status" onchange="this.form.submit()"><option value="">Any</option>
-        {% for s in ['unlinked','linked','flagged','approved'] %}<option value="{{ s }}" {% if f.status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+        {% for s in ['unlinked','linked','flagged','approved','routine'] %}<option value="{{ s }}" {% if f.status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
       </select></div>
     <div><label>Assignee</label>
       <select name="assignee" onchange="this.form.submit()"><option value="">Anyone</option>
@@ -99,6 +99,18 @@
         <form method="post" action="{{ url_for('lab_sample_create_report', sid=r.id) }}" style="display:inline">
           <button class="secondary" style="padding:.2rem .5rem" title="Create a report from this station">+Report</button>
         </form>
+        <form method="post" action="{{ url_for('lab_sample_routine', sid=r.id) }}" style="display:inline">
+          <button class="secondary" style="padding:.2rem .5rem" title="Tag as routine monitoring (not a bloom report/case)">Routine</button>
+        </form>
+        {% elif r.status == 'routine' %}
+        <span class="muted" style="margin-right:.3rem">routine monitoring</span>
+        <form method="post" action="{{ url_for('lab_sample_create_report', sid=r.id) }}" style="display:inline">
+          <button class="secondary" style="padding:.2rem .5rem" title="Create a report from this station">+Report</button>
+        </form>
+        <form method="post" action="{{ url_for('lab_sample_routine', sid=r.id) }}" style="display:inline">
+          <input type="hidden" name="undo" value="1">
+          <button class="secondary" style="padding:.2rem .5rem; background:#9aa6a1" title="Return to the unlinked queue">↩ Unlinked</button>
+        </form>
         {% else %}
         <form method="post" action="{{ url_for('lab_sample_qa', sid=r.id) }}" style="display:inline">
           <input type="hidden" name="action" value="approve">
@@ -144,6 +156,14 @@
       <button type="button" onclick="wbSaveCoords()">Save to sample</button>
       <button type="button" class="secondary" onclick="wbScanCoC()">Scan CoC (OCR)</button>
       <span id="wbCoordMsg" class="muted" style="flex-basis:100%"></span>
+    </div>
+    <div style="margin-bottom:.5rem; font-size:.9rem; color:var(--muted)">
+      Not tied to a report/case?
+      <button type="button" class="secondary" onclick="wbCreateReport()"
+              title="Create a new report at this location and link the sample">Create report from sample</button>
+      <button type="button" class="secondary" onclick="wbRoutine()"
+              title="Tag as routine monitoring (subtypes later)">Tag routine sampling</button>
+      <span class="muted">— any coordinates above are saved to the sample first.</span>
     </div>
     <div id="wbmap" style="height:360px; border:1px solid var(--line); border-radius:6px"></div>
     <p class="muted" id="mapNote" style="margin:.5rem 0 0"></p>
@@ -210,7 +230,7 @@ function renderSampleMap(probe) {
     if (g.linked) {
       dot(g.linked, '#2563eb', '#0e3a8a', 9).addTo(_wblayer)
         .bindTooltip('R' + g.linked.brid + ' · ' + (g.linked.obs || 'date unknown'))
-        .bindPopup('<b>Linked report</b><br><a href="/reports/' + g.linked.brid + '">R' + g.linked.brid + '</a> — ' + (g.linked.name || '')
+        .bindPopup('<b>Linked report</b><br><a href="/reports/' + g.linked.brid + '" target="_blank" rel="noopener">R' + g.linked.brid + '</a> — ' + (g.linked.name || '')
           + '<br>Observed: <b>' + (g.linked.obs || '—') + '</b>');
       pts.push([g.linked.lat, g.linked.lon]);
     }
@@ -222,7 +242,7 @@ function renderSampleMap(probe) {
       dot(c, gapColor(c.day_gap)).addTo(_wblayer)
         .bindTooltip('R' + c.brid + ' · ' + (c.obs || 'date unknown'))
         .bindPopup(
-          '<b>Nearby report</b><br><a href="/reports/' + c.brid + '">R' + c.brid + '</a> — ' + (c.name || '—')
+          '<b>Nearby report</b><br><a href="/reports/' + c.brid + '" target="_blank" rel="noopener">R' + c.brid + '</a> — ' + (c.name || '—')
           + (c.case_id ? ' · Case ' + c.case_id : '')
           + '<br>Observed: <b>' + (c.obs || '—') + '</b>'
           + '<br>' + c.dist_m + ' m' + (c.day_gap != null ? ' · ' + c.day_gap + ' d from sample' : '') + '<br>'
@@ -267,6 +287,21 @@ function wbSaveCoords() {
       _wbmsg('Saved — the sample is now geocoded.'); renderSampleMap(); })
     .catch(() => _wbmsg('Could not save the location.'));
 }
+function _wbPost(action) {
+  // POST a small form so it navigates (and flashes) like the candidate Link buttons;
+  // carry any typed lat/long so an ungeocoded sample is geocoded first.
+  const f = document.createElement('form');
+  f.method = 'post'; f.action = action;
+  const lat = document.getElementById('wbLat').value, lon = document.getElementById('wbLon').value;
+  if (lat && lon && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lon))) {
+    [['lat', lat], ['lon', lon]].forEach(([k, v]) => {
+      const i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = v; f.appendChild(i);
+    });
+  }
+  document.body.appendChild(f); f.submit();
+}
+function wbCreateReport() { _wbPost('/lab/sample/' + _wbsid + '/create-report'); }
+function wbRoutine() { _wbPost('/lab/sample/' + _wbsid + '/routine'); }
 function wbScanCoC() {
   _wbmsg('Scanning chain-of-custody form…');
   fetch('/lab/sample/' + _wbsid + '/ocr-coords')

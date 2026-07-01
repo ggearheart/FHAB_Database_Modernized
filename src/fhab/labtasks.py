@@ -24,6 +24,7 @@ _STATUS = """CASE
         WHEN s.qa_status = 'flagged' THEN 'flagged'
         WHEN s.qa_status = 'approved' THEN 'approved'
         WHEN s.bloom_report_id IS NOT NULL OR s.case_id IS NOT NULL THEN 'linked'
+        WHEN s.sampling_type = 'routine' THEN 'routine'
         ELSE 'unlinked' END"""
 
 _FROM = """
@@ -40,7 +41,7 @@ _FROM = """
 def _where(f: dict, me: int | None):
     cond, p = [], {}
     st = f.get("status")
-    if st in ("unlinked", "linked", "approved", "flagged"):
+    if st in ("unlinked", "linked", "approved", "flagged", "routine"):
         cond.append(f"({_STATUS}) = %(status)s"); p["status"] = st
     assignee = f.get("assignee")
     if assignee == "unassigned":
@@ -132,6 +133,29 @@ def qa_review(conn, user_id, sample_id, *, approve: bool, note=None) -> None:
             """UPDATE sample SET qa_status = %s, qa_by = %s, qa_at = now(), qa_note = %s
                WHERE id = %s""",
             ("approved" if approve else "flagged", user_id, note, sample_id))
+        conn.commit()
+
+
+def tag_routine(conn, user_id, sample_id, *, subtype=None) -> None:
+    """Tag a sample as routine monitoring (not tied to a bloom report/case).
+
+    Clears any report/case link so it resolves cleanly out of the unlinked queue. `subtype`
+    is reserved for the routine-sampling subtypes to be defined later.
+    """
+    with acting_as(conn, user_id):
+        conn.execute(
+            """UPDATE sample SET sampling_type = 'routine', routine_subtype = %s,
+                   bloom_report_id = NULL, case_id = NULL WHERE id = %s""",
+            (subtype, sample_id))
+        conn.commit()
+
+
+def clear_routine(conn, user_id, sample_id) -> None:
+    """Untag a routine sample (back to unlinked)."""
+    with acting_as(conn, user_id):
+        conn.execute(
+            "UPDATE sample SET sampling_type = NULL, routine_subtype = NULL WHERE id = %s",
+            (sample_id,))
         conn.commit()
 
 
