@@ -289,6 +289,38 @@ def test_routine_and_create_report_with_coords_web(client, conn):
     assert conn.execute("SELECT geom IS NOT NULL AS g FROM station WHERE id=%s", (st,)).fetchone()["g"]
 
 
+def test_bulk_geocode_parses_and_matches(conn):
+    from fhab.labtasks import bulk_geocode, parse_coord_rows
+    staff = _staff(conn)
+    # names with commas/spaces still parse (last two numbers are lat/lon)
+    rows = parse_coord_rows("El Dorado E. RP, North Pond, 33.79, -118.09\nbad line")
+    assert rows[0]["key"] == "El Dorado E. RP, North Pond" and rows[0]["lat"] == 33.79
+    assert rows[1]["status"] == "unparsed"
+
+    st = conn.execute("INSERT INTO station (station_code) VALUES ('BULK1') RETURNING id").fetchone()["id"]
+    sid = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s, current_date) RETURNING id",
+                       (st,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('b1',%s,'Laboratory')", (sid,)); conn.commit()
+    res = bulk_geocode(conn, staff, "BULK1, 38.5, -121.4\nNOPE, 39.0, -122.0\nBULK1, 999, 0")
+    assert res["applied"] == 1 and res["samples"] == 1
+    assert conn.execute("SELECT geom IS NOT NULL AS g FROM station WHERE id=%s", (st,)).fetchone()["g"]
+    assert any("no matching" in r["status"] for r in res["rows"])
+    assert any("out of range" in r["status"] for r in res["rows"])
+
+
+def test_bulk_coordinates_web(client, conn):
+    from fhab.auth import create_user, grant_role
+    create_user(conn, "bc@wb.ca.gov")
+    st = conn.execute("INSERT INTO station (station_code) VALUES ('WEBBULK') RETURNING id").fetchone()["id"]
+    sid = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s, current_date) RETURNING id",
+                       (st,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('wb2',%s,'Laboratory')", (sid,)); conn.commit()
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+    r = client.post("/lab/coordinates", data={"rows": "WEBBULK, 38.5, -121.4"}, follow_redirects=True)
+    assert r.status_code == 200
+    assert conn.execute("SELECT geom IS NOT NULL AS g FROM station WHERE id=%s", (st,)).fetchone()["g"]
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")
