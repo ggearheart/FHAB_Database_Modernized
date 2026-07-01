@@ -89,6 +89,30 @@ CREATE INDEX IF NOT EXISTS location_geom_gix ON location USING gist (geom);
 -- Trigram index for fuzzy waterbody-name matching (type-ahead + near-duplicate guard).
 CREATE INDEX IF NOT EXISTS waterbody_name_trgm ON waterbody USING gin (water_body_name gin_trgm_ops);
 
+-- Folder ingest (email attachments from Bend / partner labs): batch provenance + source files.
+ALTER TABLE lab_batch ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'staged';
+ALTER TABLE lab_batch ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE lab_batch ADD COLUMN IF NOT EXISTS region text;
+ALTER TABLE lab_batch ADD COLUMN IF NOT EXISTS n_samples integer DEFAULT 0;
+ALTER TABLE lab_batch ADD COLUMN IF NOT EXISTS n_geocoded integer DEFAULT 0;
+ALTER TABLE sample ADD COLUMN IF NOT EXISTS lab_batch_id bigint;
+DO $$ BEGIN
+    ALTER TABLE sample ADD CONSTRAINT sample_lab_batch_fk
+        FOREIGN KEY (lab_batch_id) REFERENCES lab_batch(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS sample_lab_batch_idx ON sample (lab_batch_id);
+CREATE TABLE IF NOT EXISTS lab_batch_file (
+    id           bigserial PRIMARY KEY,
+    batch_id     bigint NOT NULL REFERENCES lab_batch(id) ON DELETE CASCADE,
+    category     text,
+    filename     text NOT NULL,
+    content_type text,
+    byte_size    integer,
+    data         bytea NOT NULL,
+    uploaded_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS lab_batch_file_batch_idx ON lab_batch_file(batch_id);
+
 -- Public submission: full-form illness + community/partner attribution (table predates these).
 ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS no_illness_observed boolean;
 ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS illness_description text;

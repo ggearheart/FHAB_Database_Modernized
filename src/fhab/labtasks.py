@@ -51,6 +51,8 @@ def _where(f: dict, me: int | None):
         cond.append("s.assigned_to = %(assignee)s"); p["assignee"] = int(assignee)
     if f.get("region"):
         cond.append("w.regional_water_board = %(region)s"); p["region"] = f["region"]
+    if str(f.get("batch") or "").isdigit():
+        cond.append("s.lab_batch_id = %(batch)s"); p["batch"] = int(f["batch"])
     if f.get("q"):
         cond.append("(st.station_code ILIKE %(q)s OR w.water_body_name ILIKE %(q)s)")
         p["q"] = "%" + f["q"] + "%"

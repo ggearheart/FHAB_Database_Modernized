@@ -345,7 +345,8 @@ CREATE TABLE IF NOT EXISTS sample (
     qa_status       text,        -- NULL = not reviewed | 'approved' | 'flagged'
     qa_by           bigint,
     qa_at           timestamptz,
-    qa_note         text
+    qa_note         text,
+    lab_batch_id    bigint       -- ingest batch this sample came from (FK added in migrations)
 );
 
 -- CRM-6: one analyte result per sample. Value may be numeric or categorical.
@@ -430,8 +431,27 @@ CREATE TABLE IF NOT EXISTS lab_batch (
     match_days     integer NOT NULL DEFAULT 14,     -- temporal window (+/- days)
     n_groups       integer DEFAULT 0,
     n_results      integer DEFAULT 0,
-    status         text NOT NULL DEFAULT 'open'      -- open | done
+    status         text NOT NULL DEFAULT 'open',     -- open | done
+    -- Provenance for folder ingests (email attachments from Bend / partner labs).
+    kind           text NOT NULL DEFAULT 'staged',   -- staged (reconcile flow) | ingested (folder)
+    source         text,       -- folder / email label, e.g. "Clear Lake (RB5)"
+    region         text,       -- regional water board parsed from the folder (RB1..RB9)
+    n_samples      integer DEFAULT 0,
+    n_geocoded     integer DEFAULT 0
 );
+-- Original source files kept with a batch (results CSV + chain-of-custody / transmittal /
+-- receipt PDFs) so reviewers have full provenance on the batch workboard.
+CREATE TABLE IF NOT EXISTS lab_batch_file (
+    id           bigserial PRIMARY KEY,
+    batch_id     bigint NOT NULL REFERENCES lab_batch(id) ON DELETE CASCADE,
+    category     text,        -- data | coc | transmittal | receipt | other
+    filename     text NOT NULL,
+    content_type text,
+    byte_size    integer,
+    data         bytea NOT NULL,
+    uploaded_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS lab_batch_file_batch_idx ON lab_batch_file(batch_id);
 CREATE TABLE IF NOT EXISTS lab_stage_sample (
     id             bigserial PRIMARY KEY,
     batch_id       bigint NOT NULL REFERENCES lab_batch(id) ON DELETE CASCADE,
