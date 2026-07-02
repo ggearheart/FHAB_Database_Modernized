@@ -134,6 +134,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./lab-ingest.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">★ Ingesting lab data</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./community.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Community tester</span></a>
   </div>
@@ -233,6 +239,38 @@ ul.task-list li input[type="checkbox"] {
 <tr class="odd">
 <td><strong>CEDEN</strong></td>
 <td>The state environmental data exchange (lab results format).</td>
+</tr>
+<tr class="even">
+<td><strong>Batch</strong></td>
+<td>One ingest of lab data (an email folder, a CEDEN file, or a template) that samples are grouped under.</td>
+</tr>
+<tr class="odd">
+<td><strong>CoC (chain of custody)</strong></td>
+<td>The form tracking a sample from field to lab; often where a sample’s coordinates are recorded.</td>
+</tr>
+<tr class="even">
+<td><strong>Sample / result</strong></td>
+<td>A sample is one collected specimen; a result is one analyte value measured on it.</td>
+</tr>
+<tr class="odd">
+<td><strong>Station</strong></td>
+<td>A sampling location (often a CEDEN station code); geocoded to a point.</td>
+</tr>
+<tr class="even">
+<td><strong>Geocode</strong></td>
+<td>Give a sample a map location (from the station registry or coordinates off the CoC).</td>
+</tr>
+<tr class="odd">
+<td><strong>Reconcile / link</strong></td>
+<td>Connect a lab sample to the event/report/case it belongs to.</td>
+</tr>
+<tr class="even">
+<td><strong>Routine sampling</strong></td>
+<td>Monitoring not tied to a bloom report/case; tagged so it leaves the unfinished queue.</td>
+</tr>
+<tr class="odd">
+<td><strong>Non-detect (ND)</strong></td>
+<td>Analyte tested for but not detected above the method limit.</td>
 </tr>
 <tr class="even">
 <td><strong>HUC-12 / GeoConnex</strong></td>

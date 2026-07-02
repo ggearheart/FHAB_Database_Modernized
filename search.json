@@ -4,9 +4,169 @@
     "href": "glossary.html",
     "title": "Glossary",
     "section": "",
-    "text": "Term\nMeaning\n\n\n\n\nReport\nOne observed/suspected bloom event.\n\n\nEvent\nThe first-class record a report becomes; some events become cases.\n\n\nCase\nA grouping of related reports for a waterbody (one region, one year).\n\n\nResponse / Advisory\nA staff action; an advisory is the public-facing caution/warning/danger.\n\n\nDetermination / outcome\nWhat a report turned out to be.\n\n\nSubmission\nA public/community report awaiting staff review (not yet a tracked report).\n\n\nPromote\nTurn a pending submission into a tracked report.\n\n\nProvisional data\nLive data from this system, not the official data.ca.gov release.\n\n\nCEDEN\nThe state environmental data exchange (lab results format).\n\n\nHUC-12 / GeoConnex\nWatershed coding / persistent identifiers for locations.",
+    "text": "Term\nMeaning\n\n\n\n\nReport\nOne observed/suspected bloom event.\n\n\nEvent\nThe first-class record a report becomes; some events become cases.\n\n\nCase\nA grouping of related reports for a waterbody (one region, one year).\n\n\nResponse / Advisory\nA staff action; an advisory is the public-facing caution/warning/danger.\n\n\nDetermination / outcome\nWhat a report turned out to be.\n\n\nSubmission\nA public/community report awaiting staff review (not yet a tracked report).\n\n\nPromote\nTurn a pending submission into a tracked report.\n\n\nProvisional data\nLive data from this system, not the official data.ca.gov release.\n\n\nCEDEN\nThe state environmental data exchange (lab results format).\n\n\nBatch\nOne ingest of lab data (an email folder, a CEDEN file, or a template) that samples are grouped under.\n\n\nCoC (chain of custody)\nThe form tracking a sample from field to lab; often where a sample’s coordinates are recorded.\n\n\nSample / result\nA sample is one collected specimen; a result is one analyte value measured on it.\n\n\nStation\nA sampling location (often a CEDEN station code); geocoded to a point.\n\n\nGeocode\nGive a sample a map location (from the station registry or coordinates off the CoC).\n\n\nReconcile / link\nConnect a lab sample to the event/report/case it belongs to.\n\n\nRoutine sampling\nMonitoring not tied to a bloom report/case; tagged so it leaves the unfinished queue.\n\n\nNon-detect (ND)\nAnalyte tested for but not detected above the method limit.\n\n\nHUC-12 / GeoConnex\nWatershed coding / persistent identifiers for locations.",
     "crumbs": [
       "Glossary"
+    ]
+  },
+  {
+    "objectID": "lab-ingest.html",
+    "href": "lab-ingest.html",
+    "title": "Ingesting lab data",
+    "section": "",
+    "text": "The central goal of this pilot is getting cyanotoxin lab chemistry into FHAB and connected to the right event / report / case. Lab results arrive in several shapes — an email folder from Bend Genetics, a CEDEN export, a one-off spreadsheet for a single site — so there are a few ways in. This page walks each one, then the reconciliation step that links the data to events.",
+    "crumbs": [
+      "★ Ingesting lab data"
+    ]
+  },
+  {
+    "objectID": "lab-ingest.html#pick-the-path-that-matches-how-the-data-arrived",
+    "href": "lab-ingest.html#pick-the-path-that-matches-how-the-data-arrived",
+    "title": "Ingesting lab data",
+    "section": "Pick the path that matches how the data arrived",
+    "text": "Pick the path that matches how the data arrived\n\n\n\n\n\n\n\n\nThe lab data arrived as…\nUse\nMenu\n\n\n\n\nA folder of email attachments from Bend/partner (a results spreadsheet + chain-of-custody / transmittal / receipt PDFs)\nIngest lab email folders\nIngest Data → Ingest lab email folders\n\n\nA CEDEN WaterChemistry CSV (the Bend→CEDEN workflow output)\nUpload CEDEN lab data\nIngest Data → Upload CEDEN lab data\n\n\nA full CEDEN chemistry template where StationCode + date is the only link to an event\nLab batch reconciliation\nIngest Data → Lab batch reconciliation\n\n\nResults for one already-known report or case\nAttach on the report/case\nReports / Cases → Lab upload\n\n\n\nAll paths land the samples where you can reconcile them (link to events) on the Lab data workboard. Start with the workflow that matches your file; the rest of the page is the same downstream.",
+    "crumbs": [
+      "★ Ingesting lab data"
+    ]
+  },
+  {
+    "objectID": "lab-ingest.html#a.-email-folder-upload-bend-partner-the-newest-path",
+    "href": "lab-ingest.html#a.-email-folder-upload-bend-partner-the-newest-path",
+    "title": "Ingesting lab data",
+    "section": "A. Email folder upload (Bend / partner) — the newest path",
+    "text": "A. Email folder upload (Bend / partner) — the newest path\nLabs typically email a folder: a wide-format results spreadsheet (analytes across columns) plus a scanned chain-of-custody (CoC), a transmittal letter, and a sample-receipt form. This path converts that spreadsheet, brings the samples in, and keeps the original files on the batch for provenance.\nSteps\n\nIngest Data → Ingest lab email folders.\nUnder Folder files, select all the files from the one email folder (the results CSV/XLSX and the PDFs). Add a Source label like Clear Lake (RB5) (optional but helpful).\nIngest folder. You’ll get a summary — “Ingested N samples (M geocoded), K results; stored J files” — and land on the workboard filtered to that batch.\n\nWhat happens\n\nThe wide spreadsheet is converted to CEDEN long form: each analyte value becomes a result (ELISA toxins, dry-weight toxins, qPCR genes, chlorophyll). ND becomes a proper non-detect.\nSamples come in unlinked and are geocoded from the CEDEN station registry when the station code is known. Samples whose station isn’t in the registry come in ungeocoded — their coordinates usually live on the CoC (see Geocoding).\nThe source files stay on the batch: on the workboard batch banner (and the Ingested batches table) you’ll see coc · data · receipt · transmittal links — they open in a new tab so your workspace stays put.\n\nWhat to test\n\nUpload a folder; do the sample/result/geocoded counts look right?\nOpen the stored CoC link — does it open in a new tab and show the scanned form?\nA folder with no results spreadsheet (only PDFs) should still store the files.\nDo the samples appear on the workboard, filtered to the new batch?",
+    "crumbs": [
+      "★ Ingesting lab data"
+    ]
+  },
+  {
+    "objectID": "lab-ingest.html#b.-upload-ceden-lab-data-workflow-output",
+    "href": "lab-ingest.html#b.-upload-ceden-lab-data-workflow-output",
+    "title": "Ingesting lab data",
+    "section": "B. Upload CEDEN lab data (workflow output)",
+    "text": "B. Upload CEDEN lab data (workflow output)\nFor a CEDEN WaterChemistry CSV (the output of the Bend→CEDEN workflow), use Ingest Data → Upload CEDEN lab data. You can upload a file or pull from a URL. This loads samples + results, geocodes stations from the registry, and auto-links samples to nearby events where it’s confident.\nWhat to test: upload a CEDEN chemistry CSV; confirm samples/results load and that obvious station+date matches auto-link (the rest wait on the workboard).",
+    "crumbs": [
+      "★ Ingesting lab data"
+    ]
+  },
+  {
+    "objectID": "lab-ingest.html#c.-lab-batch-reconciliation-ceden-template-staged",
+    "href": "lab-ingest.html#c.-lab-batch-reconciliation-ceden-template-staged",
+    "title": "Ingesting lab data",
+    "section": "C. Lab batch reconciliation (CEDEN template, staged)",
+    "text": "C. Lab batch reconciliation (CEDEN template, staged)\nFor a full CEDEN chemistry template where you want to review every link before it’s written, use Ingest Data → Lab batch reconciliation.\n\nUpload the template CSV. Optionally widen the match radius (m) and ± days window.\nThe batch is staged — nothing touches live reports yet.\nFor each station + date group, the matcher suggests candidate reports within the windows. Promote a confident match, link manually, or create a report from the station.\nUse Auto-link to accept all high-confidence, unambiguous matches at once, then review the rest.\n\nWhat to test: stage a template; confirm nothing is linked until you act; try Auto-link, then link one group manually and create a report from another.",
+    "crumbs": [
+      "★ Ingesting lab data"
+    ]
+  },
+  {
+    "objectID": "lab-ingest.html#d.-attach-results-to-one-report-or-case",
+    "href": "lab-ingest.html#d.-attach-results-to-one-report-or-case",
+    "title": "Ingesting lab data",
+    "section": "D. Attach results to one report or case",
+    "text": "D. Attach results to one report or case\nWhen results belong to a single known site, skip matching entirely: open the report (or case) and use its Lab upload to attach a CEDEN CSV directly. Every sample pins to that report/case.",
+    "crumbs": [
+      "★ Ingesting lab data"
+    ]
+  },
+  {
+    "objectID": "lab-ingest.html#after-ingest-reconcile-on-the-lab-data-workboard",
+    "href": "lab-ingest.html#after-ingest-reconcile-on-the-lab-data-workboard",
+    "title": "Ingesting lab data",
+    "section": "After ingest: reconcile on the Lab data workboard",
+    "text": "After ingest: reconcile on the Lab data workboard\nIngest Data → Lab data workboard is where lab samples get connected to events/reports/cases and quality-reviewed. It’s built as a task board: the lead assigns work, team members link, a reviewer QA-approves or flags.\n\nStatus chips: Unlinked, Linked · awaiting QA, Flagged for rework, QA approved, and Routine sampling — click one to filter.\nFilters: status, assignee (incl. Me / Unassigned), region, and a station / water-body search. A batch link filters the board to just that ingest.\nAssign: check rows, pick a team member under “With checked rows →”, Assign.\nPer sample: Link / Re-link by report (R#) or case (C#); +Report (create one from the station); ✓ QA approve; ⚑ flag with a reason; Unlink; Routine (see below). Re-linking clears QA so the sample returns to the review queue.\nBatch reconcile: Reconcile checked or Reconcile all unlinked in this view auto-links the confident, unambiguous matches in one pass.\n\n\nThe sample map (🗺)\nClick a sample’s 🗺 to open its context map: the sample as a ★, and nearby reports colored by how close in time they are to the sample (blue ≤14 d, yellow 14–30 d, pink 30–60 d, gray &gt;60 d). Click a nearby marker to link to that report or its case, or open the report (new tab).\n\n\nGeocoding ungeocoded samples\nSamples whose station isn’t in the registry come in without a location — their coordinates are usually on the CoC. On the sample map you can:\n\nOpen the batch’s CoC (new tab) and read the latitude/longitude.\nType them into the lat / long boxes → Search nearby to preview reports/cases around that point (shown as a ◆).\nSave to sample to store the coordinates — the sample is now geocoded, appears on the main map, and becomes eligible for batch reconcile.\nScan CoC (OCR) will try to read the coordinates off the CoC automatically. In the current hosted pilot this is a best-effort helper and may report that OCR isn’t available — if so, just read the CoC and type the numbers.\n\n\n\n\n\n\n\nTipMany at once — Bulk sample coordinates\n\n\n\nTo geocode a whole batch quickly, use Ingest Data → Bulk sample coordinates: paste one row per line as station code, latitude, longitude (station codes with spaces/commas are fine — the last two numbers are taken as lat/long). Matching a station geocodes every sample at it.\n\n\n\n\nRoutine sampling (not every sample is a bloom report)\nSome samples are routine monitoring, not tied to any bloom report or case. On an unlinked sample, use Routine (row button or the map popup’s Tag routine sampling) to move it into the Routine sampling bucket so it stops showing as unfinished work. ↩︎ Unlinked puts it back. (Routine sub-types will come later.)",
+    "crumbs": [
+      "★ Ingesting lab data"
+    ]
+  },
+  {
+    "objectID": "lab-ingest.html#suggested-lab-ingest-test-script-15-min",
+    "href": "lab-ingest.html#suggested-lab-ingest-test-script-15-min",
+    "title": "Ingesting lab data",
+    "section": "Suggested lab-ingest test script (~15 min)",
+    "text": "Suggested lab-ingest test script (~15 min)\n\nIngest an email folder (Ingest Data → Ingest lab email folders) — pick all files from one lab folder, add a source label, ingest. Check the counts and open the stored CoC (new tab).\nOn the workboard (it opens filtered to your batch), find an unlinked, geocoded sample, open its 🗺, and link it to a nearby report — or +Report to create one.\nFind an ungeocoded sample; read its coordinates off the CoC, type them in, Search nearby, then Save to sample.\nTry Bulk sample coordinates: paste two or three station, lat, lon rows and apply.\nTag one sample as Routine sampling, then confirm it appears under the Routine chip.\nRun Reconcile all unlinked in this view and see how many auto-link.\nOpen Lab (results browser) and confirm your batch’s results appear; Download CSV.\nNote anything confusing along the way — see Giving feedback.",
+    "crumbs": [
+      "★ Ingesting lab data"
+    ]
+  },
+  {
+    "objectID": "feedback.html",
+    "href": "feedback.html",
+    "title": "Feedback & limitations",
+    "section": "",
+    "text": "For each issue, please tell us:\n\nWhich app (CyanoSafe phone / desktop / FHAB Staff) and which page.\nWhat you did, what you expected, and what happened.\nA screenshot if you can, and the date/time and your browser/device.\nSeverity: blocker / annoying / cosmetic / suggestion.\n\nSend feedback to [contact provided separately]. There’s no in-app bug button yet.",
+    "crumbs": [
+      "Feedback & limitations"
+    ]
+  },
+  {
+    "objectID": "feedback.html#giving-feedback",
+    "href": "feedback.html#giving-feedback",
+    "title": "Feedback & limitations",
+    "section": "",
+    "text": "For each issue, please tell us:\n\nWhich app (CyanoSafe phone / desktop / FHAB Staff) and which page.\nWhat you did, what you expected, and what happened.\nA screenshot if you can, and the date/time and your browser/device.\nSeverity: blocker / annoying / cosmetic / suggestion.\n\nSend feedback to [contact provided separately]. There’s no in-app bug button yet.",
+    "crumbs": [
+      "Feedback & limitations"
+    ]
+  },
+  {
+    "objectID": "feedback.html#known-limitations-no-need-to-report-these",
+    "href": "feedback.html#known-limitations-no-need-to-report-these",
+    "title": "Feedback & limitations",
+    "section": "Known limitations (no need to report these)",
+    "text": "Known limitations (no need to report these)\nThese are known and on the roadmap — please don’t file them as bugs:\n\nNo email yet by default — notifications are in-app (the 🔔 bell). Email escalation is only active if the program configures SMTP.\nNo password reset / SSO yet — if you’re locked out, an admin resets your login.\nNo full audit history yet (only a light “recent activity” log).\nPublishing to data.ca.gov is manual — the app generates the files; uploading them is a manual/scheduled step.\nGeoConnex IDs are shown but not yet publicly resolvable.\nThe free hosting tier can be slow on the first request after idle (it “wakes up”); give it a few seconds.",
+    "crumbs": [
+      "Feedback & limitations"
+    ]
+  },
+  {
+    "objectID": "staff.html",
+    "href": "staff.html",
+    "title": "Program staff",
+    "section": "",
+    "text": "You’ll log in to the FHAB Staff app at https://fhab-web.onrender.com.",
+    "crumbs": [
+      "Program staff"
+    ]
+  },
+  {
+    "objectID": "staff.html#roles",
+    "href": "staff.html#roles",
+    "title": "Program staff",
+    "section": "Roles",
+    "text": "Roles\nWhat you can see and do depends on your role.\n\n\n\n\n\n\n\nRole\nCan do\n\n\n\n\nprogram_admin\nEverything, incl. account management and community-group API keys\n\n\nwb_staff\nEnter/edit reports, review submissions, cases, advisories, lab data\n\n\nfield_staff\nField verification + results entry\n\n\nlab_analyst\nLab results / CEDEN data\n\n\nillness_workgroup\nReceives suspected-illness escalations\n\n\nddw_staff\nDrinking-water focus\n\n\n\nYour data is scoped to your Regional Water Board — you generally see and manage your region’s records. (Cross-region report entry is allowed with a confirmation, for filing on behalf of another board.)",
+    "crumbs": [
+      "Program staff"
+    ]
+  },
+  {
+    "objectID": "staff.html#first-login",
+    "href": "staff.html#first-login",
+    "title": "Program staff",
+    "section": "First login",
+    "text": "First login\n\nGo to https://fhab-web.onrender.com and sign in with the credentials provided.\nYou land on the Dashboard: quick actions, and the reports you’ve recently worked on.\nNote the 🔔 bell (top right) — your notifications, including new submissions and illness alerts.",
+    "crumbs": [
+      "Program staff"
+    ]
+  },
+  {
+    "objectID": "staff.html#the-main-things-to-test",
+    "href": "staff.html#the-main-things-to-test",
+    "title": "Program staff",
+    "section": "The main things to test",
+    "text": "The main things to test\n\n1. Review the submission queue (Submissions)\n\nNew community/app reports land here as pending.\nFor each: choose a region and Promote (creates a tracked report) or Reject.\nPromoting carries over everything the reporter sent (location, bloom details, photo, and any suspected-illness info) and starts the report as under investigation.\nTry the filters (pending / promoted / rejected) and the trusted groups filter.\n\n\n\n2. Enter a new report (New report)\n\nMirrors the official MyWaterQuality bloom form: report type, water body, county, landmark, coordinates, bloom characteristics (size, textures, weather, signs), reporter contact, suspected illness, and photos.\nWater body has a type-ahead that suggests existing waterbodies — pick one to avoid duplicates; a near-duplicate name prompts a confirm.\nCounty is a controlled dropdown.\n\n\n\n3. Open a report (Reports → click one)\n\nEdit field-verification details and set the outcome / determination.\nAdd field/lab results, or upload a CEDEN lab CSV.\nRecord a response / advisory (an advisory with “display on map” drives the public map).\nStaff-only: reporter contact and the suspected illness/death matrix.\n\n\n\n4. Explore the map (Map)\n\nThe map plots reports, colored by outcome. Use the filters to narrow it:\n\nRegion, County, Outcome, and Advisory dropdowns.\nDate-range buttons — 15 / 30 / 60 / 120 days (or All) — by observation date.\nAnalytical data modes: Events with lab data, or Lab data without events (unlinked lab samples shown as teal markers at their station, with a link to reconcile them).\n\nFilters apply server-side, so they reach the whole dataset. Click a marker for the report popup; Clear all resets everything.\n\n\n\n5. Cases (Cases)\n\nGroup related reports into a case (one region, one waterbody, one year); assign reports, set status/lead, and upload case-level lab data.\n\n\n\n6. Lab data — ingest & reconcile (Ingest Data)\nBringing lab chemistry in and connecting it to events is the focus of this round and has its own page: ★ Ingesting lab data. In brief, under Ingest Data you can:\n\nIngest lab email folders — a Bend/partner folder (results spreadsheet + CoC/transmittal PDFs); the files are kept on the batch.\nUpload CEDEN lab data — a CEDEN WaterChemistry CSV (auto-links confident matches).\nLab batch reconciliation — a staged CEDEN template you link group-by-group.\nLab data workboard — assign / link / QA-review, geocode from the CoC, and tag routine sampling.\nBulk sample coordinates — paste station, lat, lon rows to geocode many at once.\n\nSee the dedicated page for step-by-step instructions and a lab-ingest test script.\n\n\n7. Lab results browser (Lab)\n\nBrowse all field and lab results across reports in one place. Filter by water body / analyte (search), analysis type, data type, region, sample-date range, and non-detects; sort by date, water body, analyte, or value; and Download CSV of the filtered set.\n\n\n\n8. Notifications (🔔)\n\nConfirm you receive a notice when a new submission comes in (and an ⚠ illness alert if one reports suspected illness). “Mark all read” clears the badge.\n\n\n\n9. Open data (Open data)\n\nDownload the published flat files (CSV or a zip), or view the provisional JSON API. There are six datasets: the four FHAB files, plus CEDEN Chemistry Results (analyte results in the statewide CEDEN structure) and a crosswalk that links each chemistry result to its watershed/GeoConnex and to the FHAB report/case.\nConfirm these contain no reporter contact / illness / veterinary data.\n\n\n\n10. Admin only — Accounts, Groups & Analytes\n\nAccounts: create users and grant/revoke roles.\nGroups: register a community/partner group and mint an API key (shown once) so that group can submit attributed — and optionally “trusted” — reports.\nAnalytes: curate the analyte vocabulary — edit an analyte’s name/class/unit, merge aliases (e.g. “mcyE” → Microcystins) so results consolidate, and delete unused ones.",
+    "crumbs": [
+      "Program staff"
+    ]
+  },
+  {
+    "objectID": "staff.html#a-suggested-15-minute-test-script",
+    "href": "staff.html#a-suggested-15-minute-test-script",
+    "title": "Program staff",
+    "section": "A suggested 15-minute test script",
+    "text": "A suggested 15-minute test script\n\nSubmit a test report from the CyanoSafe phone app (Community track) — include a suspected illness.\nLog in to the Staff app; confirm the 🔔 bell shows new + illness notifications.\nGo to Submissions, Promote your test report to your region.\nOpen the new report; set an outcome, add a field result, and post an advisory.\nCreate a Case and assign the report to it.\nOpen the Map; filter by your region and the last 30 days, and find your report.\nOpen Lab and confirm your field result shows in the cross-report results browser.\nGo to Open data; download bloom-report.csv; confirm your report is in it and that no reporter name/illness columns appear.\nNote anything confusing along the way.",
+    "crumbs": [
+      "Program staff"
     ]
   },
   {
@@ -50,86 +210,6 @@
     ]
   },
   {
-    "objectID": "staff.html",
-    "href": "staff.html",
-    "title": "Program staff",
-    "section": "",
-    "text": "You’ll log in to the FHAB Staff app at https://fhab-web.onrender.com.",
-    "crumbs": [
-      "Program staff"
-    ]
-  },
-  {
-    "objectID": "staff.html#roles",
-    "href": "staff.html#roles",
-    "title": "Program staff",
-    "section": "Roles",
-    "text": "Roles\nWhat you can see and do depends on your role.\n\n\n\n\n\n\n\nRole\nCan do\n\n\n\n\nprogram_admin\nEverything, incl. account management and community-group API keys\n\n\nwb_staff\nEnter/edit reports, review submissions, cases, advisories, lab data\n\n\nfield_staff\nField verification + results entry\n\n\nlab_analyst\nLab results / CEDEN data\n\n\nillness_workgroup\nReceives suspected-illness escalations\n\n\nddw_staff\nDrinking-water focus\n\n\n\nYour data is scoped to your Regional Water Board — you generally see and manage your region’s records. (Cross-region report entry is allowed with a confirmation, for filing on behalf of another board.)",
-    "crumbs": [
-      "Program staff"
-    ]
-  },
-  {
-    "objectID": "staff.html#first-login",
-    "href": "staff.html#first-login",
-    "title": "Program staff",
-    "section": "First login",
-    "text": "First login\n\nGo to https://fhab-web.onrender.com and sign in with the credentials provided.\nYou land on the Dashboard: quick actions, and the reports you’ve recently worked on.\nNote the 🔔 bell (top right) — your notifications, including new submissions and illness alerts.",
-    "crumbs": [
-      "Program staff"
-    ]
-  },
-  {
-    "objectID": "staff.html#the-main-things-to-test",
-    "href": "staff.html#the-main-things-to-test",
-    "title": "Program staff",
-    "section": "The main things to test",
-    "text": "The main things to test\n\n1. Review the submission queue (Submissions)\n\nNew community/app reports land here as pending.\nFor each: choose a region and Promote (creates a tracked report) or Reject.\nPromoting carries over everything the reporter sent (location, bloom details, photo, and any suspected-illness info) and starts the report as under investigation.\nTry the filters (pending / promoted / rejected) and the trusted groups filter.\n\n\n\n2. Enter a new report (New report)\n\nMirrors the official MyWaterQuality bloom form: report type, water body, county, landmark, coordinates, bloom characteristics (size, textures, weather, signs), reporter contact, suspected illness, and photos.\nWater body has a type-ahead that suggests existing waterbodies — pick one to avoid duplicates; a near-duplicate name prompts a confirm.\nCounty is a controlled dropdown.\n\n\n\n3. Open a report (Reports → click one)\n\nEdit field-verification details and set the outcome / determination.\nAdd field/lab results, or upload a CEDEN lab CSV.\nRecord a response / advisory (an advisory with “display on map” drives the public map).\nStaff-only: reporter contact and the suspected illness/death matrix.\n\n\n\n4. Explore the map (Map)\n\nThe map plots reports, colored by outcome. Use the filters to narrow it:\n\nRegion, County, Outcome, and Advisory dropdowns.\nDate-range buttons — 15 / 30 / 60 / 120 days (or All) — by observation date.\nAnalytical data modes: Events with lab data, or Lab data without events (unlinked lab samples shown as teal markers at their station, with a link to reconcile them).\n\nFilters apply server-side, so they reach the whole dataset. Click a marker for the report popup; Clear all resets everything.\n\n\n\n5. Cases (Cases)\n\nGroup related reports into a case (one region, one waterbody, one year); assign reports, set status/lead, and upload case-level lab data.\n\n\n\n6. Lab batches (Batch → Lab batch reconciliation)\n\nUpload a CEDEN chemistry template. The system stages it and fuzzy-matches each station+date group to candidate reports. Promote matches, link manually, or create a report from a station.\n\n\n\n7. Lab results browser (Lab)\n\nBrowse all field and lab results across reports in one place. Filter by water body / analyte (search), analysis type, data type, region, sample-date range, and non-detects; sort by date, water body, analyte, or value; and Download CSV of the filtered set.\n\n\n\n8. Lab data workboard (Lab → lab data workboard)\nA task board for connecting lab samples to events/reports/cases and quality-reviewing the links. The program lead assigns work; team members link; a reviewer QA-approves or flags.\n\nStatus chips show how many samples are Unlinked, Linked · awaiting QA, Flagged for rework, or QA approved. Click a chip to filter to it.\nFilters: status, assignee (incl. Me / Unassigned), region, and a station / water-body search.\nAssign: check one or more rows, pick a team member under “With checked rows →”, and Assign.\nPer sample: Link / Re-link by report (R#) or case (C#) ID; +Report (create a report from the sample’s station); ✓ QA to approve; ⚑ to flag with a reason; or Unlink. Re-linking a sample clears its QA so it returns to the review queue.\nYou can also reach unlinked samples from the Map → Lab data without events → a marker’s Reconcile link.\n\n\nUse batch lab reconciliation (section 6 above) to bring in new historic CEDEN data; the workboard manages samples already in the system.\n\n\n\n9. Notifications (🔔)\n\nConfirm you receive a notice when a new submission comes in (and an ⚠ illness alert if one reports suspected illness). “Mark all read” clears the badge.\n\n\n\n10. Open data (Open data)\n\nDownload the published flat files (CSV or a zip), or view the provisional JSON API. There are six datasets: the four FHAB files, plus CEDEN Chemistry Results (analyte results in the statewide CEDEN structure) and a crosswalk that links each chemistry result to its watershed/GeoConnex and to the FHAB report/case.\nConfirm these contain no reporter contact / illness / veterinary data.\n\n\n\n11. Admin only — Accounts, Groups & Analytes\n\nAccounts: create users and grant/revoke roles.\nGroups: register a community/partner group and mint an API key (shown once) so that group can submit attributed — and optionally “trusted” — reports.\nAnalytes: curate the analyte vocabulary — edit an analyte’s name/class/unit, merge aliases (e.g. “mcyE” → Microcystins) so results consolidate, and delete unused ones.",
-    "crumbs": [
-      "Program staff"
-    ]
-  },
-  {
-    "objectID": "staff.html#a-suggested-15-minute-test-script",
-    "href": "staff.html#a-suggested-15-minute-test-script",
-    "title": "Program staff",
-    "section": "A suggested 15-minute test script",
-    "text": "A suggested 15-minute test script\n\nSubmit a test report from the CyanoSafe phone app (Community track) — include a suspected illness.\nLog in to the Staff app; confirm the 🔔 bell shows new + illness notifications.\nGo to Submissions, Promote your test report to your region.\nOpen the new report; set an outcome, add a field result, and post an advisory.\nCreate a Case and assign the report to it.\nOpen the Map; filter by your region and the last 30 days, and find your report.\nOpen Lab and confirm your field result shows in the cross-report results browser.\nGo to Open data; download bloom-report.csv; confirm your report is in it and that no reporter name/illness columns appear.\nNote anything confusing along the way.",
-    "crumbs": [
-      "Program staff"
-    ]
-  },
-  {
-    "objectID": "feedback.html",
-    "href": "feedback.html",
-    "title": "Feedback & limitations",
-    "section": "",
-    "text": "For each issue, please tell us:\n\nWhich app (CyanoSafe phone / desktop / FHAB Staff) and which page.\nWhat you did, what you expected, and what happened.\nA screenshot if you can, and the date/time and your browser/device.\nSeverity: blocker / annoying / cosmetic / suggestion.\n\nSend feedback to [contact provided separately]. There’s no in-app bug button yet.",
-    "crumbs": [
-      "Feedback & limitations"
-    ]
-  },
-  {
-    "objectID": "feedback.html#giving-feedback",
-    "href": "feedback.html#giving-feedback",
-    "title": "Feedback & limitations",
-    "section": "",
-    "text": "For each issue, please tell us:\n\nWhich app (CyanoSafe phone / desktop / FHAB Staff) and which page.\nWhat you did, what you expected, and what happened.\nA screenshot if you can, and the date/time and your browser/device.\nSeverity: blocker / annoying / cosmetic / suggestion.\n\nSend feedback to [contact provided separately]. There’s no in-app bug button yet.",
-    "crumbs": [
-      "Feedback & limitations"
-    ]
-  },
-  {
-    "objectID": "feedback.html#known-limitations-no-need-to-report-these",
-    "href": "feedback.html#known-limitations-no-need-to-report-these",
-    "title": "Feedback & limitations",
-    "section": "Known limitations (no need to report these)",
-    "text": "Known limitations (no need to report these)\nThese are known and on the roadmap — please don’t file them as bugs:\n\nNo email yet by default — notifications are in-app (the 🔔 bell). Email escalation is only active if the program configures SMTP.\nNo password reset / SSO yet — if you’re locked out, an admin resets your login.\nNo full audit history yet (only a light “recent activity” log).\nPublishing to data.ca.gov is manual — the app generates the files; uploading them is a manual/scheduled step.\nGeoConnex IDs are shown but not yet publicly resolvable.\nThe free hosting tier can be slow on the first request after idle (it “wakes up”); give it a few seconds.",
-    "crumbs": [
-      "Feedback & limitations"
-    ]
-  },
-  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "FHAB Database Modernized — Tester Guide",
@@ -144,7 +224,7 @@
     "href": "index.html#pick-your-track",
     "title": "FHAB Database Modernized — Tester Guide",
     "section": "Pick your track",
-    "text": "Pick your track\n\nCommunity tester — submit a bloom report from the CyanoSafe app, no login needed.\nProgram staff — log in to the FHAB Staff app to review reports, enter data, manage cases, and more.",
+    "text": "Pick your track\n\n★ Ingesting lab data — the priority for this round: bring lab chemistry in (email folders, CEDEN, spreadsheets) and reconcile it to events/reports/cases.\nProgram staff — the rest of the staff workspace: submissions, reports, cases, map, open data, admin.\nCommunity tester — submit a bloom report from the CyanoSafe app, no login needed.",
     "crumbs": [
       "Overview"
     ]

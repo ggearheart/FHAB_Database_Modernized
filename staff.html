@@ -135,6 +135,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./lab-ingest.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">★ Ingesting lab data</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./community.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Community tester</span></a>
   </div>
@@ -176,12 +182,11 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#open-a-report-reports-click-one" id="toc-open-a-report-reports-click-one" class="nav-link" data-scroll-target="#open-a-report-reports-click-one">3. Open a report (<em>Reports → click one</em>)</a></li>
   <li><a href="#explore-the-map-map" id="toc-explore-the-map-map" class="nav-link" data-scroll-target="#explore-the-map-map">4. Explore the map (<em>Map</em>)</a></li>
   <li><a href="#cases-cases" id="toc-cases-cases" class="nav-link" data-scroll-target="#cases-cases">5. Cases (<em>Cases</em>)</a></li>
-  <li><a href="#lab-batches-batch-lab-batch-reconciliation" id="toc-lab-batches-batch-lab-batch-reconciliation" class="nav-link" data-scroll-target="#lab-batches-batch-lab-batch-reconciliation">6. Lab batches (<em>Batch → Lab batch reconciliation</em>)</a></li>
+  <li><a href="#lab-data-ingest-reconcile-ingest-data" id="toc-lab-data-ingest-reconcile-ingest-data" class="nav-link" data-scroll-target="#lab-data-ingest-reconcile-ingest-data">6. Lab data — ingest &amp; reconcile (<em>Ingest Data</em>)</a></li>
   <li><a href="#lab-results-browser-lab" id="toc-lab-results-browser-lab" class="nav-link" data-scroll-target="#lab-results-browser-lab">7. Lab results browser (<em>Lab</em>)</a></li>
-  <li><a href="#lab-data-workboard-lab-lab-data-workboard" id="toc-lab-data-workboard-lab-lab-data-workboard" class="nav-link" data-scroll-target="#lab-data-workboard-lab-lab-data-workboard">8. Lab data workboard (<em>Lab → lab data workboard</em>)</a></li>
-  <li><a href="#notifications" id="toc-notifications" class="nav-link" data-scroll-target="#notifications">9. Notifications (<em>🔔</em>)</a></li>
-  <li><a href="#open-data-open-data" id="toc-open-data-open-data" class="nav-link" data-scroll-target="#open-data-open-data">10. Open data (<em>Open data</em>)</a></li>
-  <li><a href="#admin-only-accounts-groups-analytes" id="toc-admin-only-accounts-groups-analytes" class="nav-link" data-scroll-target="#admin-only-accounts-groups-analytes">11. Admin only — Accounts, Groups &amp; Analytes</a></li>
+  <li><a href="#notifications" id="toc-notifications" class="nav-link" data-scroll-target="#notifications">8. Notifications (<em>🔔</em>)</a></li>
+  <li><a href="#open-data-open-data" id="toc-open-data-open-data" class="nav-link" data-scroll-target="#open-data-open-data">9. Open data (<em>Open data</em>)</a></li>
+  <li><a href="#admin-only-accounts-groups-analytes" id="toc-admin-only-accounts-groups-analytes" class="nav-link" data-scroll-target="#admin-only-accounts-groups-analytes">10. Admin only — Accounts, Groups &amp; Analytes</a></li>
   </ul></li>
   <li><a href="#a-suggested-15-minute-test-script" id="toc-a-suggested-15-minute-test-script" class="nav-link" data-scroll-target="#a-suggested-15-minute-test-script">A suggested 15-minute test script</a></li>
   </ul>
@@ -307,11 +312,17 @@ ul.task-list li input[type="checkbox"] {
 <li>Group related reports into a case (one region, one waterbody, one year); assign reports, set status/lead, and upload case-level lab data.</li>
 </ul>
 </section>
-<section id="lab-batches-batch-lab-batch-reconciliation" class="level3">
-<h3 class="anchored" data-anchor-id="lab-batches-batch-lab-batch-reconciliation">6. Lab batches (<em>Batch → Lab batch reconciliation</em>)</h3>
+<section id="lab-data-ingest-reconcile-ingest-data" class="level3">
+<h3 class="anchored" data-anchor-id="lab-data-ingest-reconcile-ingest-data">6. Lab data — ingest &amp; reconcile (<em>Ingest Data</em>)</h3>
+<p>Bringing lab chemistry in and connecting it to events is the <strong>focus of this round</strong> and has its own page: <strong><a href="./lab-ingest.html">★ Ingesting lab data</a></strong>. In brief, under <strong>Ingest Data</strong> you can:</p>
 <ul>
-<li>Upload a CEDEN chemistry template. The system stages it and fuzzy-matches each station+date group to candidate reports. Promote matches, link manually, or create a report from a station.</li>
+<li><strong>Ingest lab email folders</strong> — a Bend/partner folder (results spreadsheet + CoC/transmittal PDFs); the files are kept on the batch.</li>
+<li><strong>Upload CEDEN lab data</strong> — a CEDEN WaterChemistry CSV (auto-links confident matches).</li>
+<li><strong>Lab batch reconciliation</strong> — a staged CEDEN template you link group-by-group.</li>
+<li><strong>Lab data workboard</strong> — assign / link / QA-review, geocode from the CoC, and tag routine sampling.</li>
+<li><strong>Bulk sample coordinates</strong> — paste <code>station, lat, lon</code> rows to geocode many at once.</li>
 </ul>
+<p>See the <a href="./lab-ingest.html">dedicated page</a> for step-by-step instructions and a lab-ingest test script.</p>
 </section>
 <section id="lab-results-browser-lab" class="level3">
 <h3 class="anchored" data-anchor-id="lab-results-browser-lab">7. Lab results browser (<em>Lab</em>)</h3>
@@ -319,35 +330,21 @@ ul.task-list li input[type="checkbox"] {
 <li>Browse <strong>all</strong> field and lab results across reports in one place. Filter by water body / analyte (search), analysis type, data type, region, sample-date range, and non-detects; sort by date, water body, analyte, or value; and <strong>Download CSV</strong> of the filtered set.</li>
 </ul>
 </section>
-<section id="lab-data-workboard-lab-lab-data-workboard" class="level3">
-<h3 class="anchored" data-anchor-id="lab-data-workboard-lab-lab-data-workboard">8. Lab data workboard (<em>Lab → lab data workboard</em>)</h3>
-<p>A task board for connecting lab samples to events/reports/cases and quality-reviewing the links. The program lead <strong>assigns</strong> work; team members <strong>link</strong>; a reviewer <strong>QA-approves</strong> or <strong>flags</strong>.</p>
-<ul>
-<li><strong>Status chips</strong> show how many samples are <em>Unlinked</em>, <em>Linked · awaiting QA</em>, <em>Flagged for rework</em>, or <em>QA approved</em>. Click a chip to filter to it.</li>
-<li><strong>Filters:</strong> status, assignee (incl.&nbsp;<strong>Me</strong> / Unassigned), region, and a station / water-body search.</li>
-<li><strong>Assign:</strong> check one or more rows, pick a team member under <em>“With checked rows →”</em>, and <strong>Assign</strong>.</li>
-<li><strong>Per sample:</strong> <strong>Link / Re-link</strong> by report (R#) or case (C#) ID; <strong>+Report</strong> (create a report from the sample’s station); <strong>✓ QA</strong> to approve; <strong>⚑</strong> to flag with a reason; or <strong>Unlink</strong>. <em>Re-linking a sample clears its QA so it returns to the review queue.</em></li>
-<li>You can also reach unlinked samples from the <strong>Map</strong> → <em>Lab data without events</em> → a marker’s <strong>Reconcile</strong> link.</li>
-</ul>
-<blockquote class="blockquote">
-<p>Use <strong>batch lab reconciliation</strong> (section 6 above) to bring in <em>new</em> historic CEDEN data; the workboard manages samples already in the system.</p>
-</blockquote>
-</section>
 <section id="notifications" class="level3">
-<h3 class="anchored" data-anchor-id="notifications">9. Notifications (<em>🔔</em>)</h3>
+<h3 class="anchored" data-anchor-id="notifications">8. Notifications (<em>🔔</em>)</h3>
 <ul>
 <li>Confirm you receive a notice when a new submission comes in (and an <strong>⚠ illness alert</strong> if one reports suspected illness). “Mark all read” clears the badge.</li>
 </ul>
 </section>
 <section id="open-data-open-data" class="level3">
-<h3 class="anchored" data-anchor-id="open-data-open-data">10. Open data (<em>Open data</em>)</h3>
+<h3 class="anchored" data-anchor-id="open-data-open-data">9. Open data (<em>Open data</em>)</h3>
 <ul>
 <li>Download the published flat files (CSV or a zip), or view the <strong>provisional JSON API</strong>. There are six datasets: the four FHAB files, plus <strong>CEDEN Chemistry Results</strong> (analyte results in the statewide CEDEN structure) and a <strong>crosswalk</strong> that links each chemistry result to its watershed/GeoConnex and to the FHAB report/case.</li>
 <li>Confirm these contain <strong>no</strong> reporter contact / illness / veterinary data.</li>
 </ul>
 </section>
 <section id="admin-only-accounts-groups-analytes" class="level3">
-<h3 class="anchored" data-anchor-id="admin-only-accounts-groups-analytes">11. Admin only — Accounts, Groups &amp; Analytes</h3>
+<h3 class="anchored" data-anchor-id="admin-only-accounts-groups-analytes">10. Admin only — Accounts, Groups &amp; Analytes</h3>
 <ul>
 <li><strong>Accounts:</strong> create users and grant/revoke roles.</li>
 <li><strong>Groups:</strong> register a community/partner group and mint an <strong>API key</strong> (shown once) so that group can submit attributed — and optionally “trusted” — reports.</li>
