@@ -20,6 +20,8 @@ website:
     contents:
       - text: "Overview"
         href: index.qmd
+      - text: "★ Ingesting lab data"
+        href: lab-ingest.qmd
       - community.qmd
       - staff.qmd
       - feedback.qmd

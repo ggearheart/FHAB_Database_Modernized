@@ -1,0 +1,168 @@
+---
+title: "Ingesting lab data"
+subtitle: "The main focus of this testing round"
+---
+
+The central goal of this pilot is **getting cyanotoxin lab chemistry into FHAB and connected to
+the right event / report / case**. Lab results arrive in several shapes — an email folder from
+Bend Genetics, a CEDEN export, a one-off spreadsheet for a single site — so there are a few ways
+in. This page walks each one, then the **reconciliation** step that links the data to events.
+
+::: {.callout-tip title="Where these live"}
+Everything below is under the top-level **Ingest Data** menu (staff only), except attaching
+results to a single report/case, which is on the report/case page itself.
+:::
+
+## Pick the path that matches how the data arrived
+
+| The lab data arrived as… | Use | Menu |
+|---|---|---|
+| A **folder of email attachments** from Bend/partner (a results spreadsheet + chain-of-custody / transmittal / receipt PDFs) | **Ingest lab email folders** | Ingest Data → *Ingest lab email folders* |
+| A **CEDEN WaterChemistry CSV** (the Bend→CEDEN workflow output) | **Upload CEDEN lab data** | Ingest Data → *Upload CEDEN lab data* |
+| A **full CEDEN chemistry template** where StationCode + date is the only link to an event | **Lab batch reconciliation** | Ingest Data → *Lab batch reconciliation* |
+| Results for **one already-known report or case** | **Attach on the report/case** | Reports / Cases → *Lab upload* |
+
+All paths land the samples where you can **reconcile** them (link to events) on the **Lab data
+workboard**. Start with the workflow that matches your file; the rest of the page is the same
+downstream.
+
+---
+
+## A. Email folder upload (Bend / partner) — the newest path
+
+Labs typically email a **folder**: a wide-format results spreadsheet (analytes across columns)
+plus a scanned **chain-of-custody (CoC)**, a **transmittal letter**, and a **sample-receipt
+form**. This path converts that spreadsheet, brings the samples in, and **keeps the original
+files on the batch** for provenance.
+
+**Steps**
+
+1. **Ingest Data → Ingest lab email folders**.
+2. Under *Folder files*, select **all** the files from the one email folder (the results CSV/XLSX
+   **and** the PDFs). Add a **Source label** like `Clear Lake (RB5)` (optional but helpful).
+3. **Ingest folder.** You'll get a summary — *"Ingested N samples (M geocoded), K results; stored
+   J files"* — and land on the workboard filtered to that batch.
+
+**What happens**
+
+- The wide spreadsheet is converted to CEDEN long form: each analyte value becomes a result
+  (ELISA toxins, dry-weight toxins, qPCR genes, chlorophyll). `ND` becomes a proper non-detect.
+- Samples come in **unlinked** and are **geocoded from the CEDEN station registry** when the
+  station code is known. Samples whose station isn't in the registry come in **ungeocoded** —
+  their coordinates usually live on the CoC (see [Geocoding](#geocoding-ungeocoded-samples)).
+- The **source files stay on the batch**: on the workboard batch banner (and the *Ingested
+  batches* table) you'll see `coc · data · receipt · transmittal` links — they open in a **new
+  tab** so your workspace stays put.
+
+**What to test**
+
+- Upload a folder; do the sample/result/geocoded counts look right?
+- Open the stored **CoC** link — does it open in a new tab and show the scanned form?
+- A folder with **no results spreadsheet** (only PDFs) should still store the files.
+- Do the samples appear on the **workboard**, filtered to the new batch?
+
+---
+
+## B. Upload CEDEN lab data (workflow output)
+
+For a **CEDEN WaterChemistry CSV** (the output of the Bend→CEDEN workflow), use **Ingest Data →
+Upload CEDEN lab data**. You can upload a file or pull from a URL. This loads samples + results,
+geocodes stations from the registry, and **auto-links** samples to nearby events where it's
+confident.
+
+**What to test:** upload a CEDEN chemistry CSV; confirm samples/results load and that obvious
+station+date matches auto-link (the rest wait on the workboard).
+
+---
+
+## C. Lab batch reconciliation (CEDEN template, staged)
+
+For a **full CEDEN chemistry template** where you want to review every link before it's written,
+use **Ingest Data → Lab batch reconciliation**.
+
+1. Upload the template CSV. Optionally widen the **match radius (m)** and **± days** window.
+2. The batch is **staged** — nothing touches live reports yet.
+3. For each **station + date group**, the matcher suggests candidate reports within the windows.
+   **Promote** a confident match, **link** manually, or **create a report** from the station.
+4. Use **Auto-link** to accept all high-confidence, unambiguous matches at once, then review the
+   rest.
+
+**What to test:** stage a template; confirm nothing is linked until you act; try Auto-link, then
+link one group manually and create a report from another.
+
+---
+
+## D. Attach results to one report or case
+
+When results belong to a **single known site**, skip matching entirely: open the **report** (or
+**case**) and use its **Lab upload** to attach a CEDEN CSV directly. Every sample pins to that
+report/case.
+
+---
+
+## After ingest: reconcile on the Lab data workboard
+
+**Ingest Data → Lab data workboard** is where lab samples get connected to events/reports/cases
+and quality-reviewed. It's built as a **task board**: the lead **assigns** work, team members
+**link**, a reviewer **QA-approves** or **flags**.
+
+- **Status chips:** *Unlinked*, *Linked · awaiting QA*, *Flagged for rework*, *QA approved*, and
+  *Routine sampling* — click one to filter.
+- **Filters:** status, assignee (incl. **Me** / Unassigned), region, and a station / water-body
+  search. A batch link filters the board to just that ingest.
+- **Assign:** check rows, pick a team member under *"With checked rows →"*, **Assign**.
+- **Per sample:** **Link / Re-link** by report (R#) or case (C#); **+Report** (create one from the
+  station); **✓ QA** approve; **⚑** flag with a reason; **Unlink**; **Routine** (see below).
+  *Re-linking clears QA so the sample returns to the review queue.*
+- **Batch reconcile:** *Reconcile checked* or *Reconcile all unlinked in this view* auto-links the
+  confident, unambiguous matches in one pass.
+
+### The sample map (🗺)
+
+Click a sample's **🗺** to open its context map: the sample as a **★**, and nearby reports colored
+by how close in **time** they are to the sample (blue ≤14 d, yellow 14–30 d, pink 30–60 d, gray
+>60 d). Click a nearby marker to **link to that report or its case**, or open the report (new
+tab).
+
+### Geocoding ungeocoded samples {#geocoding-ungeocoded-samples}
+
+Samples whose station isn't in the registry come in **without a location** — their coordinates
+are usually on the **CoC**. On the sample map you can:
+
+1. Open the batch's **CoC** (new tab) and read the latitude/longitude.
+2. Type them into the **lat / long** boxes → **Search nearby** to preview reports/cases around
+   that point (shown as a ◆).
+3. **Save to sample** to store the coordinates — the sample is now geocoded, appears on the main
+   map, and becomes eligible for batch reconcile.
+4. **Scan CoC (OCR)** will try to read the coordinates off the CoC automatically. *In the current
+   hosted pilot this is a best-effort helper and may report that OCR isn't available* — if so,
+   just read the CoC and type the numbers.
+
+::: {.callout-tip title="Many at once — Bulk sample coordinates"}
+To geocode a whole batch quickly, use **Ingest Data → Bulk sample coordinates**: paste one row
+per line as `station code, latitude, longitude` (station codes with spaces/commas are fine — the
+last two numbers are taken as lat/long). Matching a station geocodes every sample at it.
+:::
+
+### Routine sampling (not every sample is a bloom report)
+
+Some samples are **routine monitoring**, not tied to any bloom report or case. On an unlinked
+sample, use **Routine** (row button or the map popup's *Tag routine sampling*) to move it into the
+**Routine sampling** bucket so it stops showing as unfinished work. **↩ Unlinked** puts it back.
+*(Routine sub-types will come later.)*
+
+---
+
+## Suggested lab-ingest test script (~15 min)
+
+1. **Ingest an email folder** (Ingest Data → *Ingest lab email folders*) — pick all files from one
+   lab folder, add a source label, ingest. Check the counts and open the stored **CoC** (new tab).
+2. On the **workboard** (it opens filtered to your batch), find an **unlinked, geocoded** sample,
+   open its **🗺**, and **link** it to a nearby report — or **+Report** to create one.
+3. Find an **ungeocoded** sample; read its coordinates off the CoC, type them in, **Search
+   nearby**, then **Save to sample**.
+4. Try **Bulk sample coordinates**: paste two or three `station, lat, lon` rows and apply.
+5. Tag one sample as **Routine sampling**, then confirm it appears under the *Routine* chip.
+6. Run **Reconcile all unlinked in this view** and see how many auto-link.
+7. Open **Lab** (results browser) and confirm your batch's results appear; **Download CSV**.
+8. Note anything confusing along the way — see [Giving feedback](feedback.qmd).
