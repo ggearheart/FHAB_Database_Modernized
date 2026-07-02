@@ -7,6 +7,12 @@ Welcome, and thank you for helping test the new FHAB system. This guide is for *
 and **community volunteers**. Please report anything confusing or broken — see
 [Giving feedback](feedback.qmd).
 
+::: {.callout-tip title="The focus of this round: ingesting lab data"}
+The main thing we need tested right now is **getting cyanotoxin lab chemistry into FHAB and
+connected to the right event/report/case** — from lab **email folders**, **CEDEN** exports, and
+one-off spreadsheets. Staff testers: start with **[★ Ingesting lab data](lab-ingest.qmd)**.
+:::
+
 ::: {.callout-important}
 This is a **test system**. Do not treat anything here as an official advisory or an official
 report of record. Test data may be wiped at any time. For a real suspected bloom, still use the
@@ -28,10 +34,12 @@ sensitive personal email.
 
 ## Pick your track
 
+- **[★ Ingesting lab data](lab-ingest.qmd)** — the priority for this round: bring lab chemistry in
+  (email folders, CEDEN, spreadsheets) and reconcile it to events/reports/cases.
+- **[Program staff](staff.qmd)** — the rest of the staff workspace: submissions, reports, cases,
+  map, open data, admin.
 - **[Community tester](community.qmd)** — submit a bloom report from the CyanoSafe app, no login
   needed.
-- **[Program staff](staff.qmd)** — log in to the FHAB Staff app to review reports, enter data,
-  manage cases, and more.
 
 ## Systems and links
 

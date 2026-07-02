@@ -13,4 +13,12 @@ title: "Glossary"
 | **Promote** | Turn a pending submission into a tracked report. |
 | **Provisional data** | Live data from this system, *not* the official data.ca.gov release. |
 | **CEDEN** | The state environmental data exchange (lab results format). |
+| **Batch** | One ingest of lab data (an email folder, a CEDEN file, or a template) that samples are grouped under. |
+| **CoC (chain of custody)** | The form tracking a sample from field to lab; often where a sample's coordinates are recorded. |
+| **Sample / result** | A sample is one collected specimen; a result is one analyte value measured on it. |
+| **Station** | A sampling location (often a CEDEN station code); geocoded to a point. |
+| **Geocode** | Give a sample a map location (from the station registry or coordinates off the CoC). |
+| **Reconcile / link** | Connect a lab sample to the event/report/case it belongs to. |
+| **Routine sampling** | Monitoring not tied to a bloom report/case; tagged so it leaves the unfinished queue. |
+| **Non-detect (ND)** | Analyte tested for but not detected above the method limit. |
 | **HUC-12 / GeoConnex** | Watershed coding / persistent identifiers for locations. |

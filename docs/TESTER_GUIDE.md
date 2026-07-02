@@ -10,6 +10,11 @@ This guide has two tracks — pick the one that matches your role:
 - **[Program staff track](#track-b--program-staff)** — log in to the FHAB Staff app to review
   reports, enter data, manage cases, and more.
 
+> **Focus of this round — ingesting lab data.** The main thing we need tested is **getting
+> cyanotoxin lab chemistry into FHAB and connected to the right event/report/case** — from lab
+> **email folders**, **CEDEN** exports, and one-off spreadsheets. Staff testers: jump to
+> [Lab data ingestion](#lab-data-ingestion--the-focus-of-this-round).
+
 > **Important:** this is a **test system**. Do not treat anything here as an official advisory or
 > an official report of record. Test data may be wiped at any time. For a real suspected bloom,
 > still use the official channels.
@@ -89,7 +94,73 @@ another board.)
 3. Note the **🔔 bell** (top right) — your notifications, including new submissions and illness
    alerts.
 
-### The main things to test
+### Lab data ingestion — the focus of this round
+
+The priority this round is **getting cyanotoxin lab chemistry into FHAB and connecting it to the
+right event/report/case**. Lab results arrive in different shapes, so pick the path that matches
+your file. Everything below is under the top-level **Ingest Data** menu (except attaching results
+to a single report/case, which is on that report/case page).
+
+| The lab data arrived as… | Use | Menu |
+|---|---|---|
+| A **folder of email attachments** from Bend/partner (results spreadsheet + CoC / transmittal / receipt PDFs) | **Ingest lab email folders** | Ingest Data → Ingest lab email folders |
+| A **CEDEN WaterChemistry CSV** (Bend→CEDEN workflow output) | **Upload CEDEN lab data** | Ingest Data → Upload CEDEN lab data |
+| A **full CEDEN chemistry template** (StationCode + date is the only link to an event) | **Lab batch reconciliation** | Ingest Data → Lab batch reconciliation |
+| Results for **one already-known report/case** | **Attach on the report/case** | Reports / Cases → Lab upload |
+
+**A. Email folder upload (Bend/partner) — the newest path.** Labs email a folder: a wide-format
+results spreadsheet (analytes across columns) plus a scanned **chain-of-custody (CoC)**,
+**transmittal letter**, and **sample-receipt form**.
+1. **Ingest Data → Ingest lab email folders**.
+2. Select **all** files from the one folder (results CSV/XLSX **and** the PDFs); add a **Source
+   label** like `Clear Lake (RB5)`.
+3. **Ingest folder** — you get counts (*N samples, M geocoded, K results, J files*) and land on
+   the workboard filtered to that batch.
+   - The spreadsheet is converted to CEDEN long form (ELISA toxins, dry-weight toxins, qPCR genes,
+     chlorophyll; `ND` → non-detect). Samples come in **unlinked** and are **geocoded from the
+     CEDEN station registry** when the station code is known.
+   - The **source files stay on the batch** — `coc · data · receipt · transmittal` links (they
+     open in a **new tab**). A folder with only PDFs still stores the files.
+
+**B. Upload CEDEN lab data** (`Ingest Data → Upload CEDEN lab data`) — for a CEDEN WaterChemistry
+CSV (workflow output). Loads samples + results, geocodes from the registry, and **auto-links**
+confident station+date matches.
+
+**C. Lab batch reconciliation** (`Ingest Data → Lab batch reconciliation`) — for a full CEDEN
+**template** you want to review before writing. The batch is **staged**; for each station+date
+group the matcher suggests candidates — **Promote**, link manually, or **create a report**.
+**Auto-link** accepts all confident, unambiguous matches at once.
+
+**D. Attach to one report/case** — open the **report** (or **case**) and use its **Lab upload** to
+pin a CEDEN CSV directly to that site.
+
+**Reconcile on the Lab data workboard** (`Ingest Data → Lab data workboard`) — a task board to
+connect samples to events/reports/cases and QA-review the links.
+- **Status chips:** Unlinked / Linked·awaiting QA / Flagged / QA approved / **Routine sampling**
+  (click to filter). **Filters:** status, assignee (incl. **Me** / Unassigned), region,
+  station/water-body search.
+- **Assign:** check rows → pick a team member → **Assign**.
+- **Per sample:** **Link/Re-link** by report (R#) or case (C#); **+Report**; **✓ QA**; **⚑** flag;
+  **Unlink**; **Routine**. *Re-linking clears QA so it returns to review.* **Batch reconcile**
+  auto-links the confident matches in the current view.
+- **Sample map (🗺):** the sample as a ★ with nearby reports colored by time gap (blue ≤14 d,
+  yellow 14–30 d, pink 30–60 d, gray >60 d); click a marker to link to the report or its case.
+- **Geocoding ungeocoded samples:** if a station isn't in the registry, its coordinates are on the
+  **CoC**. Open the CoC (new tab), type the lat/long, **Search nearby**, then **Save to sample**.
+  **Scan CoC (OCR)** tries to read them automatically (best-effort in the hosted pilot; if it says
+  OCR isn't available, just type them). For a whole batch, use **Ingest Data → Bulk sample
+  coordinates**: paste `station code, latitude, longitude` rows (codes with spaces/commas are OK —
+  the last two numbers are lat/long).
+- **Routine sampling:** samples that aren't a bloom report/case — tag **Routine** to move them out
+  of the unfinished queue; **↩ Unlinked** puts them back.
+
+**Suggested lab-ingest test script (~15 min):** ingest an **email folder** and open its stored
+**CoC**; on the workboard, **link** a geocoded sample to a nearby report (or **+Report**);
+**geocode** an ungeocoded sample from its CoC coordinates; try **Bulk sample coordinates**; tag one
+**Routine**; run **Reconcile all unlinked in this view**; then open **Lab** and confirm the results
+and **Download CSV**.
+
+### Other things to test
 
 **1. Review the submission queue** (`Submissions`)
 - New community/app reports land here as **pending**.
@@ -124,39 +195,22 @@ another board.)
 - Group related reports into a case (one region, one waterbody, one year). Create a case, assign
   reports, set status/lead, and upload case-level lab data.
 
-**6. Lab batches** (`Batch` → "Lab batch reconciliation")
-- Upload a CEDEN chemistry template. The system stages it and fuzzy-matches each station+date
-  group to candidate reports. Promote matches, link manually, or create a report from a station.
-
-**7. Lab results browser** (`Lab`)
+**6. Lab results browser** (`Lab`)
 - Browse **all** field/lab results across reports. Filter by search (water body / analyte),
   analysis type, data type, region, sample-date range, and non-detects; sort; and **Download
   CSV** of the filtered set.
 
-**8. Lab data workboard** (`Lab` → "lab data workboard")
-- A task board to connect lab samples to events/reports/cases and **QA-review** the links. The
-  lead **assigns** work; team members **link**; a reviewer **approves/flags**.
-- **Status chips:** Unlinked / Linked·awaiting QA / Flagged / QA approved (click to filter).
-- **Filters:** status, assignee (incl. **Me** / Unassigned), region, station/water-body search.
-- **Assign:** check rows → pick a team member → **Assign**.
-- **Per sample:** **Link / Re-link** by report (R#) or case (C#) ID; **+Report** (create one from
-  the station); **✓ QA** approve; **⚑** flag with a reason; **Unlink**. *Re-linking clears QA so
-  it returns to the review queue.*
-- Unlinked samples are also reachable from the **Map** → *Lab data without events* → **Reconcile**.
-- (Use **batch lab reconciliation** in section 6 to bring in *new* CEDEN data; the workboard
-  manages samples already in the system.)
-
-**9. Notifications** (`🔔`)
+**7. Notifications** (`🔔`)
 - Confirm you receive a notice when a new submission comes in (and an **⚠ illness alert** if one
   reports suspected illness). "Mark all read" clears the badge.
 
-**10. Open data** (`Open data`)
+**8. Open data** (`Open data`)
 - Download the published flat files (CSV or a zip), or view the **provisional JSON API**. Six
   datasets: the four FHAB files plus **CEDEN Chemistry Results** and a **crosswalk** (links each
   chemistry result to its watershed/GeoConnex and FHAB report/case).
 - Confirm these contain **no** reporter contact / illness / veterinary data (they shouldn't).
 
-**11. Admin only — Accounts, Groups & Analytes**
+**9. Admin only — Accounts, Groups & Analytes**
 - **Accounts:** create users and grant/revoke roles.
 - **Groups:** register a community/partner group and mint an **API key** (shown once) so that
   group can submit attributed — and optionally "trusted" — reports.
