@@ -270,9 +270,17 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8, at=None) -> dict:
            FROM sample s LEFT JOIN station st ON st.id = s.station_id WHERE s.id = %s""",
         (sample_id,)).fetchone()
     out = {"label": None, "sample_date": None, "station": None, "linked": None,
-           "candidates": [], "probe": None}
+           "candidates": [], "probe": None, "files": []}
     if not s:
         return out
+    # Source files from the sample's ingest batch (CoC / transmittal / receipt / data), so a
+    # reviewer can open them to research the date, location, name, and case while linking.
+    out["files"] = [
+        {"id": r["id"], "category": r["category"], "filename": r["filename"], "batch_id": r["batch_id"]}
+        for r in conn.execute(
+            """SELECT f.id, f.category, f.filename, f.batch_id
+               FROM lab_batch_file f JOIN sample s ON s.lab_batch_id = f.batch_id
+               WHERE s.id = %s ORDER BY f.category, f.filename""", (sample_id,)).fetchall()]
     out["label"] = f"{s['station_code'] or 'sample'} · {s['sample_date'] or '—'}"
     out["sample_date"] = str(s["sample_date"]) if s["sample_date"] else None
     if s["st_lat"] is not None:

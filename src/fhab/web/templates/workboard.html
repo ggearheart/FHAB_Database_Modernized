@@ -176,6 +176,7 @@
               title="Tag as routine monitoring (subtypes later)">Tag routine sampling</button>
       <span class="muted">— any coordinates above are saved to the sample first.</span>
     </div>
+    <div id="wbFiles" style="margin-bottom:.5rem; font-size:.9rem"></div>
     <div id="wbmap" style="height:360px; border:1px solid var(--line); border-radius:6px"></div>
     <p class="muted" id="mapNote" style="margin:.5rem 0 0"></p>
     <div id="wbCandList" style="margin-top:.5rem"></div>
@@ -213,6 +214,15 @@ function renderSampleMap(probe) {
     if (_wblayer) _wblayer.remove();
     _wblayer = L.layerGroup().addTo(_wbmap);
     document.getElementById('mapTitle').textContent = 'Sample: ' + (g.label || sid);
+
+    // Source files for this sample's ingest batch — open the CoC etc. to research the link.
+    const fEl = document.getElementById('wbFiles');
+    fEl.innerHTML = (g.files && g.files.length)
+      ? '<strong>Sample files:</strong> ' + g.files.map(f =>
+          '<a href="/batch/' + f.batch_id + '/file/' + f.id + '" target="_blank" rel="noopener" title="'
+          + f.filename + '">' + f.category + '</a>').join(' · ')
+        + ' <span class="muted">(open in a new tab to check date / location / name / case)</span>'
+      : '';
     const pts = [];
     const dot = (p, color, ring, radius) => L.circleMarker([p.lat, p.lon],
       { radius: radius || 8, weight: 2, color: ring || '#fff', fillColor: color, fillOpacity: .9 });
