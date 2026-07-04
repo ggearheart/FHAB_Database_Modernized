@@ -377,11 +377,20 @@ def test_sample_geo_includes_batch_files(conn):
                  "VALUES (%s,'coc','COC_x.pdf', %s)", (bid, b"%PDF"))
     sid = _orphan_sample(conn, "FILESAMP")
     conn.execute("UPDATE sample SET lab_batch_id=%s WHERE id=%s", (bid, sid)); conn.commit()
+    conn.execute("UPDATE sample SET sample_type='AlgalMat', bg_id='WB9', project_code='RCMP' WHERE id=%s", (sid,)); conn.commit()
     g = sample_geo(conn, sid)
     assert g["files"] and g["files"][0]["category"] == "coc"
     assert g["files"][0]["batch_id"] == bid and g["files"][0]["filename"] == "COC_x.pdf"
-    # a sample with no ingest batch -> no files
-    assert sample_geo(conn, _orphan_sample(conn, "NOFILE"))["files"] == []
+    # summary reflects the folder-ingest provenance + identity
+    assert g["summary"]["source"].startswith("Email folder ingest")
+    assert g["summary"]["bg_id"] == "WB9" and g["summary"]["file_categories"] == ["coc"]
+
+    # a sample with no ingest batch, but CEDEN identity -> labeled as a CEDEN upload, no files
+    other = _orphan_sample(conn, "NOFILE")
+    conn.execute("UPDATE sample SET bg_id='WB10' WHERE id=%s", (other,)); conn.commit()
+    g2 = sample_geo(conn, other)
+    assert g2["files"] == [] and g2["summary"]["source"] == "CEDEN chemistry upload"
+    assert g2["summary"]["n_files"] == 0
 
 
 def test_geocoded_filter_and_tally(conn):

@@ -215,14 +215,26 @@ function renderSampleMap(probe) {
     _wblayer = L.layerGroup().addTo(_wbmap);
     document.getElementById('mapTitle').textContent = 'Sample: ' + (g.label || sid);
 
-    // Source files for this sample's ingest batch — open the CoC etc. to research the link.
-    const fEl = document.getElementById('wbFiles');
-    fEl.innerHTML = (g.files && g.files.length)
-      ? '<strong>Sample files:</strong> ' + g.files.map(f =>
-          '<a href="/batch/' + f.batch_id + '/file/' + f.id + '" target="_blank" rel="noopener" title="'
-          + f.filename + '">' + f.category + '</a>').join(' · ')
-        + ' <span class="muted">(open in a new tab to check date / location / name / case)</span>'
-      : '';
+    // Provenance summary: how the sample was ingested, its lab identity, and any source files.
+    const sEl = document.getElementById('wbFiles');
+    const sm = g.summary;
+    if (sm) {
+      const bits = [];
+      if (sm.sample_type) bits.push(sm.sample_type);
+      if (sm.bg_id) bits.push('BG ' + sm.bg_id);
+      if (sm.lab_sample_id) bits.push('lab ID ' + sm.lab_sample_id);
+      if (sm.lab_batch) bits.push('lab batch ' + sm.lab_batch);
+      if (sm.project_code) bits.push('project ' + sm.project_code);
+      const files = (g.files && g.files.length)
+        ? 'Files: ' + g.files.map(f => '<a href="/batch/' + f.batch_id + '/file/' + f.id
+            + '" target="_blank" rel="noopener" title="' + f.filename + '">' + f.category + '</a>').join(' · ')
+          + ' <span class="muted">(open in a new tab)</span>'
+        : '<span class="muted">no source files stored for this ingest</span>';
+      sEl.innerHTML = '<div style="background:#f4f6f8;border-radius:6px;padding:.4rem .55rem">'
+        + '<div><span class="muted">Ingested via</span> <b>' + sm.source + '</b></div>'
+        + (bits.length ? '<div class="muted" style="font-size:.85rem">' + bits.join(' · ') + '</div>' : '')
+        + '<div style="margin-top:.15rem">' + sm.n_results + ' result(s) · ' + files + '</div></div>';
+    } else { sEl.innerHTML = ''; }
     const pts = [];
     const dot = (p, color, ring, radius) => L.circleMarker([p.lat, p.lon],
       { radius: radius || 8, weight: 2, color: ring || '#fff', fillColor: color, fillOpacity: .9 });

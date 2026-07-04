@@ -257,6 +257,21 @@ def batch_reconcile_samples(conn, sample_ids, *, radius_m=8000, days=14) -> dict
     return {"linked": linked, "skipped": skipped}
 
 
+def _ingest_source(s) -> str:
+    """Human label for how a sample was ingested, inferred from its provenance columns."""
+    if s["lab_batch_id"]:
+        if s["batch_kind"] == "ingested":
+            return "Email folder ingest" + (f" — {s['batch_source']}" if s["batch_source"] else "")
+        if s["batch_kind"] == "staged":
+            return "Lab batch reconciliation" + (f" — {s['batch_filename']}" if s["batch_filename"] else "")
+        return s["batch_source"] or "Lab batch"
+    if s["bg_id"] or s["lab_agency_code"] or s["lab_batch"]:
+        return "CEDEN chemistry upload"
+    if s["sample_id"] or s["site"]:
+        return "data.ca.gov / legacy import"
+    return "Manual / other"
+
+
 def sample_geo(conn, sample_id, *, radius_m=8000, limit=8, at=None) -> dict:
     """Geospatial context for one sample: its station, its linked event, and nearby candidate
     reports (events within `radius_m` of an anchor point). For the workboard's map.
@@ -265,12 +280,19 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8, at=None) -> dict:
     an ungeocoded sample can still find nearby reports/cases around coordinates read off the CoC.
     """
     s = conn.execute(
-        """SELECT s.sample_date, s.bloom_report_id, st.station_code, st.station_name,
-                  ST_Y(st.geom) AS st_lat, ST_X(st.geom) AS st_lon
-           FROM sample s LEFT JOIN station st ON st.id = s.station_id WHERE s.id = %s""",
+        """SELECT s.sample_date, s.bloom_report_id, s.case_id, s.bg_id, s.lab_sample_id,
+                  s.lab_batch, s.project_code, s.lab_agency_code, s.sample_type, s.sample_id,
+                  s.site, s.lab_batch_id, st.station_code, st.station_name,
+                  ST_Y(st.geom) AS st_lat, ST_X(st.geom) AS st_lon,
+                  b.kind AS batch_kind, b.source AS batch_source, b.filename AS batch_filename,
+                  (SELECT count(*) FROM result r WHERE r.sample_id = s.id) AS n_results
+           FROM sample s
+           LEFT JOIN station st ON st.id = s.station_id
+           LEFT JOIN lab_batch b ON b.id = s.lab_batch_id
+           WHERE s.id = %s""",
         (sample_id,)).fetchone()
     out = {"label": None, "sample_date": None, "station": None, "linked": None,
-           "candidates": [], "probe": None, "files": []}
+           "candidates": [], "probe": None, "files": [], "summary": None}
     if not s:
         return out
     # Source files from the sample's ingest batch (CoC / transmittal / receipt / data), so a
@@ -281,6 +303,14 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8, at=None) -> dict:
             """SELECT f.id, f.category, f.filename, f.batch_id
                FROM lab_batch_file f JOIN sample s ON s.lab_batch_id = f.batch_id
                WHERE s.id = %s ORDER BY f.category, f.filename""", (sample_id,)).fetchall()]
+    out["summary"] = {
+        "source": _ingest_source(s),
+        "n_results": s["n_results"], "n_files": len(out["files"]),
+        "file_categories": [f["category"] for f in out["files"]],
+        "station_code": s["station_code"], "sample_type": s["sample_type"],
+        "bg_id": s["bg_id"], "lab_sample_id": s["lab_sample_id"],
+        "lab_batch": s["lab_batch"], "project_code": s["project_code"],
+    }
     out["label"] = f"{s['station_code'] or 'sample'} · {s['sample_date'] or '—'}"
     out["sample_date"] = str(s["sample_date"]) if s["sample_date"] else None
     if s["st_lat"] is not None:
