@@ -1548,9 +1548,14 @@ def create_app(dsn: str | None = None) -> Flask:
     def folder_ingest():
         conn = db()
         if request.method == "POST":
+            # `ajax` is set by the multi-folder uploader, which POSTs one subfolder at a time
+            # and wants JSON back (no redirect) so it can show progress across many folders.
+            ajax = request.form.get("ajax")
             uploads = [f for f in request.files.getlist("files") if f and f.filename]
             source = (request.form.get("source") or "").strip()
             if not uploads:
+                if ajax:
+                    return jsonify({"error": "no files"}), 400
                 flash("Choose the files from one lab email folder (results CSV + any PDFs).", "error")
                 return redirect(url_for("folder_ingest"))
             tmpdir = tempfile.mkdtemp()
@@ -1558,11 +1563,15 @@ def create_app(dsn: str | None = None) -> Flask:
                 for up in uploads:
                     up.save(os.path.join(tmpdir, os.path.basename(up.filename)))
                 r = ingest_bend_folder(conn, tmpdir, source=source or None)
+                if ajax:
+                    return jsonify(r)
                 flash(f"Ingested {r['samples']} sample(s) ({r['geocoded']} geocoded), "
                       f"{r['results']} result(s); stored {r['files']} file(s).", "ok")
                 return redirect(url_for("lab_workboard", batch=r["batch_id"], status="unlinked"))
             except Exception as exc:  # noqa: BLE001
                 conn.rollback()
+                if ajax:
+                    return jsonify({"error": str(exc).splitlines()[0], "source": source}), 400
                 flash("Could not ingest folder: " + str(exc).splitlines()[0], "error")
             finally:
                 shutil.rmtree(tmpdir, ignore_errors=True)

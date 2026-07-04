@@ -19,6 +19,59 @@
 </div>
 
 <div class="card">
+  <h1 style="font-size:1.05rem">Many folders at once</h1>
+  <p class="muted">Have a <strong>parent folder containing many lab folders</strong> (one per email)?
+    Select it and each <em>subfolder</em> is ingested as its own batch. Folders upload one at a time
+    with progress below, so a large set (50+) won't overload a single request.</p>
+  <div style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap">
+    <input type="file" id="dirInput" webkitdirectory directory multiple>
+    <button type="button" id="dirBtn" onclick="ingestAllSubfolders()">Ingest all subfolders</button>
+  </div>
+  <div id="dirProgress" class="muted" style="margin-top:.5rem"></div>
+</div>
+
+<script>
+async function ingestAllSubfolders() {
+  const files = [...document.getElementById('dirInput').files];
+  const prog = document.getElementById('dirProgress');
+  if (!files.length) { prog.textContent = 'Select a parent folder first.'; return; }
+  // Group files by their subfolder (the directory part of each file's relative path).
+  const groups = {};
+  files.forEach(f => {
+    const rel = f.webkitRelativePath || f.name;
+    const parts = rel.split('/');
+    if (parts.length < 2) return;                 // a loose file at the root — skip
+    const dir = parts.slice(0, -1).join('/');
+    (groups[dir] = groups[dir] || []).push(f);
+  });
+  const dirs = Object.keys(groups).sort();
+  if (!dirs.length) { prog.textContent = 'No subfolders found in that folder.'; return; }
+
+  const btn = document.getElementById('dirBtn'); btn.disabled = true;
+  const tot = { batches: 0, samples: 0, results: 0, files: 0, failed: 0, fails: [] };
+  for (let i = 0; i < dirs.length; i++) {
+    const source = dirs[i].split('/').pop();
+    prog.textContent = `Ingesting ${i + 1} / ${dirs.length}: ${source} …`;
+    const fd = new FormData();
+    fd.append('ajax', '1'); fd.append('source', source);
+    groups[dirs[i]].forEach(f => fd.append('files', f, f.name));
+    try {
+      const res = await fetch('{{ url_for("folder_ingest") }}', { method: 'POST', body: fd });
+      const j = await res.json();
+      if (res.ok && !j.error) {
+        tot.batches++; tot.samples += j.samples || 0; tot.results += j.results || 0; tot.files += j.files || 0;
+      } else { tot.failed++; tot.fails.push(source); }
+    } catch (e) { tot.failed++; tot.fails.push(source); }
+  }
+  btn.disabled = false;
+  prog.innerHTML = `Done — ingested <b>${tot.batches}</b> folder(s): ${tot.samples} sample(s), `
+    + `${tot.results} result(s), ${tot.files} file(s) stored`
+    + (tot.failed ? ` · <b style="color:#b45309">${tot.failed} failed</b> (${tot.fails.join(', ')})` : '')
+    + ' · <a href="{{ url_for("folder_ingest") }}">refresh list</a>';
+}
+</script>
+
+<div class="card">
   <h1 style="font-size:1.05rem">Ingested batches</h1>
   <table>
     <tr><th>Batch</th><th>Source</th><th>Region</th><th>Samples</th><th>Results</th><th>Uploaded</th><th>Files</th></tr>

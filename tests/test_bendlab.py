@@ -138,3 +138,25 @@ def test_folder_ingest_page_and_download(client, conn, tmp_path):
     fid = batch_files(conn, r["batch_id"])[0]["id"]
     dl = client.get(f"/batch/{r['batch_id']}/file/{fid}")
     assert dl.status_code == 200 and len(dl.data) > 0
+
+
+def test_multifolder_ajax_upload_returns_json(client, conn):
+    """The multi-folder uploader POSTs one subfolder at a time with ajax=1 and expects JSON."""
+    import csv as _csv
+    import io
+    conn.execute("INSERT INTO station_registry (station_code, latitude, longitude) "
+                 "VALUES ('630BPRD01', 38.2, -119.2)"); conn.commit()
+    buf = io.StringIO(); w = _csv.DictWriter(buf, fieldnames=HEADER); w.writeheader()
+    w.writerow(_row(**{"Location": "630BPRD01", "Collected": "6/16/2025", "BG_ID": "WBX",
+                       "Microcystin/Nod. (ug/L)": "4.13"}))
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+    data = {"ajax": "1", "source": "Clear Lake (RB5)",
+            "files": [(io.BytesIO(buf.getvalue().encode()), "20250101_results.csv"),
+                      (io.BytesIO(b"%PDF-1.4"), "COC_x.pdf")]}
+    r = client.post("/ingest/folders", data=data, content_type="multipart/form-data")
+    j = r.get_json()
+    assert r.status_code == 200
+    assert j["samples"] == 1 and j["files"] == 2 and j["region"] == "Region 5"
+    # empty ajax post -> JSON error, not a redirect
+    bad = client.post("/ingest/folders", data={"ajax": "1"}, content_type="multipart/form-data")
+    assert bad.status_code == 400 and "error" in bad.get_json()
