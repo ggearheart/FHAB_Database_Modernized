@@ -369,6 +369,21 @@ def test_link_selected_via_web(client, conn):
     assert conn.execute("SELECT case_id FROM sample WHERE id=%s", (sid,)).fetchone()["case_id"] == cid
 
 
+def test_sample_geo_includes_batch_files(conn):
+    from fhab.labtasks import sample_geo
+    _staff(conn)
+    bid = conn.execute("INSERT INTO lab_batch (kind, source) VALUES ('ingested','B') RETURNING id").fetchone()["id"]
+    conn.execute("INSERT INTO lab_batch_file (batch_id, category, filename, data) "
+                 "VALUES (%s,'coc','COC_x.pdf', %s)", (bid, b"%PDF"))
+    sid = _orphan_sample(conn, "FILESAMP")
+    conn.execute("UPDATE sample SET lab_batch_id=%s WHERE id=%s", (bid, sid)); conn.commit()
+    g = sample_geo(conn, sid)
+    assert g["files"] and g["files"][0]["category"] == "coc"
+    assert g["files"][0]["batch_id"] == bid and g["files"][0]["filename"] == "COC_x.pdf"
+    # a sample with no ingest batch -> no files
+    assert sample_geo(conn, _orphan_sample(conn, "NOFILE"))["files"] == []
+
+
 def test_geocoded_filter_and_tally(conn):
     _staff(conn)
     geo = _orphan_sample(conn, "HASGEO")          # _orphan_sample creates a station with geom
