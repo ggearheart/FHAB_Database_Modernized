@@ -167,6 +167,7 @@
     </div>
     <div id="wbmap" style="height:360px; border:1px solid var(--line); border-radius:6px"></div>
     <p class="muted" id="mapNote" style="margin:.5rem 0 0"></p>
+    <div id="wbCandList" style="margin-top:.5rem"></div>
   </div>
 </div>
 
@@ -254,6 +255,34 @@ function renderSampleMap(probe) {
 
     if (pts.length === 1) _wbmap.setView(pts[0], 13);
     else if (pts.length > 1) _wbmap.fitBounds(pts, { padding: [30, 30], maxZoom: 14 });
+
+    // Also list the nearby reports so overlapping markers aren't a problem to select/link.
+    const cands = g.candidates || [];
+    const listEl = document.getElementById('wbCandList');
+    if (cands.length) {
+      let h = '<div style="display:flex;justify-content:space-between;align-items:center">'
+        + '<strong>Nearby reports (' + cands.length + ')</strong>'
+        + '<label style="font-weight:400"><input type="checkbox" id="wbSelAll" style="width:auto"> select all</label></div>'
+        + '<div style="max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px;margin:4px 0">';
+      cands.forEach(c => {
+        h += '<label style="display:flex;gap:.4rem;align-items:center;padding:1px 0">'
+          + '<input type="checkbox" class="wbCand" value="' + c.brid + '" style="width:auto;flex:0 0 auto">'
+          + '<span style="flex:0 0 9px;height:9px;border-radius:50%;background:' + gapColor(c.day_gap)
+          + ';box-shadow:0 0 0 1px #bbb"></span>'
+          + '<span>R' + c.brid + (c.case_id ? ' · Case ' + c.case_id : '') + ' — ' + (c.name || '—')
+          + ' · ' + (c.obs || 'date?') + ' · ' + c.dist_m + ' m'
+          + (c.day_gap != null ? ' · ' + c.day_gap + ' d' : '') + '</span></label>';
+      });
+      h += '</div><button type="button" onclick="wbLinkSelected()">Link selected</button>'
+        + ' <span id="wbLinkMsg" class="muted"></span>'
+        + '<div class="muted" style="font-size:.85rem;margin-top:2px">One report → links to it; '
+        + 'several sharing one case → links to that case.</div>';
+      listEl.innerHTML = h;
+      const all = document.getElementById('wbSelAll');
+      all.addEventListener('change', () =>
+        document.querySelectorAll('.wbCand').forEach(c => { c.checked = all.checked; }));
+    } else { listEl.innerHTML = ''; }
+
     const anchored = g.station || g.linked || g.probe;
     document.getElementById('mapNote').innerHTML = anchored
       ? ((g.candidates || []).length + ' nearby report(s). '
@@ -302,6 +331,18 @@ function _wbPost(action) {
 }
 function wbCreateReport() { _wbPost('/lab/sample/' + _wbsid + '/create-report'); }
 function wbRoutine() { _wbPost('/lab/sample/' + _wbsid + '/routine'); }
+function wbLinkSelected() {
+  const ids = [...document.querySelectorAll('.wbCand:checked')].map(c => c.value);
+  const msg = document.getElementById('wbLinkMsg');
+  if (!ids.length) { if (msg) msg.textContent = 'Select at least one report.'; return; }
+  const f = document.createElement('form');
+  f.method = 'post'; f.action = '/lab/sample/' + _wbsid + '/link-selected';
+  ids.forEach(id => {
+    const i = document.createElement('input'); i.type = 'hidden'; i.name = 'report_ids'; i.value = id;
+    f.appendChild(i);
+  });
+  document.body.appendChild(f); f.submit();
+}
 function wbScanCoC() {
   _wbmsg('Scanning chain-of-custody form…');
   fetch('/lab/sample/' + _wbsid + '/ocr-coords')

@@ -120,6 +120,31 @@ def link_sample(conn, user_id, sample_id, *, bloom_report_id=None, case_id=None)
         conn.commit()
 
 
+def link_sample_to_reports(conn, user_id, sample_id, report_ids) -> dict:
+    """Link a sample from a multi-select of nearby reports.
+
+    One report -> link to it. Several reports that all share one case -> link to that case
+    (associating the sample with all of them). Several reports without a shared case can't be
+    linked at once -> returns {"error": ...} so the caller can prompt the user.
+    """
+    ids = sorted({int(r) for r in report_ids if str(r).strip().isdigit()})
+    if not ids:
+        return {"error": "Select at least one report."}
+    if len(ids) == 1:
+        link_sample(conn, user_id, sample_id, bloom_report_id=ids[0])
+        return {"linked": "report", "id": ids[0]}
+    rows = conn.execute(
+        "SELECT bloom_report_id, case_id FROM event WHERE bloom_report_id = ANY(%s)", (ids,)
+    ).fetchall()
+    cases = {r["case_id"] for r in rows}
+    if len(rows) == len(ids) and len(cases) == 1 and None not in cases:
+        cid = next(iter(cases))
+        link_sample(conn, user_id, sample_id, case_id=cid)
+        return {"linked": "case", "id": cid, "reports": ids}
+    return {"error": "Those reports aren't all in one shared case — pick a single report, "
+                     "or add them to a case first."}
+
+
 def unlink_sample(conn, user_id, sample_id) -> None:
     """Detach a sample from its report/case (back to unlinked), clearing QA."""
     with acting_as(conn, user_id):

@@ -321,6 +321,54 @@ def test_bulk_coordinates_web(client, conn):
     assert conn.execute("SELECT geom IS NOT NULL AS g FROM station WHERE id=%s", (st,)).fetchone()["g"]
 
 
+def test_link_to_reports_single_and_shared_case(conn):
+    from fhab.cases import create_case, assign_report_to_case
+    from fhab.labtasks import link_sample_to_reports
+    staff = _staff(conn)
+    a = enter_report(conn, staff, water_body_name="Multi A", region=R5)
+    b = enter_report(conn, staff, water_body_name="Multi B", region=R5)
+    sid = _orphan_sample(conn, "MULTI")
+
+    # one report -> links to that report
+    r1 = link_sample_to_reports(conn, staff, sid, ["", str(a), "x"])
+    assert r1 == {"linked": "report", "id": a}
+    assert conn.execute("SELECT bloom_report_id FROM sample WHERE id=%s", (sid,)).fetchone()["bloom_report_id"] == a
+
+    # two reports in one case -> links to the case
+    cid = create_case(conn, staff, water_body_name="Multi Case", region=R5)
+    assign_report_to_case(conn, staff, a, cid); assign_report_to_case(conn, staff, b, cid)
+    r2 = link_sample_to_reports(conn, staff, sid, [str(a), str(b)])
+    assert r2["linked"] == "case" and r2["id"] == cid
+    row = conn.execute("SELECT bloom_report_id, case_id FROM sample WHERE id=%s", (sid,)).fetchone()
+    assert row["case_id"] == cid and row["bloom_report_id"] is None
+
+
+def test_link_to_reports_no_shared_case_errors(conn):
+    from fhab.labtasks import link_sample_to_reports
+    staff = _staff(conn)
+    a = enter_report(conn, staff, water_body_name="NoCase A", region=R5)
+    b = enter_report(conn, staff, water_body_name="NoCase B", region=R5)
+    sid = _orphan_sample(conn, "NOCASE")
+    res = link_sample_to_reports(conn, staff, sid, [str(a), str(b)])
+    assert "error" in res
+    assert conn.execute("SELECT bloom_report_id, case_id FROM sample WHERE id=%s", (sid,)).fetchone()["bloom_report_id"] is None
+
+
+def test_link_selected_via_web(client, conn):
+    from fhab.cases import create_case, assign_report_to_case
+    staff = create_user(conn, "ls@wb.ca.gov"); grant_role(conn, staff, "wb_staff", region=R5)
+    a = enter_report(conn, staff, water_body_name="WebMulti A", region=R5)
+    b = enter_report(conn, staff, water_body_name="WebMulti B", region=R5)
+    cid = create_case(conn, staff, water_body_name="WebMulti Case", region=R5)
+    assign_report_to_case(conn, staff, a, cid); assign_report_to_case(conn, staff, b, cid)
+    sid = _orphan_sample(conn, "WEBMULTI")
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+    r = client.post(f"/lab/sample/{sid}/link-selected",
+                    data={"report_ids": [str(a), str(b)]}, follow_redirects=True)
+    assert r.status_code == 200
+    assert conn.execute("SELECT case_id FROM sample WHERE id=%s", (sid,)).fetchone()["case_id"] == cid
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")

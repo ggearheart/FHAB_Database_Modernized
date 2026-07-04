@@ -31,9 +31,9 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
 from ..export import DATASETS, fetch_flatfile
 from ..labquery import count_results, filter_options, query_results
 from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, clear_routine,
-                        count_workboard, create_report_from_sample, link_sample, qa_review,
-                        sample_geo, set_sample_location, status_tallies, tag_routine,
-                        team_members, unlink_sample, workboard)
+                        count_workboard, create_report_from_sample, link_sample,
+                        link_sample_to_reports, qa_review, sample_geo, set_sample_location,
+                        status_tallies, tag_routine, team_members, unlink_sample, workboard)
 from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
@@ -1053,6 +1053,26 @@ def create_app(dsn: str | None = None) -> Flask:
             conn.rollback(); flash("No such report/case ID.", "error")
         except psycopg.Error as exc:
             conn.rollback(); flash("Could not link: " + str(exc).splitlines()[0], "error")
+        return redirect(request.referrer or url_for("lab_workboard"))
+
+    @app.route("/lab/sample/<int:sid>/link-selected", methods=["POST"])
+    @staff_required
+    def lab_sample_link_selected(sid):
+        conn = db()
+        try:
+            res = link_sample_to_reports(conn, session["uid"], sid,
+                                         request.form.getlist("report_ids"))
+        except psycopg.Error as exc:
+            conn.rollback()
+            flash("Could not link: " + str(exc).splitlines()[0], "error")
+            return redirect(request.referrer or url_for("lab_workboard"))
+        if res.get("error"):
+            flash(res["error"], "error")
+        elif res["linked"] == "case":
+            flash(f"Linked to Case {res['id']} — covers {len(res['reports'])} selected report(s). "
+                  "Pending QA review.", "ok")
+        else:
+            flash(f"Sample linked to R{res['id']} — pending QA review.", "ok")
         return redirect(request.referrer or url_for("lab_workboard"))
 
     @app.route("/lab/sample/<int:sid>/unlink", methods=["POST"])
