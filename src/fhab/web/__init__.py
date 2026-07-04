@@ -651,7 +651,10 @@ def create_app(dsn: str | None = None) -> Flask:
         # "Analytical data without event connections": samples that have results but are not
         # linked to any report/case, plotted at their station location (one marker per station).
         if a.get("data") == "orphan":
-            cond, p = ["s.bloom_report_id IS NULL", "s.case_id IS NULL", "st.geom IS NOT NULL"], {}
+            # Geocoded lab samples not yet linked and not tagged routine — the "parked, needs
+            # research" set. (Ungeocoded samples have no point and can't appear on a map.)
+            cond, p = ["s.bloom_report_id IS NULL", "s.case_id IS NULL", "st.geom IS NOT NULL",
+                       "s.sampling_type IS DISTINCT FROM 'routine'"], {}
             if days:
                 cond.append("s.sample_date >= current_date - %(days)s::int"); p["days"] = days
             with acting_as(conn, session["uid"]):
@@ -987,7 +990,7 @@ def create_app(dsn: str | None = None) -> Flask:
     def lab_workboard():
         a = request.args
         f = {k: (a.get(k) or "").strip() or None
-             for k in ("status", "assignee", "region", "q", "batch")}
+             for k in ("status", "assignee", "region", "q", "batch", "geocoded")}
         sort = a.get("sort") if a.get("sort") in ("date", "station", "status") else "date"
         try:
             page = max(0, int(a.get("page", 0)))

@@ -56,6 +56,11 @@ def _where(f: dict, me: int | None):
         cond.append("w.regional_water_board = %(region)s"); p["region"] = f["region"]
     if str(f.get("batch") or "").isdigit():
         cond.append("s.lab_batch_id = %(batch)s"); p["batch"] = int(f["batch"])
+    geo = f.get("geocoded")
+    if geo == "yes":
+        cond.append("st.geom IS NOT NULL")
+    elif geo == "no":
+        cond.append("st.geom IS NULL")
     if f.get("q"):
         cond.append("(st.station_code ILIKE %(q)s OR w.water_body_name ILIKE %(q)s)")
         p["q"] = "%" + f["q"] + "%"
@@ -84,10 +89,21 @@ def count_workboard(conn, f: dict, *, me=None) -> int:
 
 
 def status_tallies(conn) -> dict:
-    """Counts per status across all samples with results (for the board's summary chips)."""
+    """Counts per status across all samples with results (for the board's summary chips).
+
+    Also splits the *unlinked* bucket by geocoding, so the board can surface samples that are
+    geocoded but still not linked ('geocoded, parked') vs. those that still need coordinates.
+    """
     rows = conn.execute(
-        f"SELECT ({_STATUS}) AS status, count(*) AS c{_FROM} GROUP BY 1").fetchall()
-    return {r["status"]: r["c"] for r in rows}
+        f"""SELECT ({_STATUS}) AS status, count(*) AS c,
+                   count(*) FILTER (WHERE st.geom IS NOT NULL) AS geo{_FROM} GROUP BY 1"""
+    ).fetchall()
+    t = {r["status"]: r["c"] for r in rows}
+    for r in rows:
+        if r["status"] == "unlinked":
+            t["unlinked_geocoded"] = r["geo"]
+            t["unlinked_nogeo"] = r["c"] - r["geo"]
+    return t
 
 
 def team_members(conn) -> list:

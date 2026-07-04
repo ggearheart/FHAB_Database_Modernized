@@ -369,6 +369,34 @@ def test_link_selected_via_web(client, conn):
     assert conn.execute("SELECT case_id FROM sample WHERE id=%s", (sid,)).fetchone()["case_id"] == cid
 
 
+def test_geocoded_filter_and_tally(conn):
+    _staff(conn)
+    geo = _orphan_sample(conn, "HASGEO")          # _orphan_sample creates a station with geom
+    nogeo_st = conn.execute("INSERT INTO station (station_code) VALUES ('NOGEO') RETURNING id").fetchone()["id"]
+    nogeo = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s, current_date) "
+                         "RETURNING id", (nogeo_st,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('ng',%s,'Laboratory')", (nogeo,))
+    conn.commit()
+
+    got = workboard(conn, {"status": "unlinked", "geocoded": "yes"})
+    ids = {r["id"] for r in got}
+    assert geo in ids and nogeo not in ids
+    got_no = workboard(conn, {"status": "unlinked", "geocoded": "no"})
+    assert nogeo in {r["id"] for r in got_no} and geo not in {r["id"] for r in got_no}
+
+    t = status_tallies(conn)
+    assert t.get("unlinked_geocoded", 0) >= 1 and t.get("unlinked_nogeo", 0) >= 1
+
+
+def test_geocoded_filter_web(client, conn):
+    grant_role(conn, create_user(conn, "gf@wb.ca.gov"), "wb_staff", region=R5)
+    geo = _orphan_sample(conn, "WEBGEO")
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+    r = client.get("/lab/workboard?status=unlinked&geocoded=yes")
+    assert r.status_code == 200 and b"WEBGEO" in r.data
+    assert b"Geocoded \xc2\xb7 not linked" in r.data     # the chip renders
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")
