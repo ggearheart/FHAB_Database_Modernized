@@ -35,6 +35,7 @@ from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, c
                         sample_geo, set_sample_location, status_tallies, tag_routine,
                         team_members, unlink_sample, workboard)
 from ..ocr import OcrUnavailable, ocr_pdf_coords
+from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
                         update_analyte)
@@ -337,6 +338,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Register community/partner groups and mint API keys."},
             {"title": "Analyte taxonomy", "href": url_for("admin_analytes"),
              "desc": "Curate analytes; merge aliases into canonical names."},
+            {"title": "Refresh from data.ca.gov", "href": url_for("admin_refresh"),
+             "desc": "Pull the latest published reports, cases, responses & results and update the schema."},
             {"title": "Reset / maintenance", "href": url_for("admin_reset"),
              "desc": "Purge lab data to reset the test environment."},
         ]
@@ -1347,6 +1350,32 @@ def create_app(dsn: str | None = None) -> Flask:
         except TaxonomyError as exc:
             flash(str(exc), "error")
         return redirect(url_for("admin_analytes"))
+
+    # ---------- Refresh from data.ca.gov (pull latest published records) ----------
+    @app.route("/admin/refresh", methods=["GET", "POST"])
+    @admin_required
+    def admin_refresh():
+        report = mode = None
+        if request.method == "POST":
+            apply = request.form.get("apply") == "1"
+            if apply and request.form.get("confirm") != "UPDATE":
+                flash('Type UPDATE to confirm applying the refresh.', "error")
+            else:
+                try:
+                    rep = refresh_from_ca_gov(db(), dry_run=not apply)
+                    report = {"inserted": rep.inserted, "updated": rep.updated,
+                              "skipped": rep.skipped}
+                    mode = "apply" if apply else "preview"
+                    if apply:
+                        tot_i = sum(rep.inserted.values()); tot_u = sum(rep.updated.values())
+                        flash(f"Applied — inserted {tot_i}, updated {tot_u} record(s).", "ok")
+                except RefreshError as exc:
+                    flash("Could not reach data.ca.gov: " + str(exc).splitlines()[0], "error")
+                except Exception as exc:  # noqa: BLE001
+                    db().rollback()
+                    flash("Refresh failed: " + str(exc).splitlines()[0], "error")
+        return render_template("admin_refresh.html", report=report, mode=mode,
+                               dataset_url=DATASET_URL)
 
     # ---------- Reset / maintenance (test environment) ----------
     @app.route("/admin/reset")

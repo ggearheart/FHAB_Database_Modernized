@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Refresh from data.ca.gov{% endblock %}
+{% block body %}
+<h1>Refresh from data.ca.gov</h1>
+<div class="card">
+  <p class="muted">Pull the latest published <strong>reports, cases, responses (+advisories), and
+    results</strong> from the State Water Board's
+    <a href="{{ dataset_url }}" target="_blank" rel="noopener">Freshwater HABs dataset</a> and
+    update the schema. This is an <strong>upsert</strong>: new records are inserted and the
+    <em>published</em> fields of existing records are refreshed to match data.ca.gov.</p>
+  <ul class="muted">
+    <li><strong>Nothing is deleted</strong> — records here but not in the published files are left alone.</li>
+    <li><strong>Local-only data is preserved</strong> — suspected illness, assignments, QA, lab
+      links, and determinations are not touched; only published columns update.</li>
+    <li>Always <strong>Preview</strong> first to see what would change, then <strong>Apply</strong>.</li>
+  </ul>
+
+  <form method="post" style="display:inline">
+    <button name="apply" value="0">Preview changes (dry run)</button>
+  </form>
+</div>
+
+{% if report %}
+<div class="card">
+  <h1 style="font-size:1.05rem">{{ 'Applied' if mode == 'apply' else 'Preview' }} — what
+    {{ 'was' if mode == 'apply' else 'would be' }} changed</h1>
+  <table>
+    <tr><th>Dataset</th><th>New</th><th>Updated</th><th>Skipped</th></tr>
+    {% for t in ['cases','events','responses','advisories','results'] %}
+    <tr>
+      <td>{{ 'reports' if t == 'events' else t }}</td>
+      <td>{{ report.inserted.get(t, 0) }}</td>
+      <td>{{ report.updated.get(t, 0) }}</td>
+      <td>{{ report.skipped.get(t, 0) if report.skipped.get(t) else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% if mode == 'preview' %}
+  <p style="margin-top:.8rem">Ready to write these changes? Type <strong>UPDATE</strong> to confirm.</p>
+  <form method="post" style="display:flex; gap:.5rem; align-items:center">
+    <input name="confirm" placeholder="UPDATE" style="width:8rem" autocomplete="off">
+    <input type="hidden" name="apply" value="1">
+    <button style="background:#b45309">Apply refresh</button>
+  </form>
+  {% else %}
+  <p class="muted" style="margin-top:.8rem">Done. Run a Preview again any time to check for newer records.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
