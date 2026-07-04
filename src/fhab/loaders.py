@@ -28,6 +28,8 @@ from .parsing import (
 class LoadReport:
     counts: dict[str, int] = field(default_factory=dict)
     skipped: dict[str, int] = field(default_factory=dict)
+    inserted: dict[str, int] = field(default_factory=dict)   # refresh: new rows per table
+    updated: dict[str, int] = field(default_factory=dict)     # refresh: existing rows updated
 
     def summary(self) -> str:
         lines = ["loaded:"]
