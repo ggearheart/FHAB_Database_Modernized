@@ -42,7 +42,7 @@
         <span class="btn-group" data-field="data">
           <button type="button" class="fbtn active" data-val="">All reports</button>
           <button type="button" class="fbtn" data-val="with">Events with lab data</button>
-          <button type="button" class="fbtn" data-val="orphan">Lab data without events</button>
+          <button type="button" class="fbtn" data-val="orphan" title="Geocoded lab samples not yet linked or tagged routine">Geocoded, not linked</button>
         </span>
       </div>
       <button type="button" id="clear" class="secondary">Clear all</button>
@@ -92,7 +92,7 @@ Object.keys(LABELS).forEach(k => {
 });
 const orphanLeg = document.createElement('span');
 orphanLeg.innerHTML = `<span style="display:inline-block;width:.7rem;height:.7rem;border-radius:50%;`
-  + `background:${ORPHAN};margin-right:.3rem;vertical-align:middle"></span>Unlinked lab data (no report)`;
+  + `background:${ORPHAN};margin-right:.3rem;vertical-align:middle"></span>Geocoded lab data, not linked`;
 leg.appendChild(orphanLeg);
 
 const geoOpts = {
@@ -111,7 +111,7 @@ const geoOpts = {
         + `${p.station_name || ''}<br>`
         + `${p.n_samples} unlinked sample(s)<br>`
         + `Last sample: ${p.last_sample || '—'}<br>`
-        + `<a href="/lab/workboard?status=unlinked">Reconcile →</a>`
+        + `<a href="/lab/workboard?status=unlinked&geocoded=yes">Reconcile →</a>`
       );
       return;
     }

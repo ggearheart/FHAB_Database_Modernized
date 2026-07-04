@@ -28,6 +28,12 @@
   <a class="pill" style="background:{{ PILL[key] }}; padding:.25rem .7rem; margin-right:.4rem; text-decoration:none"
      href="{{ url_for('lab_workboard', status=key) }}"><strong>{{ tallies.get(key, 0) }}</strong> {{ label }}</a>
   {% endfor %}
+  <a class="pill" style="background:#e6eefb; padding:.25rem .7rem; margin-right:.4rem; text-decoration:none"
+     href="{{ url_for('lab_workboard', status='unlinked', geocoded='yes') }}"
+     title="Geocoded but not yet linked or tagged routine — parked for research"><strong>{{ tallies.get('unlinked_geocoded', 0) }}</strong> Geocoded · not linked</a>
+  <a class="pill" style="background:#fbe8d8; padding:.25rem .7rem; margin-right:.4rem; text-decoration:none"
+     href="{{ url_for('lab_workboard', status='unlinked', geocoded='no') }}"
+     title="Unlinked samples that still need coordinates"><strong>{{ tallies.get('unlinked_nogeo', 0) }}</strong> Needs geocoding</a>
   <a class="pill" style="padding:.25rem .7rem" href="{{ url_for('lab_workboard') }}">All</a>
 </div>
 
@@ -46,6 +52,11 @@
     <div><label>Region</label>
       <select name="region" onchange="this.form.submit()"><option value="">Any</option>
         {% for r in regions %}<option value="{{ r }}" {% if f.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select></div>
+    <div><label>Geocoding</label>
+      <select name="geocoded" onchange="this.form.submit()"><option value="">Any</option>
+        <option value="yes" {% if f.geocoded=='yes' %}selected{% endif %}>Geocoded</option>
+        <option value="no" {% if f.geocoded=='no' %}selected{% endif %}>Not geocoded</option>
       </select></div>
     <div><label>Search station / water body</label><input name="q" value="{{ f.q or '' }}"></div>
     <button>Apply</button>
