@@ -33,7 +33,8 @@ from ..labquery import count_results, filter_options, query_results
 from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, clear_routine,
                         count_workboard, create_report_from_sample, link_sample,
                         link_sample_to_reports, qa_review, sample_geo, set_sample_location,
-                        status_tallies, tag_routine, team_members, unlink_sample, workboard)
+                        set_sample_point, status_tallies, tag_routine, team_members, unlink_sample,
+                        workboard)
 from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
@@ -1579,6 +1580,38 @@ def create_app(dsn: str | None = None) -> Flask:
         for b in batches:
             b["files"] = batch_files(conn, b["id"])
         return render_template("folder_ingest.html", batches=batches)
+
+    @app.route("/lab/batch/<int:bid>/coordinates", methods=["GET", "POST"])
+    @staff_required
+    def batch_coordinates(bid):
+        conn = db()
+        batch = conn.execute("SELECT * FROM lab_batch WHERE id=%s", (bid,)).fetchone()
+        if not batch:
+            flash("Batch not found.", "error")
+            return redirect(url_for("folder_ingest"))
+        if request.method == "POST":
+            applied = 0
+            try:
+                for sid in request.form.getlist("sample_id"):
+                    lat = (request.form.get(f"lat_{sid}") or "").strip()
+                    lon = (request.form.get(f"lon_{sid}") or "").strip()
+                    if lat and lon:
+                        set_sample_point(conn, int(sid), lat, lon)
+                        applied += 1
+                conn.commit()
+                flash(f"Saved coordinates for {applied} sample(s).", "ok")
+            except (ValueError, psycopg.Error) as exc:
+                conn.rollback()
+                flash("Could not save coordinates: " + str(exc).splitlines()[0], "error")
+            return redirect(url_for("batch_coordinates", bid=bid))
+        samples = conn.execute(
+            """SELECT s.id, st.station_code, st.station_name, s.sample_id, s.bg_id,
+                      s.lab_sample_id, s.sample_type, s.sample_date::text AS sample_date,
+                      ST_Y(st.geom) AS lat, ST_X(st.geom) AS lon
+               FROM sample s LEFT JOIN station st ON st.id = s.station_id
+               WHERE s.lab_batch_id = %s ORDER BY s.id""", (bid,)).fetchall()
+        return render_template("batch_coordinates.html", batch=batch, samples=samples,
+                               files=batch_files(conn, bid))
 
     @app.route("/lab/coordinates", methods=["GET", "POST"])
     @staff_required

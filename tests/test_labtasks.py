@@ -421,6 +421,40 @@ def test_geocoded_filter_web(client, conn):
     assert b"Geocoded \xc2\xb7 not linked" in r.data     # the chip renders
 
 
+def test_set_sample_point_splits_shared_station(conn):
+    from fhab.labtasks import set_sample_point
+    st = conn.execute("INSERT INTO station (station_code) VALUES ('SHARED') RETURNING id").fetchone()["id"]
+    s1 = conn.execute("INSERT INTO sample (station_id, bg_id) VALUES (%s,'BGA') RETURNING id", (st,)).fetchone()["id"]
+    s2 = conn.execute("INSERT INTO sample (station_id, bg_id) VALUES (%s,'BGB') RETURNING id", (st,)).fetchone()["id"]
+    conn.commit()
+    set_sample_point(conn, s1, 38.5, -121.4)
+    set_sample_point(conn, s2, 39.0, -122.0)
+    conn.commit()
+    r1 = conn.execute("SELECT st.id, ST_Y(st.geom) AS lat FROM sample s JOIN station st ON st.id=s.station_id WHERE s.id=%s", (s1,)).fetchone()
+    r2 = conn.execute("SELECT st.id, ST_Y(st.geom) AS lat FROM sample s JOIN station st ON st.id=s.station_id WHERE s.id=%s", (s2,)).fetchone()
+    assert r1["id"] != r2["id"]                      # each got its own station
+    assert abs(r1["lat"] - 38.5) < 1e-6 and abs(r2["lat"] - 39.0) < 1e-6
+
+
+def test_batch_coordinates_screen_web(client, conn):
+    bid = conn.execute("INSERT INTO lab_batch (kind, source) VALUES ('ingested','Sacramento Ponds') RETURNING id").fetchone()["id"]
+    st = conn.execute("INSERT INTO station (station_code) VALUES ('SACPONDS') RETURNING id").fetchone()["id"]
+    s1 = conn.execute("INSERT INTO sample (station_id, lab_batch_id, bg_id) VALUES (%s,%s,'P1') RETURNING id", (st, bid)).fetchone()["id"]
+    s2 = conn.execute("INSERT INTO sample (station_id, lab_batch_id, bg_id) VALUES (%s,%s,'P2') RETURNING id", (st, bid)).fetchone()["id"]
+    conn.commit()
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+    page = client.get(f"/lab/batch/{bid}/coordinates")
+    assert page.status_code == 200 and b"Enter sample coordinates" in page.data and b"Sacramento Ponds" in page.data
+    r = client.post(f"/lab/batch/{bid}/coordinates", data={
+        "sample_id": [str(s1), str(s2)],
+        f"lat_{s1}": "38.5", f"lon_{s1}": "-121.4",
+        f"lat_{s2}": "39.0", f"lon_{s2}": "-122.0"}, follow_redirects=True)
+    assert r.status_code == 200
+    g1 = conn.execute("SELECT ST_Y(st.geom) AS lat FROM sample s JOIN station st ON st.id=s.station_id WHERE s.id=%s", (s1,)).fetchone()["lat"]
+    g2 = conn.execute("SELECT ST_Y(st.geom) AS lat FROM sample s JOIN station st ON st.id=s.station_id WHERE s.id=%s", (s2,)).fetchone()["lat"]
+    assert abs(g1 - 38.5) < 1e-6 and abs(g2 - 39.0) < 1e-6      # 2 samples, 2 distinct points
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")

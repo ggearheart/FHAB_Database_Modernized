@@ -74,7 +74,7 @@ async function ingestAllSubfolders() {
 <div class="card">
   <h1 style="font-size:1.05rem">Ingested batches</h1>
   <table>
-    <tr><th>Batch</th><th>Source</th><th>Region</th><th>Samples</th><th>Results</th><th>Uploaded</th><th>Files</th></tr>
+    <tr><th>Batch</th><th>Source</th><th>Region</th><th>Samples</th><th>Results</th><th>Uploaded</th><th>Files</th><th>Coordinates</th></tr>
     {% for b in batches %}
     <tr>
       <td><a href="{{ url_for('lab_workboard', batch=b.id, status='unlinked') }}">{{ b.id }}</a></td>
@@ -88,9 +88,10 @@ async function ingestAllSubfolders() {
           <a href="{{ url_for('batch_file_download', bid=b.id, fid=f.id) }}" title="{{ f.filename }}" target="_blank" rel="noopener">{{ f.category }}</a>{% if not loop.last %} · {% endif %}
         {% else %}<span class="muted">—</span>{% endfor %}
       </td>
+      <td><a href="{{ url_for('batch_coordinates', bid=b.id) }}">Enter coords{% if b.n_samples and b.n_geocoded < b.n_samples %} <span class="muted">({{ b.n_samples - b.n_geocoded }} left)</span>{% endif %}</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="7" class="muted">No folders ingested yet.</td></tr>
+    <tr><td colspan="8" class="muted">No folders ingested yet.</td></tr>
     {% endfor %}
   </table>
 </div>
