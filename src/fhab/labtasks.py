@@ -385,6 +385,38 @@ def set_sample_location(conn, sample_id, lat: float, lon: float) -> dict:
     return {"station_id": station_id, "lat": lat, "lon": lon}
 
 
+def set_sample_point(conn, sample_id, lat, lon) -> int:
+    """Give ONE sample its own geocoded point (does not commit; the caller does).
+
+    Unlike `set_sample_location`, this guarantees the coordinate is independent per sample: if the
+    sample currently shares a station with other samples (e.g. a folder ingest put several samples
+    at one station), it is moved to a dedicated station so its point doesn't overwrite the others'.
+    For the per-sample coordinate entry, where each sample on a chain-of-custody has its own lat/long.
+    """
+    lat, lon = float(lat), float(lon)
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValueError("Latitude must be -90..90 and longitude -180..180.")
+    s = conn.execute("SELECT station_id, bg_id, lab_sample_id FROM sample WHERE id=%s",
+                     (sample_id,)).fetchone()
+    if not s:
+        raise ValueError("Sample not found.")
+    st = s["station_id"]
+    if st is not None and conn.execute(
+            "SELECT 1 FROM sample WHERE station_id=%s AND id<>%s LIMIT 1", (st, sample_id)).fetchone():
+        st = None   # shared station -> give this sample its own so points stay independent
+    if st is None:
+        code = s["bg_id"] or s["lab_sample_id"] or f"SAMPLE-{sample_id}"
+        st = conn.execute(
+            """INSERT INTO station (station_code) VALUES (%s)
+               ON CONFLICT (station_code) DO UPDATE SET station_code = EXCLUDED.station_code
+               RETURNING id""", (code,)).fetchone()["id"]
+        conn.execute("UPDATE sample SET station_id=%s WHERE id=%s", (st, sample_id))
+    conn.execute(
+        """UPDATE station SET geom = ST_SetSRID(ST_MakePoint(%s,%s),4326),
+               datum = COALESCE(datum, 'WGS84') WHERE id=%s""", (lon, lat, st))
+    return st
+
+
 # Each line: a station code (or sample id) followed by latitude then longitude. The key may
 # contain spaces and commas (e.g. "El Dorado E. RP, North Pond") so we anchor on the two
 # trailing numeric tokens and treat everything before them as the key.
