@@ -121,6 +121,9 @@ results spreadsheet (analytes across columns) plus a scanned **chain-of-custody 
      CEDEN station registry** when the station code is known.
    - The **source files stay on the batch** — `coc · data · receipt · transmittal` links (they
      open in a **new tab**). A folder with only PDFs still stores the files.
+   - **Many folders at once:** the same screen has a **Many folders at once** box — pick a *parent*
+     folder of many lab folders and **Ingest all subfolders**; each subfolder becomes its own batch,
+     uploaded one at a time with progress (good for 50+).
 
 **B. Upload CEDEN lab data** (`Ingest Data → Upload CEDEN lab data`) — for a CEDEN WaterChemistry
 CSV (workflow output). Loads samples + results, geocodes from the registry, and **auto-links**
@@ -136,21 +139,27 @@ pin a CEDEN CSV directly to that site.
 
 **Reconcile on the Lab data workboard** (`Ingest Data → Lab data workboard`) — a task board to
 connect samples to events/reports/cases and QA-review the links.
-- **Status chips:** Unlinked / Linked·awaiting QA / Flagged / QA approved / **Routine sampling**
-  (click to filter). **Filters:** status, assignee (incl. **Me** / Unassigned), region,
-  station/water-body search.
+- **Status chips:** Unlinked / Linked·awaiting QA / Flagged / QA approved / **Routine sampling**,
+  plus **Geocoded · not linked** (ready to research) and **Needs geocoding** (waiting on
+  coordinates). **Filters:** status, assignee (incl. **Me** / Unassigned), region, a **Geocoding**
+  filter, and a station/water-body search.
 - **Assign:** check rows → pick a team member → **Assign**.
 - **Per sample:** **Link/Re-link** by report (R#) or case (C#); **+Report**; **✓ QA**; **⚑** flag;
   **Unlink**; **Routine**. *Re-linking clears QA so it returns to review.* **Batch reconcile**
   auto-links the confident matches in the current view.
-- **Sample map (🗺):** the sample as a ★ with nearby reports colored by time gap (blue ≤14 d,
-  yellow 14–30 d, pink 30–60 d, gray >60 d); click a marker to link to the report or its case.
+- **Sample map (🗺) — the research popup:** shows a **provenance summary** (how the sample was
+  ingested + its lab IDs + result count + **source files** like the CoC, opening in a new tab, or
+  *"no source files stored"*), the **map** (sample as a ★, nearby reports colored by time gap: blue
+  ≤14 d, yellow 14–30 d, pink 30–60 d, gray >60 d), and a **list of the nearby reports** below it —
+  check **one** to link to that report, or **several sharing a case** and **Link selected** to link
+  to the case (handy when markers overlap).
 - **Geocoding ungeocoded samples:** if a station isn't in the registry, its coordinates are on the
   **CoC**. Open the CoC (new tab), type the lat/long, **Search nearby**, then **Save to sample**.
   **Scan CoC (OCR)** tries to read them automatically (best-effort in the hosted pilot; if it says
-  OCR isn't available, just type them). For a whole batch, use **Ingest Data → Bulk sample
-  coordinates**: paste `station code, latitude, longitude` rows (codes with spaces/commas are OK —
-  the last two numbers are lat/long).
+  OCR isn't available, just type them). For a batch whose samples each have their **own** CoC
+  coordinates, use its **Enter coords** screen (from the *Ingested batches* table or the workboard
+  batch banner) to transcribe each sample's lat/long — each gets its own point. Or **Ingest Data →
+  Bulk sample coordinates** to paste `station code, latitude, longitude` rows.
 - **Routine sampling:** samples that aren't a bloom report/case — tag **Routine** to move them out
   of the unfinished queue; **↩ Unlinked** puts them back.
 
@@ -188,8 +197,9 @@ and **Download CSV**.
 **4. Explore the map** (`Map`)
 - Reports plotted and colored by outcome. **Filters:** Region, County, Outcome, Advisory; date
   buttons (**15 / 30 / 60 / 120 days**); and **Analytical data** modes — *Events with lab data*
-  or *Lab data without events* (unlinked lab samples as teal markers at their station). Filters
-  apply server-side; **Clear all** resets.
+  or *Geocoded, not linked* (geocoded, unlinked, non-routine lab samples as teal markers, with a
+  **Reconcile** link to the geocoded-unlinked workboard queue). Filters apply server-side;
+  **Clear all** resets.
 
 **5. Cases** (`Cases`)
 - Group related reports into a case (one region, one waterbody, one year). Create a case, assign
@@ -210,12 +220,16 @@ and **Download CSV**.
   chemistry result to its watershed/GeoConnex and FHAB report/case).
 - Confirm these contain **no** reporter contact / illness / veterinary data (they shouldn't).
 
-**9. Admin only — Accounts, Groups & Analytes**
+**9. Admin only — Accounts, Groups, Analytes, Refresh & Reset**
 - **Accounts:** create users and grant/revoke roles.
 - **Groups:** register a community/partner group and mint an **API key** (shown once) so that
   group can submit attributed — and optionally "trusted" — reports.
 - **Analytes:** curate the analyte vocabulary — edit name/class/unit, **merge** aliases
   (e.g. "mcyE" → Microcystins), and delete unused ones.
+- **Refresh from data.ca.gov:** pull the latest published reports/cases/responses/results. Always
+  **Preview** first (dry-run counts of *new / updated*); it inserts new and refreshes published
+  fields, **preserves local-only data**, and **never deletes**. Type `UPDATE` to apply.
+- **Reset / maintenance:** purge lab data to reset the test environment.
 
 ### A suggested 15-minute test script
 
