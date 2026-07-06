@@ -59,8 +59,9 @@ another board.)
 - The map plots reports, colored by outcome. Use the **filters** to narrow it:
   - **Region**, **County**, **Outcome**, and **Advisory** dropdowns.
   - Date-range buttons — **15 / 30 / 60 / 120 days** (or All) — by observation date.
-  - **Analytical data** modes: *Events with lab data*, or *Lab data without events* (unlinked lab
-    samples shown as teal markers at their station, with a link to reconcile them).
+  - **Analytical data** modes: *Events with lab data*, or *Geocoded, not linked* (geocoded lab
+    samples not yet linked or tagged routine — teal markers at their station, with a **Reconcile**
+    link that opens the workboard filtered to the geocoded-unlinked queue).
 - Filters apply server-side, so they reach the whole dataset. Click a marker for the report
   popup; **Clear all** resets everything.
 
@@ -103,13 +104,18 @@ See the [dedicated page](lab-ingest.qmd) for step-by-step instructions and a lab
   watershed/GeoConnex and to the FHAB report/case.
 - Confirm these contain **no** reporter contact / illness / veterinary data.
 
-### 10. Admin only — Accounts, Groups & Analytes
+### 10. Admin only — Accounts, Groups, Analytes, Refresh & Reset
 
 - **Accounts:** create users and grant/revoke roles.
 - **Groups:** register a community/partner group and mint an **API key** (shown once) so that
   group can submit attributed — and optionally "trusted" — reports.
 - **Analytes:** curate the analyte vocabulary — edit an analyte's name/class/unit, **merge**
   aliases (e.g. "mcyE" → Microcystins) so results consolidate, and delete unused ones.
+- **Refresh from data.ca.gov:** pull the latest published reports, cases, responses, and results
+  and update the schema. Always **Preview** first (a dry run shows *new / updated* per dataset);
+  it inserts new records and refreshes published fields on existing ones, **preserves local-only
+  data** (illness, assignments, QA, lab links), and **never deletes**. Type `UPDATE` to apply.
+- **Refresh / Reset (test environment):** purge lab data to reset the pilot.
 
 ## A suggested 15-minute test script
 
