@@ -180,7 +180,7 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#d.-attach-results-to-one-report-or-case" id="toc-d.-attach-results-to-one-report-or-case" class="nav-link" data-scroll-target="#d.-attach-results-to-one-report-or-case">D. Attach results to one report or case</a></li>
   <li><a href="#after-ingest-reconcile-on-the-lab-data-workboard" id="toc-after-ingest-reconcile-on-the-lab-data-workboard" class="nav-link" data-scroll-target="#after-ingest-reconcile-on-the-lab-data-workboard">After ingest: reconcile on the Lab data workboard</a>
   <ul class="collapse">
-  <li><a href="#the-sample-map" id="toc-the-sample-map" class="nav-link" data-scroll-target="#the-sample-map">The sample map (🗺)</a></li>
+  <li><a href="#the-sample-map-the-research-popup" id="toc-the-sample-map-the-research-popup" class="nav-link" data-scroll-target="#the-sample-map-the-research-popup">The sample map (🗺) — the research popup</a></li>
   <li><a href="#geocoding-ungeocoded-samples" id="toc-geocoding-ungeocoded-samples" class="nav-link" data-scroll-target="#geocoding-ungeocoded-samples">Geocoding ungeocoded samples</a></li>
   <li><a href="#routine-sampling-not-every-sample-is-a-bloom-report" id="toc-routine-sampling-not-every-sample-is-a-bloom-report" class="nav-link" data-scroll-target="#routine-sampling-not-every-sample-is-a-bloom-report">Routine sampling (not every sample is a bloom report)</a></li>
   </ul></li>
@@ -275,6 +275,19 @@ ul.task-list li input[type="checkbox"] {
 <li>Under <em>Folder files</em>, select <strong>all</strong> the files from the one email folder (the results CSV/XLSX <strong>and</strong> the PDFs). Add a <strong>Source label</strong> like <code>Clear Lake (RB5)</code> (optional but helpful).</li>
 <li><strong>Ingest folder.</strong> You’ll get a summary — <em>“Ingested N samples (M geocoded), K results; stored J files”</em> — and land on the workboard filtered to that batch.</li>
 </ol>
+<div class="callout callout-style-default callout-tip callout-titled" title="Many folders at once">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Many folders at once
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Have a <strong>parent folder that holds many lab folders</strong> (one per email)? Use the <strong>Many folders at once</strong> box on the same screen: pick the parent folder and <strong>Ingest all subfolders</strong>. Each subfolder becomes its own batch (labeled with the subfolder name), uploaded one at a time with a running progress line — so a 50-folder set won’t overload a single request. The tally at the end names any folders that failed so you can retry just those.</p>
+</div>
+</div>
 <p><strong>What happens</strong></p>
 <ul>
 <li>The wide spreadsheet is converted to CEDEN long form: each analyte value becomes a result (ELISA toxins, dry-weight toxins, qPCR genes, chlorophyll). <code>ND</code> becomes a proper non-detect.</li>
@@ -317,15 +330,20 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="after-ingest-reconcile-on-the-lab-data-workboard">After ingest: reconcile on the Lab data workboard</h2>
 <p><strong>Ingest Data → Lab data workboard</strong> is where lab samples get connected to events/reports/cases and quality-reviewed. It’s built as a <strong>task board</strong>: the lead <strong>assigns</strong> work, team members <strong>link</strong>, a reviewer <strong>QA-approves</strong> or <strong>flags</strong>.</p>
 <ul>
-<li><strong>Status chips:</strong> <em>Unlinked</em>, <em>Linked · awaiting QA</em>, <em>Flagged for rework</em>, <em>QA approved</em>, and <em>Routine sampling</em> — click one to filter.</li>
-<li><strong>Filters:</strong> status, assignee (incl.&nbsp;<strong>Me</strong> / Unassigned), region, and a station / water-body search. A batch link filters the board to just that ingest.</li>
+<li><strong>Status chips:</strong> <em>Unlinked</em>, <em>Linked · awaiting QA</em>, <em>Flagged for rework</em>, <em>QA approved</em>, and <em>Routine sampling</em>, plus <strong>Geocoded · not linked</strong> and <strong>Needs geocoding</strong> — click one to filter. The last two split the unlinked pile into samples that are ready to research (they have a location) versus those still waiting on coordinates.</li>
+<li><strong>Filters:</strong> status, assignee (incl.&nbsp;<strong>Me</strong> / Unassigned), region, a <strong>Geocoding</strong> filter (Geocoded / Not geocoded), and a station / water-body search. A batch link filters the board to just that ingest.</li>
 <li><strong>Assign:</strong> check rows, pick a team member under <em>“With checked rows →”</em>, <strong>Assign</strong>.</li>
 <li><strong>Per sample:</strong> <strong>Link / Re-link</strong> by report (R#) or case (C#); <strong>+Report</strong> (create one from the station); <strong>✓ QA</strong> approve; <strong>⚑</strong> flag with a reason; <strong>Unlink</strong>; <strong>Routine</strong> (see below). <em>Re-linking clears QA so the sample returns to the review queue.</em></li>
 <li><strong>Batch reconcile:</strong> <em>Reconcile checked</em> or <em>Reconcile all unlinked in this view</em> auto-links the confident, unambiguous matches in one pass.</li>
 </ul>
-<section id="the-sample-map" class="level3">
-<h3 class="anchored" data-anchor-id="the-sample-map">The sample map (🗺)</h3>
-<p>Click a sample’s <strong>🗺</strong> to open its context map: the sample as a <strong>★</strong>, and nearby reports colored by how close in <strong>time</strong> they are to the sample (blue ≤14 d, yellow 14–30 d, pink 30–60 d, gray &gt;60 d). Click a nearby marker to <strong>link to that report or its case</strong>, or open the report (new tab).</p>
+<section id="the-sample-map-the-research-popup" class="level3">
+<h3 class="anchored" data-anchor-id="the-sample-map-the-research-popup">The sample map (🗺) — the research popup</h3>
+<p>Click a sample’s <strong>🗺</strong> to open its context map. This is where the tedious research/linking happens, so it gathers everything in one place:</p>
+<ul>
+<li>A <strong>provenance summary</strong>: how the sample was ingested (<em>Email folder ingest — <folder></folder></em>, <em>CEDEN chemistry upload</em>, <em>Lab batch reconciliation</em>, <em>data.ca.gov / legacy import</em>), its lab identity (station, type, BG_ID, lab sample id, lab batch, project), result count, and its <strong>source files</strong> (<code>coc · data · transmittal …</code>, opening in a new tab) — or <em>“no source files stored for this ingest”</em> when there aren’t any.</li>
+<li>The <strong>map</strong>: the sample as a <strong>★</strong>, and nearby reports colored by how close in <strong>time</strong> they are to the sample (blue ≤14 d, yellow 14–30 d, pink 30–60 d, gray &gt;60 d). Click a marker to link to that report or its case, or open the report in a new tab.</li>
+<li>A <strong>list of the nearby reports</strong> below the map (same reports as the markers) — handy when markers overlap and are hard to click. Check <strong>one</strong> to link the sample to that report, or check <strong>several that share a case</strong> and <strong>Link selected</strong> to link the sample to that case at once.</li>
+</ul>
 </section>
 <section id="geocoding-ungeocoded-samples" class="level3">
 <h3 class="anchored" data-anchor-id="geocoding-ungeocoded-samples">Geocoding ungeocoded samples</h3>
@@ -336,19 +354,11 @@ ul.task-list li input[type="checkbox"] {
 <li><strong>Save to sample</strong> to store the coordinates — the sample is now geocoded, appears on the main map, and becomes eligible for batch reconcile.</li>
 <li><strong>Scan CoC (OCR)</strong> will try to read the coordinates off the CoC automatically. <em>In the current hosted pilot this is a best-effort helper and may report that OCR isn’t available</em> — if so, just read the CoC and type the numbers.</li>
 </ol>
-<div class="callout callout-style-default callout-tip callout-titled" title="Many at once — Bulk sample coordinates">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Tip</span>Many at once — Bulk sample coordinates
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>To geocode a whole batch quickly, use <strong>Ingest Data → Bulk sample coordinates</strong>: paste one row per line as <code>station code, latitude, longitude</code> (station codes with spaces/commas are fine — the last two numbers are taken as lat/long). Matching a station geocodes every sample at it.</p>
-</div>
-</div>
+<p>There are also two batch-level ways to enter coordinates:</p>
+<ul>
+<li><strong>Per-sample entry screen</strong> — when a batch has several samples that each have their <strong>own</strong> coordinates on the CoC (often under IDs different from the lab’s sample IDs). From the <em>Ingested batches</em> table (<strong>Enter coords</strong>) or the workboard batch banner (<strong>Enter sample coordinates</strong>), open a screen that lists every sample in the batch — station, <strong>customer / CoC label</strong>, <strong>lab sample id</strong>, BG_ID, date, type — with a latitude/longitude box each, and the CoC linked at top. Transcribe each sample’s coordinates and <strong>Save</strong>. Each sample gets its <strong>own</strong> point, so samples the ingest put on one station are split apart correctly.</li>
+<li><strong>Bulk paste</strong> — <strong>Ingest Data → Bulk sample coordinates</strong>: paste one row per line as <code>station code, latitude, longitude</code> (codes with spaces/commas are fine — the last two numbers are taken as lat/long). Matching a station geocodes every sample at it.</li>
+</ul>
 </section>
 <section id="routine-sampling-not-every-sample-is-a-bloom-report" class="level3">
 <h3 class="anchored" data-anchor-id="routine-sampling-not-every-sample-is-a-bloom-report">Routine sampling (not every sample is a bloom report)</h3>
@@ -359,10 +369,9 @@ ul.task-list li input[type="checkbox"] {
 <section id="suggested-lab-ingest-test-script-15-min" class="level2">
 <h2 class="anchored" data-anchor-id="suggested-lab-ingest-test-script-15-min">Suggested lab-ingest test script (~15 min)</h2>
 <ol type="1">
-<li><strong>Ingest an email folder</strong> (Ingest Data → <em>Ingest lab email folders</em>) — pick all files from one lab folder, add a source label, ingest. Check the counts and open the stored <strong>CoC</strong> (new tab).</li>
-<li>On the <strong>workboard</strong> (it opens filtered to your batch), find an <strong>unlinked, geocoded</strong> sample, open its <strong>🗺</strong>, and <strong>link</strong> it to a nearby report — or <strong>+Report</strong> to create one.</li>
-<li>Find an <strong>ungeocoded</strong> sample; read its coordinates off the CoC, type them in, <strong>Search nearby</strong>, then <strong>Save to sample</strong>.</li>
-<li>Try <strong>Bulk sample coordinates</strong>: paste two or three <code>station, lat, lon</code> rows and apply.</li>
+<li><strong>Ingest an email folder</strong> (Ingest Data → <em>Ingest lab email folders</em>) — pick all files from one lab folder, add a source label, ingest. Check the counts and open the stored <strong>CoC</strong> (new tab). <em>(Or try <strong>Many folders at once</strong> with a parent folder of several subfolders.)</em></li>
+<li>On the <strong>workboard</strong>, use the <strong>Geocoded · not linked</strong> chip; open a sample’s <strong>🗺</strong> and read its <strong>provenance summary</strong> (how it was ingested + files), then <strong>link</strong> it to a nearby report from the list — or <strong>+Report</strong> to create one.</li>
+<li>Use the <strong>Needs geocoding</strong> chip to find an <strong>ungeocoded</strong> sample; read its coordinates off the CoC, type them in, <strong>Search nearby</strong>, then <strong>Save to sample</strong>. For a batch with several samples, try the batch’s <strong>Enter coords</strong> screen instead.</li>
 <li>Tag one sample as <strong>Routine sampling</strong>, then confirm it appears under the <em>Routine</em> chip.</li>
 <li>Run <strong>Reconcile all unlinked in this view</strong> and see how many auto-link.</li>
 <li>Open <strong>Lab</strong> (results browser) and confirm your batch’s results appear; <strong>Download CSV</strong>.</li>

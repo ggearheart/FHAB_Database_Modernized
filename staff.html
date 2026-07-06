@@ -186,7 +186,7 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#lab-results-browser-lab" id="toc-lab-results-browser-lab" class="nav-link" data-scroll-target="#lab-results-browser-lab">7. Lab results browser (<em>Lab</em>)</a></li>
   <li><a href="#notifications" id="toc-notifications" class="nav-link" data-scroll-target="#notifications">8. Notifications (<em>🔔</em>)</a></li>
   <li><a href="#open-data-open-data" id="toc-open-data-open-data" class="nav-link" data-scroll-target="#open-data-open-data">9. Open data (<em>Open data</em>)</a></li>
-  <li><a href="#admin-only-accounts-groups-analytes" id="toc-admin-only-accounts-groups-analytes" class="nav-link" data-scroll-target="#admin-only-accounts-groups-analytes">10. Admin only — Accounts, Groups &amp; Analytes</a></li>
+  <li><a href="#admin-only-accounts-groups-analytes-refresh-reset" id="toc-admin-only-accounts-groups-analytes-refresh-reset" class="nav-link" data-scroll-target="#admin-only-accounts-groups-analytes-refresh-reset">10. Admin only — Accounts, Groups, Analytes, Refresh &amp; Reset</a></li>
   </ul></li>
   <li><a href="#a-suggested-15-minute-test-script" id="toc-a-suggested-15-minute-test-script" class="nav-link" data-scroll-target="#a-suggested-15-minute-test-script">A suggested 15-minute test script</a></li>
   </ul>
@@ -301,7 +301,7 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li><strong>Region</strong>, <strong>County</strong>, <strong>Outcome</strong>, and <strong>Advisory</strong> dropdowns.</li>
 <li>Date-range buttons — <strong>15 / 30 / 60 / 120 days</strong> (or All) — by observation date.</li>
-<li><strong>Analytical data</strong> modes: <em>Events with lab data</em>, or <em>Lab data without events</em> (unlinked lab samples shown as teal markers at their station, with a link to reconcile them).</li>
+<li><strong>Analytical data</strong> modes: <em>Events with lab data</em>, or <em>Geocoded, not linked</em> (geocoded lab samples not yet linked or tagged routine — teal markers at their station, with a <strong>Reconcile</strong> link that opens the workboard filtered to the geocoded-unlinked queue).</li>
 </ul></li>
 <li>Filters apply server-side, so they reach the whole dataset. Click a marker for the report popup; <strong>Clear all</strong> resets everything.</li>
 </ul>
@@ -343,12 +343,14 @@ ul.task-list li input[type="checkbox"] {
 <li>Confirm these contain <strong>no</strong> reporter contact / illness / veterinary data.</li>
 </ul>
 </section>
-<section id="admin-only-accounts-groups-analytes" class="level3">
-<h3 class="anchored" data-anchor-id="admin-only-accounts-groups-analytes">10. Admin only — Accounts, Groups &amp; Analytes</h3>
+<section id="admin-only-accounts-groups-analytes-refresh-reset" class="level3">
+<h3 class="anchored" data-anchor-id="admin-only-accounts-groups-analytes-refresh-reset">10. Admin only — Accounts, Groups, Analytes, Refresh &amp; Reset</h3>
 <ul>
 <li><strong>Accounts:</strong> create users and grant/revoke roles.</li>
 <li><strong>Groups:</strong> register a community/partner group and mint an <strong>API key</strong> (shown once) so that group can submit attributed — and optionally “trusted” — reports.</li>
 <li><strong>Analytes:</strong> curate the analyte vocabulary — edit an analyte’s name/class/unit, <strong>merge</strong> aliases (e.g.&nbsp;“mcyE” → Microcystins) so results consolidate, and delete unused ones.</li>
+<li><strong>Refresh from data.ca.gov:</strong> pull the latest published reports, cases, responses, and results and update the schema. Always <strong>Preview</strong> first (a dry run shows <em>new / updated</em> per dataset); it inserts new records and refreshes published fields on existing ones, <strong>preserves local-only data</strong> (illness, assignments, QA, lab links), and <strong>never deletes</strong>. Type <code>UPDATE</code> to apply.</li>
+<li><strong>Refresh / Reset (test environment):</strong> purge lab data to reset the pilot.</li>
 </ul>
 </section>
 </section>
