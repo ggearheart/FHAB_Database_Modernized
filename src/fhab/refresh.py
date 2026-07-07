@@ -269,18 +269,13 @@ class RefreshLoader(Loader):
                 self._bump("results", True)
 
 
-def _bump_sequences(conn) -> None:
-    """Advance id sequences past the max published id so app-created rows don't collide."""
-    for table, col in [("hab_case", "case_id"), ("event", "bloom_report_id"),
-                       ("response", "response_action_id"), ("advisory", "advisory_id")]:
-        conn.execute(
-            f"""SELECT setval(pg_get_serial_sequence('{table}', '{col}'),
-                    GREATEST((SELECT COALESCE(max({col}), 1) FROM {table}),
-                             nextval(pg_get_serial_sequence('{table}', '{col}')) - 1))""")
-
-
 def refresh_from_dir(conn: psycopg.Connection, data_dir, *, dry_run: bool = True) -> LoadReport:
-    """Upsert the flat files in `data_dir` into the schema. dry_run rolls back after counting."""
+    """Upsert the flat files in `data_dir` into the schema. dry_run rolls back after counting.
+
+    No sequence bumping is needed: published ids (< 1e9) and app-created ids (>= 1e9, from the
+    reserved app-id sequences) occupy disjoint ranges, so an import can never collide with an
+    app-created row. See docs/GOVERNANCE_REVIEW.md #2.
+    """
     loader = RefreshLoader(conn, data_dir)
     try:
         loader.load_cases()
@@ -290,7 +285,6 @@ def refresh_from_dir(conn: psycopg.Connection, data_dir, *, dry_run: bool = True
         if dry_run:
             conn.rollback()
         else:
-            _bump_sequences(conn)
             conn.commit()
     except Exception:
         conn.rollback()

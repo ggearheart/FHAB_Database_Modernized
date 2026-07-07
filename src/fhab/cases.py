@@ -22,8 +22,8 @@ def create_case(conn: psycopg.Connection, user_id: int, *, water_body_name: str,
                 case_class: str | None = None, case_lead: str | None = None,
                 status: str = "Open") -> int:
     """Create a case for a waterbody (creating the waterbody if needed). Returns the case id."""
-    case_id = conn.execute(
-        "SELECT coalesce(max(case_id), 0) + 1 AS n FROM hab_case").fetchone()["n"]
+    # Reserved app-id range (>= 1e9) so app cases never collide with published case ids.
+    case_id = conn.execute("SELECT nextval('app_case_id_seq') AS n").fetchone()["n"]
     with acting_as(conn, user_id):
         wb = conn.execute(
             "SELECT id FROM waterbody WHERE water_body_name = %s AND county IS NOT DISTINCT FROM %s",

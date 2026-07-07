@@ -50,11 +50,11 @@ def enter_report(
 
     Raises psycopg.Error if access policies reject the write (e.g. wrong region / no perms).
     """
-    # Allocate the next id with the privileged connection (sees all rows) before switching role.
+    # Allocate the id from the reserved app-id sequence (>= 1e9, never overlaps published ids),
+    # on the privileged connection before switching role. See docs/GOVERNANCE_REVIEW.md #2.
     if bloom_report_id is None:
         bloom_report_id = conn.execute(
-            "SELECT coalesce(max(bloom_report_id), 0) + 1 AS n FROM event"
-        ).fetchone()["n"]
+            "SELECT nextval('app_event_id_seq') AS n").fetchone()["n"]
 
     # Resolve the canonical waterbody with the privileged connection (before switching role):
     # waterbody_read is region-scoped, so a staffer filing cross-region — or matching a waterbody
@@ -214,16 +214,14 @@ def add_response(conn: psycopg.Connection, user_id: int, bloom_report_id: int, *
     Returns the new response id. Only staff may do this (enforced by RLS), so contributors
     cannot self-post advisories. An advisory is created only when `advisory_recommended` is set.
     """
-    # Allocate ids with the privileged connection (sees all) before switching role.
-    rid = conn.execute(
-        "SELECT coalesce(max(response_action_id), 0) + 1 AS n FROM response").fetchone()["n"]
+    # Allocate ids from the reserved app-id sequences (>= 1e9) on the privileged connection.
+    rid = conn.execute("SELECT nextval('app_response_id_seq') AS n").fetchone()["n"]
     case_row = conn.execute(
         "SELECT case_id FROM event WHERE bloom_report_id = %s", (bloom_report_id,)).fetchone()
     case_id = case_row["case_id"] if case_row else None
     aid = None
     if advisory_recommended:
-        aid = conn.execute(
-            "SELECT coalesce(max(advisory_id), 0) + 1 AS n FROM advisory").fetchone()["n"]
+        aid = conn.execute("SELECT nextval('app_advisory_id_seq') AS n").fetchone()["n"]
 
     with acting_as(conn, user_id):
         conn.execute(
