@@ -508,6 +508,19 @@ def test_workboard_sampling_event_search(conn):
     assert sid in by_name and sid2 not in by_name
 
 
+def test_orphan_geojson_carries_sampling_event(client, conn):
+    bid = conn.execute("INSERT INTO lab_batch (kind, source) VALUES ('ingested','Ev Lake') RETURNING id").fetchone()["id"]
+    st = conn.execute("INSERT INTO station (station_code, geom) VALUES ('ORPHEV', "
+                      "ST_SetSRID(ST_MakePoint(-121.4,38.5),4326)) RETURNING id").fetchone()["id"]
+    sid = conn.execute("INSERT INTO sample (station_id, lab_batch_id, sample_date) "
+                       "VALUES (%s,%s,current_date) RETURNING id", (st, bid)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('oev',%s,'Laboratory')", (sid,)); conn.commit()
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+    j = client.get("/api/reports.geojson?data=orphan").get_json()
+    feat = next(f for f in j["features"] if f["properties"]["station_code"] == "ORPHEV")
+    assert feat["properties"]["event_ids"] == [bid]     # reconcile can scope to this sampling event
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")
