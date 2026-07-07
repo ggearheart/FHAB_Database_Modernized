@@ -32,6 +32,19 @@ This guide has two tracks — pick the one that matches your role:
 Your login (for staff testers) and any community-group API key will be provided to you
 separately — they are not in this document.
 
+### Source code & this manual
+
+Open-source on GitHub. The **FHAB app and this manual share one repository** — the Flask app is in
+`src/`, the manual in `manual/` — and the manual republishes to GitHub Pages when it changes.
+
+| Resource | Link |
+|---|---|
+| **FHAB app + manual — source repo** | https://github.com/ggearheart/FHAB_Database_Modernized |
+| **This manual — source folder** | https://github.com/ggearheart/FHAB_Database_Modernized/tree/main/manual |
+| **This manual — published site** | https://ggearheart.github.io/FHAB_Database_Modernized/ |
+| **CyanoSafe map (desktop) — source** | https://github.com/ggearheart/CyanoSafe_demo |
+| **CyanoSafe app (phone/PWA) — source** | https://github.com/ggearheart/CyanoSafe_phone_demo |
+
 ---
 
 ## Track A — Community tester
