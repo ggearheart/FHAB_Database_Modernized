@@ -238,5 +238,15 @@
     "crumbs": [
       "Overview"
     ]
+  },
+  {
+    "objectID": "index.html#source-code-this-manual",
+    "href": "index.html#source-code-this-manual",
+    "title": "FHAB Database Modernized — Tester Guide",
+    "section": "Source code & this manual",
+    "text": "Source code & this manual\nOpen-source on GitHub. The FHAB app and this manual live in the same repository — the Flask app is in src/, the manual in manual/ — and the manual republishes to GitHub Pages automatically whenever it changes.\n\n\n\nResource\nLink\n\n\n\n\nFHAB app + manual — source repository\nhttps://github.com/ggearheart/FHAB_Database_Modernized\n\n\nThis manual — source folder\nhttps://github.com/ggearheart/FHAB_Database_Modernized/tree/main/manual\n\n\nThis manual — published site\nhttps://ggearheart.github.io/FHAB_Database_Modernized/\n\n\nCyanoSafe map (desktop) — source\nhttps://github.com/ggearheart/CyanoSafe_demo\n\n\nCyanoSafe app (phone / PWA) — source\nhttps://github.com/ggearheart/CyanoSafe_phone_demo",
+    "crumbs": [
+      "Overview"
+    ]
   }
 ]
