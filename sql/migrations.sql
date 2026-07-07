@@ -132,3 +132,24 @@ ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS illness jsonb;
 ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS group_id bigint;
 ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS report_type text;
 ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS trusted boolean NOT NULL DEFAULT false;
+
+-- Governance #2: locally-authored records get their externally-visible ids from a reserved high
+-- range (>= 1e9), so app-created ids can NEVER collide with the smaller published/legacy ids that
+-- imports (open-data loaders, data.ca.gov refresh) insert explicitly. This replaces the racy
+-- `max(id)+1` allocation and removes the risk of the refresh conflating a local report with a
+-- different published report that happened to share a low id. See docs/GOVERNANCE_REVIEW.md.
+DO $$ BEGIN CREATE SEQUENCE app_event_id_seq    AS bigint START 1000000000 MINVALUE 1000000000; EXCEPTION WHEN duplicate_table THEN NULL; END $$;
+DO $$ BEGIN CREATE SEQUENCE app_case_id_seq     AS bigint START 1000000000 MINVALUE 1000000000; EXCEPTION WHEN duplicate_table THEN NULL; END $$;
+DO $$ BEGIN CREATE SEQUENCE app_response_id_seq AS bigint START 1000000000 MINVALUE 1000000000; EXCEPTION WHEN duplicate_table THEN NULL; END $$;
+DO $$ BEGIN CREATE SEQUENCE app_advisory_id_seq AS bigint START 1000000000 MINVALUE 1000000000; EXCEPTION WHEN duplicate_table THEN NULL; END $$;
+ALTER TABLE event    ALTER COLUMN bloom_report_id    SET DEFAULT nextval('app_event_id_seq');
+ALTER TABLE hab_case ALTER COLUMN case_id            SET DEFAULT nextval('app_case_id_seq');
+ALTER TABLE response ALTER COLUMN response_action_id SET DEFAULT nextval('app_response_id_seq');
+ALTER TABLE advisory ALTER COLUMN advisory_id        SET DEFAULT nextval('app_advisory_id_seq');
+-- Catch each sequence up to any existing app-range rows (idempotent; a no-op on a fresh database).
+DO $$ DECLARE m bigint; BEGIN
+  m := (SELECT max(bloom_report_id)    FROM event    WHERE bloom_report_id    >= 1000000000); IF m IS NOT NULL THEN PERFORM setval('app_event_id_seq', m);    END IF;
+  m := (SELECT max(case_id)            FROM hab_case WHERE case_id            >= 1000000000); IF m IS NOT NULL THEN PERFORM setval('app_case_id_seq', m);     END IF;
+  m := (SELECT max(response_action_id) FROM response WHERE response_action_id >= 1000000000); IF m IS NOT NULL THEN PERFORM setval('app_response_id_seq', m); END IF;
+  m := (SELECT max(advisory_id)        FROM advisory WHERE advisory_id        >= 1000000000); IF m IS NOT NULL THEN PERFORM setval('app_advisory_id_seq', m); END IF;
+END $$;
