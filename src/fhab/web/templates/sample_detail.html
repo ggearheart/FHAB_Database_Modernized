@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Sample {{ sample.id }}{% endblock %}
+{% set PILL = {'unlinked':'#fff6e0','linked':'#e7efe9','routine':'#e6eefb'} %}
+{% block body %}
+<h1>Sample {{ sample.id }}
+  <span class="pill" style="background:{{ PILL.get(sample.status,'#eee') }}; font-size:.7em">{{ sample.status }}</span>
+</h1>
+<p class="muted">
+  {{ sample.batch_source or (sample.batch_kind and 'batch ' ~ sample.lab_batch_id) or 'manual / other' }}
+  {% if sample.bloom_report_id %}· linked to <a href="{{ url_for('report_detail', brid=sample.bloom_report_id) }}">R{{ sample.bloom_report_id }}</a>{% endif %}
+  {% if sample.case_id %}· case {{ sample.case_id }}{% endif %}
+  {% if sample.water_body_name %}· {{ sample.water_body_name }}{% endif %}
+  · <a href="{{ url_for('lab_workboard', batch=sample.lab_batch_id) if sample.lab_batch_id else url_for('lab_workboard') }}">open on workboard map</a>
+</p>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Edit sample</h1>
+  <form method="post">
+    <div class="row">
+      <div><label>Station / location name</label><input name="station_name" value="{{ sample.station_name or '' }}"></div>
+      <div><label>Station code</label><input value="{{ sample.station_code or '' }}" disabled title="set via ingest / coordinates"></div>
+    </div>
+    <div class="row">
+      <div><label>Sample date</label><input name="sample_date" value="{{ sample.sample_date or '' }}"></div>
+      <div><label>Sample time</label><input name="sample_time" value="{{ sample.sample_time or '' }}"></div>
+      <div><label>Sample type</label><input name="sample_type" value="{{ sample.sample_type or '' }}"></div>
+    </div>
+    <div class="row">
+      <div><label>BG_ID</label><input name="bg_id" value="{{ sample.bg_id or '' }}"></div>
+      <div><label>Lab sample ID</label><input name="lab_sample_id" value="{{ sample.lab_sample_id or '' }}"></div>
+      <div><label>Lab batch</label><input name="lab_batch" value="{{ sample.lab_batch or '' }}"></div>
+    </div>
+    <div class="row">
+      <div><label>Project code</label><input name="project_code" value="{{ sample.project_code or '' }}"></div>
+      <div><label>Collected by</label><input name="collected_by" value="{{ sample.collected_by or '' }}"></div>
+      <div><label>Chain-of-custody ID</label><input name="coc_id" value="{{ sample.coc_id or '' }}"></div>
+    </div>
+    <div class="row">
+      <div><label>Site / sample location</label><input name="site" value="{{ sample.site or '' }}"></div>
+      <div><label>Owner org</label><input name="owner_org" value="{{ sample.owner_org or '' }}"></div>
+    </div>
+    <div class="row">
+      <div><label>Latitude</label><input name="lat" inputmode="decimal" value="{{ '%.6f'|format(sample.lat) if sample.lat is not none else '' }}"></div>
+      <div><label>Longitude</label><input name="lon" inputmode="decimal" value="{{ '%.6f'|format(sample.lon) if sample.lon is not none else '' }}"></div>
+    </div>
+    <p></p>
+    <button>Save changes</button>
+    <a class="btn secondary" href="{{ url_for('samples_list') }}">Back to samples</a>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Results ({{ results|length }})</h1>
+  <table>
+    <tr><th>Analyte</th><th>Method</th><th>Value</th><th>Unit</th><th>Fraction</th></tr>
+    {% for r in results %}
+    <tr>
+      <td>{{ r.analyte or '—' }}</td><td class="muted">{{ r.method or '—' }}</td>
+      <td>{% if r.res_qual_code %}{{ r.res_qual_code }}{% endif %} {{ r.measurement_value if r.measurement_value is not none else (r.measurement_text or '') }}</td>
+      <td class="muted">{{ r.measurement_unit or '' }}</td><td class="muted">{{ r.fraction_name or '' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="muted">No results on this sample.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% if ceden %}
+<div class="card">
+  <h1 style="font-size:1.05rem">Linked CEDEN station locations</h1>
+  <p>{% for c in ceden %}{{ c.station_code }}{% if c.station_name %} <span class="muted">({{ c.station_name }})</span>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</p>
+  <p class="muted">Manage these on the workboard sample map.</p>
+</div>
+{% endif %}
+{% endblock %}

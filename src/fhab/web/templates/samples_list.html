@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Sample work area{% endblock %}
+{% set PILL = {'unlinked':'#fff6e0','linked':'#e7efe9','routine':'#e6eefb'} %}
+{% block body %}
+<h1>Sample work area</h1>
+<p class="muted">Every lab sample — ingested, linked, or entered by hand. Create a new sample
+  record manually or from a CSV, and open any sample to edit its location and details.</p>
+
+<div class="card">
+  <a class="btn" href="{{ url_for('sample_new') }}">+ New sample (manual)</a>
+  <a class="btn secondary" href="{{ url_for('folder_ingest') }}">Ingest folder / CSV</a>
+  <a class="btn secondary" href="{{ url_for('batch_ceden') }}">Upload CEDEN CSV</a>
+  <a class="btn secondary" href="{{ url_for('lab_workboard') }}">Workboard (link &amp; QA)</a>
+</div>
+
+<div class="card">
+  <form method="get" style="display:flex; flex-wrap:wrap; gap:.7rem; align-items:flex-end">
+    <div><label>Search</label><input name="q" value="{{ f.q or '' }}" placeholder="station / BG / lab ID"></div>
+    <div><label>Status</label>
+      <select name="status" onchange="this.form.submit()"><option value="">Any</option>
+        {% for s in ['unlinked','linked','routine'] %}<option value="{{ s }}" {% if f.status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select></div>
+    <div><label>Geocoding</label>
+      <select name="geocoded" onchange="this.form.submit()"><option value="">Any</option>
+        <option value="yes" {% if f.geocoded=='yes' %}selected{% endif %}>Geocoded</option>
+        <option value="no" {% if f.geocoded=='no' %}selected{% endif %}>Not geocoded</option>
+      </select></div>
+    {% if f.batch %}<div><label>Batch</label><input name="batch" value="{{ f.batch }}" style="width:5rem"></div>{% endif %}
+    <button>Apply</button>
+    <a class="btn secondary" href="{{ url_for('samples_list') }}">Clear</a>
+  </form>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Samples ({{ total }})</h1>
+  <table>
+    <tr><th>ID</th><th>Station</th><th>Date</th><th>Type</th><th>BG / lab ID</th><th>Source</th>
+        <th>Status</th><th>Geo</th><th>Results</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td><a href="{{ url_for('sample_detail', sid=r.id) }}">{{ r.id }}</a></td>
+      <td>{{ r.station_code or '—' }}{% if r.station_name %}<br><span class="muted">{{ r.station_name }}</span>{% endif %}</td>
+      <td>{{ r.sample_date or '—' }}</td>
+      <td class="muted">{{ r.sample_type or '—' }}</td>
+      <td>{{ r.bg_id or '—' }}{% if r.lab_sample_id %} <span class="muted">/ {{ r.lab_sample_id }}</span>{% endif %}</td>
+      <td class="muted">{{ (r.batch_source or ('batch ' ~ r.lab_batch_id) if r.lab_batch_id else '—') }}</td>
+      <td><span class="pill" style="background:{{ PILL.get(r.status,'#eee') }}">{{ r.status }}</span>
+          {% if r.bloom_report_id %} R{{ r.bloom_report_id }}{% elif r.case_id %} C{{ r.case_id }}{% endif %}</td>
+      <td>{{ '✓' if r.geocoded else '—' }}</td>
+      <td>{{ r.n_results }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="muted">No samples match.</td></tr>
+    {% endfor %}
+  </table>
+  {% set start = page * per %}
+  {% if total > per %}
+  <p style="margin-top:.6rem">
+    {% if page > 0 %}<a href="{{ url_for('samples_list', page=page-1, **base_args) }}">← prev</a>{% endif %}
+    <span class="muted" style="margin:0 .5rem">{{ start + 1 }}–{{ start + rows|length }} of {{ total }}</span>
+    {% if start + per < total %}<a href="{{ url_for('samples_list', page=page+1, **base_args) }}">next →</a>{% endif %}
+  </p>
+  {% endif %}
+</div>
+{% endblock %}
