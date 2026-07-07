@@ -487,6 +487,27 @@ def test_ceden_link_web(client, conn):
     assert any(c["code"] == "WEBCED" for c in j["ceden_linked"])
 
 
+def test_workboard_sampling_event_search(conn):
+    _staff(conn)
+    bid = conn.execute("INSERT INTO lab_batch (kind, source) VALUES ('ingested','Clear Lake (RB5)') RETURNING id").fetchone()["id"]
+    st = conn.execute("INSERT INTO station (station_code) VALUES ('SE-ST') RETURNING id").fetchone()["id"]
+    sid = conn.execute("INSERT INTO sample (station_id, lab_batch_id) VALUES (%s,%s) RETURNING id", (st, bid)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('se1',%s,'Laboratory')", (sid,))
+    # a second sample with no sampling event
+    st2 = conn.execute("INSERT INTO station (station_code) VALUES ('NOEV') RETURNING id").fetchone()["id"]
+    sid2 = conn.execute("INSERT INTO sample (station_id) VALUES (%s) RETURNING id", (st2,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('se2',%s,'Laboratory')", (sid2,))
+    conn.commit()
+
+    rows = workboard(conn, {})
+    assert next(r for r in rows if r["id"] == sid)["event_id"] == bid       # sampling event surfaced
+
+    by_id = {r["id"] for r in workboard(conn, {"event": str(bid)})}         # search by event ID
+    assert sid in by_id and sid2 not in by_id
+    by_name = {r["id"] for r in workboard(conn, {"event": "Clear Lake"})}    # search by event name
+    assert sid in by_name and sid2 not in by_name
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")

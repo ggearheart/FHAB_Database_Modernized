@@ -10,7 +10,7 @@
 
 {% if batch %}
 <div class="card" style="border-left:4px solid #2563eb">
-  <strong>Ingest batch {{ batch.id }}</strong> · {{ batch.source or batch.filename or '—' }}
+  <strong>Sampling event SE {{ batch.id }}</strong> · {{ batch.source or batch.filename or '—' }}
   {% if batch.region %}· {{ batch.region }}{% endif %}
   <span class="muted">— {{ batch.n_samples }} sample(s), {{ batch.n_geocoded }} geocoded.</span>
   {% if batch_files %}
@@ -61,6 +61,7 @@
         <option value="yes" {% if f.geocoded=='yes' %}selected{% endif %}>Geocoded</option>
         <option value="no" {% if f.geocoded=='no' %}selected{% endif %}>Not geocoded</option>
       </select></div>
+    <div><label>Sampling event (ID or name)</label><input name="event" value="{{ f.event or '' }}" placeholder="e.g. 10 or Clear Lake"></div>
     <div><label>Search station / water body</label><input name="q" value="{{ f.q or '' }}"></div>
     <button>Apply</button>
     <a class="btn secondary" href="{{ url_for('lab_workboard') }}">Clear</a>
@@ -80,7 +81,7 @@
         onsubmit="return confirm('Auto-link every unlinked sample in the current filter to its nearest report? Confident matches only; the rest stay for manual review.')">
     <span class="muted">Batch reconcile the whole filtered view — auto-link unlinked samples within ±</span>
     <input name="days" value="14" style="width:48px; padding:.2rem" inputmode="numeric"> days
-    {% for k in ['assignee','region','q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+    {% for k in ['assignee','region','q','event','geocoded','status'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
     <button class="secondary">Reconcile all unlinked in this view</button>
   </form>
 </div>
@@ -88,8 +89,8 @@
 <div class="card">
   <h1 style="font-size:1.05rem">Samples <span class="muted">({{ '{:,}'.format(total) }})</span></h1>
   <table>
-    <tr><th></th><th>Status</th><th>Station / sample</th><th>Results</th><th>Linked to</th>
-        <th>Assignee</th><th>QA</th><th>Actions</th></tr>
+    <tr><th></th><th>Status</th><th>Station / sample</th><th>Sampling event</th><th>Results</th>
+        <th>Linked to</th><th>Assignee</th><th>QA</th><th>Actions</th></tr>
     {% for r in rows %}
     <tr>
       <td><input type="checkbox" name="sample_ids" value="{{ r.id }}" form="assignForm"></td>
@@ -98,6 +99,7 @@
           <button type="button" class="secondary" style="padding:0 .4rem; font-size:.85rem"
                   onclick="openSampleMap({{ r.id }})" title="Show this sample &amp; nearby reports on a map">🗺</button>
           <br><span class="muted">{{ r.sample_date or '—' }}{% if r.water_body_name %} · {{ r.water_body_name }}{% endif %}</span></td>
+      <td>{% if r.event_id %}<a href="{{ url_for('lab_workboard', event=r.event_id) }}" title="{{ r.event_name or '' }}">SE {{ r.event_id }}</a>{% if r.event_name %}<br><span class="muted">{{ r.event_name }}</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
       <td>{{ r.n_results }}</td>
       <td>{% if r.bloom_report_id %}<a href="{{ url_for('report_detail', brid=r.bloom_report_id) }}">R{{ r.bloom_report_id }}</a>{% endif %}
           {% if r.case_id %} · C{{ r.case_id }}{% endif %}{% if not r.bloom_report_id and not r.case_id %}—{% endif %}</td>
@@ -142,7 +144,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="muted">No samples match.</td></tr>
+    <tr><td colspan="9" class="muted">No samples match.</td></tr>
     {% endfor %}
   </table>
   {% set start = page * per %}

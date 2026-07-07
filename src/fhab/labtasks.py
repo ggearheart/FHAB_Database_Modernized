@@ -36,6 +36,7 @@ _FROM = """
   LEFT JOIN location l ON l.id = e.location_id
   LEFT JOIN waterbody w ON w.id = l.waterbody_id
   LEFT JOIN app_user au ON au.id = s.assigned_to
+  LEFT JOIN lab_batch b ON b.id = s.lab_batch_id      -- the sampling event (ingested folder)
   WHERE EXISTS (SELECT 1 FROM result r WHERE r.sample_id = s.id)
 """
 
@@ -56,6 +57,10 @@ def _where(f: dict, me: int | None):
         cond.append("w.regional_water_board = %(region)s"); p["region"] = f["region"]
     if str(f.get("batch") or "").isdigit():
         cond.append("s.lab_batch_id = %(batch)s"); p["batch"] = int(f["batch"])
+    ev = (f.get("event") or "").strip()   # sampling event = the ingested batch: match id or name
+    if ev:
+        cond.append("(CAST(s.lab_batch_id AS text) = %(evid)s OR b.source ILIKE %(evname)s)")
+        p["evid"] = ev; p["evname"] = "%" + ev + "%"
     geo = f.get("geocoded")
     if geo == "yes":
         cond.append("st.geom IS NOT NULL")
@@ -75,6 +80,7 @@ def workboard(conn, f: dict, *, me=None, sort="date", desc=True, limit=100, offs
         f"""SELECT s.id, st.station_code, st.station_name, s.sample_date,
                    s.bloom_report_id, s.case_id, w.water_body_name, w.regional_water_board,
                    au.email AS assignee, s.qa_status, s.qa_note, ({_STATUS}) AS status,
+                   s.lab_batch_id AS event_id, b.source AS event_name,
                    (SELECT count(*) FROM result r WHERE r.sample_id = s.id) AS n_results,
                    COALESCE(ST_Y(st.geom), ST_Y(l.geom)) AS lat,
                    COALESCE(ST_X(st.geom), ST_X(l.geom)) AS lon
