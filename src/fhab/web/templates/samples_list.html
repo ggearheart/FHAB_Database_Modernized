@@ -34,7 +34,7 @@
 <div class="card">
   <h1 style="font-size:1.05rem">Samples ({{ total }})</h1>
   <table>
-    <tr><th>ID</th><th>Station</th><th>Date</th><th>Type</th><th>BG / lab ID</th><th>Source</th>
+    <tr><th>ID</th><th>Station</th><th>Date</th><th>Type</th><th>BG / lab ID</th><th>Sampling event</th>
         <th>Status</th><th>Geo</th><th>Results</th></tr>
     {% for r in rows %}
     <tr>
@@ -43,7 +43,7 @@
       <td>{{ r.sample_date or '—' }}</td>
       <td class="muted">{{ r.sample_type or '—' }}</td>
       <td>{{ r.bg_id or '—' }}{% if r.lab_sample_id %} <span class="muted">/ {{ r.lab_sample_id }}</span>{% endif %}</td>
-      <td class="muted">{{ (r.batch_source or ('batch ' ~ r.lab_batch_id) if r.lab_batch_id else '—') }}</td>
+      <td class="muted">{% if r.lab_batch_id %}SE {{ r.lab_batch_id }}{% if r.batch_source %} · {{ r.batch_source }}{% endif %}{% else %}—{% endif %}</td>
       <td><span class="pill" style="background:{{ PILL.get(r.status,'#eee') }}">{{ r.status }}</span>
           {% if r.bloom_report_id %} R{{ r.bloom_report_id }}{% elif r.case_id %} C{{ r.case_id }}{% endif %}</td>
       <td>{{ '✓' if r.geocoded else '—' }}</td>

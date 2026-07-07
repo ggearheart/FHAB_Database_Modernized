@@ -134,7 +134,7 @@ def test_folder_ingest_page_and_download(client, conn, tmp_path):
     assert page.status_code == 200 and b"Clear Lake (RB5)" in page.data
     # workboard scoped to the batch shows its file links
     wb = client.get(f"/lab/workboard?batch={r['batch_id']}")
-    assert b"Ingest batch" in wb.data
+    assert b"Sampling event" in wb.data
     fid = batch_files(conn, r["batch_id"])[0]["id"]
     dl = client.get(f"/batch/{r['batch_id']}/file/{fid}")
     assert dl.status_code == 200 and len(dl.data) > 0
