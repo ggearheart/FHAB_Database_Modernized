@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}New sample{% endblock %}
+{% block body %}
+<h1>New sample</h1>
+<div class="card">
+  <p class="muted">Enter a sample record by hand. Only the fields you know are required — a station
+    code + date are enough. Add coordinates to geocode it now, or leave blank and set them later.</p>
+  <form method="post">
+    <div class="row">
+      <div><label>Station code</label><input name="station_code" placeholder="e.g. 513CLOK01"></div>
+      <div><label>Station / location name</label><input name="station_name"></div>
+    </div>
+    <div class="row">
+      <div><label>Sample date</label><input name="sample_date" placeholder="YYYY-MM-DD or M/D/YYYY"></div>
+      <div><label>Sample time</label><input name="sample_time" placeholder="HH:MM"></div>
+      <div><label>Sample type</label><input name="sample_type" placeholder="e.g. Water Grab"></div>
+    </div>
+    <div class="row">
+      <div><label>BG_ID</label><input name="bg_id"></div>
+      <div><label>Lab sample ID</label><input name="lab_sample_id"></div>
+      <div><label>Lab batch</label><input name="lab_batch"></div>
+    </div>
+    <div class="row">
+      <div><label>Project code</label><input name="project_code"></div>
+      <div><label>Collected by</label><input name="collected_by"></div>
+      <div><label>Chain-of-custody ID</label><input name="coc_id"></div>
+    </div>
+    <div class="row">
+      <div><label>Site / sample location</label><input name="site"></div>
+      <div><label>Owner org</label><input name="owner_org" placeholder="blank = State"></div>
+    </div>
+    <div class="row">
+      <div><label>Latitude</label><input name="lat" inputmode="decimal" placeholder="38.5"></div>
+      <div><label>Longitude</label><input name="lon" inputmode="decimal" placeholder="-121.4"></div>
+    </div>
+    <p></p>
+    <button>Create sample</button>
+    <a class="btn secondary" href="{{ url_for('samples_list') }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

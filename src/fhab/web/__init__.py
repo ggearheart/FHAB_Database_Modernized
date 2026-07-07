@@ -37,6 +37,7 @@ from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, c
                         team_members, unlink_sample, unlink_sample_station, workboard)
 from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov
+from ..samples import count_samples, create_sample, get_sample, list_samples, update_sample
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
                         update_analyte)
@@ -318,6 +319,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Load a Bend/partner results folder (CSV + CoC/transmittal PDFs); files kept on the batch."},
             {"title": "Lab batch reconciliation", "href": url_for("lab_reconcile"),
              "desc": "Stage a CEDEN chemistry template and link by station + date."},
+            {"title": "Sample work area", "href": url_for("samples_list"),
+             "desc": "Browse every sample; create one manually or from a CSV; edit location & details."},
             {"title": "Lab data workboard", "href": url_for("lab_workboard"),
              "desc": "Assign, link, and QA-review lab samples against reports/cases."},
             {"title": "Bulk sample coordinates", "href": url_for("lab_coordinates"),
@@ -986,6 +989,55 @@ def create_app(dsn: str | None = None) -> Flask:
         return resp
 
     # ---------- Lab-data reconciliation workboard ----------
+    # ---------- Sample work area (browse / create / edit sample records) ----------
+    @app.route("/lab/samples")
+    @staff_required
+    def samples_list():
+        a = request.args
+        f = {k: (a.get(k) or "").strip() or None for k in ("q", "batch", "status", "geocoded")}
+        try:
+            page = max(0, int(a.get("page", 0)))
+        except ValueError:
+            page = 0
+        per, conn = 100, db()
+        rows = list_samples(conn, f, limit=per, offset=page * per)
+        total = count_samples(conn, f)
+        base_args = {k: v for k, v in a.items() if k != "page"}
+        return render_template("samples_list.html", rows=rows, total=total, page=page, per=per,
+                               f=f, base_args=base_args)
+
+    @app.route("/lab/samples/new", methods=["GET", "POST"])
+    @staff_required
+    def sample_new():
+        conn = db()
+        if request.method == "POST":
+            try:
+                sid = create_sample(conn, session["uid"], request.form)
+                flash("Sample created.", "ok")
+                return redirect(url_for("sample_detail", sid=sid))
+            except (ValueError, psycopg.Error) as exc:
+                conn.rollback()
+                flash("Could not create sample: " + str(exc).splitlines()[0], "error")
+        return render_template("sample_new.html")
+
+    @app.route("/lab/samples/<int:sid>", methods=["GET", "POST"])
+    @staff_required
+    def sample_detail(sid):
+        conn = db()
+        if request.method == "POST":
+            try:
+                update_sample(conn, session["uid"], sid, request.form)
+                flash("Sample updated.", "ok")
+            except (ValueError, psycopg.Error) as exc:
+                conn.rollback()
+                flash("Could not update sample: " + str(exc).splitlines()[0], "error")
+            return redirect(url_for("sample_detail", sid=sid))
+        data = get_sample(conn, sid)
+        if not data:
+            flash("Sample not found.", "error")
+            return redirect(url_for("samples_list"))
+        return render_template("sample_detail.html", **data)
+
     @app.route("/lab/workboard")
     @staff_required
     def lab_workboard():
