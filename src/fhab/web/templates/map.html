@@ -106,12 +106,20 @@ const geoOpts = {
   onEachFeature: (f, lyr) => {
     const p = f.properties;
     if (p.kind === 'orphan') {
+      // Scope Reconcile to what was clicked: the sampling event if these samples all came from
+      // one, else this station's unlinked geocoded samples.
+      const ev = p.event_ids || [];
+      const href = ev.length === 1
+        ? `/lab/workboard?status=unlinked&event=${ev[0]}`
+        : `/lab/workboard?status=unlinked&geocoded=yes&q=${encodeURIComponent(p.station_code || '')}`;
+      const evLabel = ev.length === 1 ? `Sampling event SE ${ev[0]}`
+        : ev.length > 1 ? `${ev.length} sampling events` : 'this station';
       lyr.bindPopup(
         `<b>Lab data at ${p.station_code || '—'}</b><br>`
         + `${p.station_name || ''}<br>`
         + `${p.n_samples} unlinked sample(s)<br>`
         + `Last sample: ${p.last_sample || '—'}<br>`
-        + `<a href="/lab/workboard?status=unlinked&geocoded=yes">Reconcile →</a>`
+        + `<a href="${href}">Reconcile ${evLabel} →</a>`
       );
       return;
     }

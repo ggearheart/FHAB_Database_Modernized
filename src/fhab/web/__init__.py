@@ -669,7 +669,8 @@ def create_app(dsn: str | None = None) -> Flask:
                     f"""SELECT st.id AS station_id, ST_Y(st.geom) AS lat, ST_X(st.geom) AS lon,
                                st.station_code, st.station_name,
                                count(DISTINCT s.id) AS n_samples,
-                               max(s.sample_date)::text AS last_sample
+                               max(s.sample_date)::text AS last_sample,
+                               array_remove(array_agg(DISTINCT s.lab_batch_id), NULL) AS event_ids
                         FROM sample s JOIN station st ON st.id = s.station_id
                         WHERE {' AND '.join(cond)}
                           AND EXISTS (SELECT 1 FROM result r WHERE r.sample_id = s.id)
@@ -680,7 +681,7 @@ def create_app(dsn: str | None = None) -> Flask:
                 "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]},
                 "properties": {"kind": "orphan", "station_code": r["station_code"],
                                "station_name": r["station_name"], "n_samples": r["n_samples"],
-                               "last_sample": r["last_sample"]},
+                               "last_sample": r["last_sample"], "event_ids": r["event_ids"]},
             } for r in rows]
             return jsonify({"type": "FeatureCollection", "features": features})
 
