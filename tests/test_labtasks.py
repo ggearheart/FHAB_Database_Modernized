@@ -455,6 +455,38 @@ def test_batch_coordinates_screen_web(client, conn):
     assert abs(g1 - 38.5) < 1e-6 and abs(g2 - 39.0) < 1e-6      # 2 samples, 2 distinct points
 
 
+def test_ceden_station_links(conn):
+    from fhab.labtasks import link_sample_stations, sample_geo, unlink_sample_station
+    staff = _staff(conn)
+    conn.execute("INSERT INTO station_registry (station_code, station_name, latitude, longitude) "
+                 "VALUES ('CED1','Ceden One',38.5,-121.401),('CED2','Ceden Two',38.5,-121.402)")
+    sid = _orphan_sample(conn, "CEDSAMP")     # station at (-121.4, 38.5)
+    conn.commit()
+    g = sample_geo(conn, sid)
+    assert {c["code"] for c in g["ceden_nearby"]} >= {"CED1", "CED2"}     # nearby CEDEN stations shown
+
+    assert link_sample_stations(conn, staff, sid, ["CED1", "CED2"]) == 2   # a sample links to several
+    g2 = sample_geo(conn, sid)
+    assert {c["code"] for c in g2["ceden_linked"]} == {"CED1", "CED2"}
+    assert all(c["code"] not in ("CED1", "CED2") for c in g2["ceden_nearby"])  # linked drop out of nearby
+
+    unlink_sample_station(conn, staff, sid, "CED1")
+    assert {c["code"] for c in sample_geo(conn, sid)["ceden_linked"]} == {"CED2"}
+
+
+def test_ceden_link_web(client, conn):
+    conn.execute("INSERT INTO station_registry (station_code, latitude, longitude) "
+                 "VALUES ('WEBCED', 38.5, -121.401)")
+    sid = _orphan_sample(conn, "WEBCEDSAMP"); conn.commit()
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+    client.post(f"/lab/sample/{sid}/link-stations", data={"station_code": "WEBCED"}, follow_redirects=True)
+    assert conn.execute("SELECT count(*) c FROM sample_station_link WHERE sample_id=%s",
+                        (sid,)).fetchone()["c"] == 1
+    # geo.json exposes it as a linked location
+    j = client.get(f"/lab/sample/{sid}/geo.json").get_json()
+    assert any(c["code"] == "WEBCED" for c in j["ceden_linked"])
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")

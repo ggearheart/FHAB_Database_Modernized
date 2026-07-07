@@ -292,7 +292,8 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8, at=None) -> dict:
            WHERE s.id = %s""",
         (sample_id,)).fetchone()
     out = {"label": None, "sample_date": None, "station": None, "linked": None,
-           "candidates": [], "probe": None, "files": [], "summary": None}
+           "candidates": [], "probe": None, "files": [], "summary": None,
+           "batch_id": None, "ceden_linked": [], "ceden_nearby": []}
     if not s:
         return out
     # Source files from the sample's ingest batch (CoC / transmittal / receipt / data), so a
@@ -354,7 +355,62 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8, at=None) -> dict:
             {"brid": r["bloom_report_id"], "case_id": r["case_id"], "name": r["water_body_name"],
              "obs": r["obs"], "lat": r["lat"], "lon": r["lon"], "dist_m": r["dist_m"],
              "day_gap": r["day_gap"]} for r in rows]
+
+    out["batch_id"] = s["lab_batch_id"]     # for the "enter coordinates for all samples" link
+    # CEDEN station location links: already-linked stations, and nearby ones to link to.
+    out["ceden_linked"] = [
+        {"code": r["station_code"], "name": r["station_name"], "lat": r["lat"], "lon": r["lon"]}
+        for r in conn.execute(
+            """SELECT l.station_code, l.station_name, r.latitude AS lat, r.longitude AS lon
+               FROM sample_station_link l LEFT JOIN station_registry r ON r.station_code = l.station_code
+               WHERE l.sample_id = %s ORDER BY l.station_code""", (sample_id,)).fetchall()]
+    if anchor:
+        exclude = [c["code"] for c in out["ceden_linked"]]
+        if s["station_code"]:
+            exclude.append(s["station_code"])
+        out["ceden_nearby"] = [
+            {"code": r["station_code"], "name": r["station_name"], "lat": r["lat"],
+             "lon": r["lon"], "dist_m": r["dist_m"]}
+            for r in conn.execute(
+                """SELECT station_code, station_name, latitude AS lat, longitude AS lon,
+                          round(ST_Distance(
+                              ST_SetSRID(ST_MakePoint(longitude, latitude),4326)::geography,
+                              ST_SetSRID(ST_MakePoint(%(lon)s,%(lat)s),4326)::geography)) AS dist_m
+                   FROM station_registry
+                   WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+                     AND ST_DWithin(ST_SetSRID(ST_MakePoint(longitude, latitude),4326)::geography,
+                           ST_SetSRID(ST_MakePoint(%(lon)s,%(lat)s),4326)::geography, %(r)s)
+                     AND station_code <> ALL(%(excl)s)
+                   ORDER BY dist_m LIMIT %(lim)s""",
+                {"lon": anchor["lon"], "lat": anchor["lat"], "r": radius_m,
+                 "excl": exclude, "lim": limit}).fetchall()]
     return out
+
+
+def link_sample_stations(conn, user_id, sample_id, codes) -> int:
+    """Link a sample to one or more CEDEN registry stations (location cross-references)."""
+    n = 0
+    with acting_as(conn, user_id):
+        for code in codes:
+            code = (code or "").strip()
+            if not code:
+                continue
+            name = conn.execute("SELECT station_name FROM station_registry WHERE station_code=%s",
+                                (code,)).fetchone()
+            conn.execute(
+                """INSERT INTO sample_station_link (sample_id, station_code, station_name, linked_by)
+                   VALUES (%s,%s,%s,%s) ON CONFLICT (sample_id, station_code) DO NOTHING""",
+                (sample_id, code, name["station_name"] if name else None, user_id))
+            n += 1
+        conn.commit()
+    return n
+
+
+def unlink_sample_station(conn, user_id, sample_id, code) -> None:
+    with acting_as(conn, user_id):
+        conn.execute("DELETE FROM sample_station_link WHERE sample_id=%s AND station_code=%s",
+                     (sample_id, code))
+        conn.commit()
 
 
 def set_sample_location(conn, sample_id, lat: float, lon: float) -> dict:

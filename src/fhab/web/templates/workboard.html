@@ -183,6 +183,7 @@
     <div id="wbmap" style="height:360px; border:1px solid var(--line); border-radius:6px"></div>
     <p class="muted" id="mapNote" style="margin:.5rem 0 0"></p>
     <div id="wbCandList" style="margin-top:.5rem"></div>
+    <div id="wbCeden" style="margin-top:.5rem"></div>
   </div>
 </div>
 
@@ -233,10 +234,13 @@ function renderSampleMap(probe) {
             + '" target="_blank" rel="noopener" title="' + f.filename + '">' + f.category + '</a>').join(' · ')
           + ' <span class="muted">(open in a new tab)</span>'
         : '<span class="muted">no source files stored for this ingest</span>';
+      const batchLink = g.batch_id
+        ? ' · <a href="/lab/batch/' + g.batch_id + '/coordinates">enter lat/long for every sample in this batch →</a>'
+        : '';
       sEl.innerHTML = '<div style="background:#f4f6f8;border-radius:6px;padding:.4rem .55rem">'
         + '<div><span class="muted">Ingested via</span> <b>' + sm.source + '</b></div>'
         + (bits.length ? '<div class="muted" style="font-size:.85rem">' + bits.join(' · ') + '</div>' : '')
-        + '<div style="margin-top:.15rem">' + sm.n_results + ' result(s) · ' + files + '</div></div>';
+        + '<div style="margin-top:.15rem">' + sm.n_results + ' result(s) · ' + files + batchLink + '</div></div>';
     } else { sEl.innerHTML = ''; }
     const pts = [];
     const dot = (p, color, ring, radius) => L.circleMarker([p.lat, p.lon],
@@ -319,6 +323,50 @@ function renderSampleMap(probe) {
         document.querySelectorAll('.wbCand').forEach(c => { c.checked = all.checked; }));
     } else { listEl.innerHTML = ''; }
 
+    // Nearby CEDEN registry stations (indigo squares) + already-linked location links (filled).
+    const sq = (p, fill, border) => L.marker([p.lat, p.lon], { icon: L.divIcon({
+      className: '', iconSize: [12, 12], iconAnchor: [6, 6],
+      html: '<div style="width:10px;height:10px;background:' + fill + ';border:1.5px solid ' + border + '"></div>' }) });
+    (g.ceden_linked || []).forEach(c => {
+      if (c.lat == null) return;
+      sq(c, '#4f46e5', '#312e81').addTo(_wblayer).bindTooltip('CEDEN ' + c.code + ' (linked)');
+      pts.push([c.lat, c.lon]);
+    });
+    (g.ceden_nearby || []).forEach(c => {
+      sq(c, 'rgba(79,70,229,.35)', '#4f46e5').addTo(_wblayer)
+        .bindTooltip('CEDEN ' + c.code + (c.name ? ' · ' + c.name : ''))
+        .bindPopup('<b>CEDEN station</b><br>' + c.code + '<br>' + (c.name || '') + '<br>' + c.dist_m + ' m<br>'
+          + '<form method="post" action="/lab/sample/' + sid + '/link-stations" style="margin-top:4px">'
+          + '<input type="hidden" name="station_code" value="' + c.code + '">'
+          + '<button>Link this location</button></form>');
+      pts.push([c.lat, c.lon]);
+    });
+
+    // CEDEN station panel: linked list (with unlink) + a checklist of nearby ones to link.
+    const cedEl = document.getElementById('wbCeden');
+    let ch = '';
+    if ((g.ceden_linked || []).length) {
+      ch += '<div><span class="muted">Linked CEDEN locations:</span> '
+        + g.ceden_linked.map(c =>
+          '<span style="white-space:nowrap">' + c.code
+          + ' <a href="#" onclick="wbUnlinkStation(\'' + c.code + '\');return false" title="unlink">✕</a></span>'
+        ).join(' · ') + '</div>';
+    }
+    if ((g.ceden_nearby || []).length) {
+      ch += '<div style="margin-top:.3rem"><strong>Nearby CEDEN stations (' + g.ceden_nearby.length + ')</strong>'
+        + ' <span class="muted">— link one or more as sample locations</span>'
+        + '<div style="max-height:120px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px;margin:4px 0">'
+        + g.ceden_nearby.map(c =>
+          '<label style="display:flex;gap:.4rem;align-items:center;padding:1px 0">'
+          + '<input type="checkbox" class="wbCeden" value="' + c.code + '" style="width:auto;flex:0 0 auto">'
+          + '<span style="flex:0 0 10px;height:10px;background:rgba(79,70,229,.35);border:1.5px solid #4f46e5"></span>'
+          + '<span>' + c.code + (c.name ? ' · ' + c.name : '') + ' · ' + c.dist_m + ' m</span></label>'
+        ).join('')
+        + '</div><button type="button" onclick="wbLinkStations()">Link location(s)</button>'
+        + ' <span id="wbCedenMsg" class="muted"></span></div>';
+    }
+    cedEl.innerHTML = ch;
+
     const anchored = g.station || g.linked || g.probe;
     document.getElementById('mapNote').innerHTML = anchored
       ? ((g.candidates || []).length + ' nearby report(s). '
@@ -367,6 +415,21 @@ function _wbPost(action) {
 }
 function wbCreateReport() { _wbPost('/lab/sample/' + _wbsid + '/create-report'); }
 function wbRoutine() { _wbPost('/lab/sample/' + _wbsid + '/routine'); }
+function wbLinkStations() {
+  const codes = [...document.querySelectorAll('.wbCeden:checked')].map(c => c.value);
+  const msg = document.getElementById('wbCedenMsg');
+  if (!codes.length) { if (msg) msg.textContent = 'Select at least one CEDEN station.'; return; }
+  const f = document.createElement('form');
+  f.method = 'post'; f.action = '/lab/sample/' + _wbsid + '/link-stations';
+  codes.forEach(c => { const i = document.createElement('input'); i.type = 'hidden'; i.name = 'station_code'; i.value = c; f.appendChild(i); });
+  document.body.appendChild(f); f.submit();
+}
+function wbUnlinkStation(code) {
+  const f = document.createElement('form');
+  f.method = 'post'; f.action = '/lab/sample/' + _wbsid + '/unlink-station';
+  const i = document.createElement('input'); i.type = 'hidden'; i.name = 'station_code'; i.value = code; f.appendChild(i);
+  document.body.appendChild(f); f.submit();
+}
 function wbLinkSelected() {
   const ids = [...document.querySelectorAll('.wbCand:checked')].map(c => c.value);
   const msg = document.getElementById('wbLinkMsg');

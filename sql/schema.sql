@@ -496,5 +496,18 @@ CREATE TABLE IF NOT EXISTS lab_stage_result (
 CREATE INDEX IF NOT EXISTS lab_stage_sample_batch_idx ON lab_stage_sample(batch_id);
 CREATE INDEX IF NOT EXISTS lab_stage_result_sample_idx ON lab_stage_result(stage_sample_id);
 
+-- A sample can be associated with one or more CEDEN registry stations as location links (in
+-- addition to its own station). Recorded for research/cross-reference from the workboard map.
+CREATE TABLE IF NOT EXISTS sample_station_link (
+    id           bigserial PRIMARY KEY,
+    sample_id    bigint NOT NULL REFERENCES sample(id) ON DELETE CASCADE,
+    station_code text NOT NULL,          -- CEDEN station code (station_registry)
+    station_name text,
+    linked_by    bigint,
+    linked_at    timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (sample_id, station_code)
+);
+CREATE INDEX IF NOT EXISTS sample_station_link_sample_idx ON sample_station_link(sample_id);
+
 -- The sample.station_id FK and the bg_id unique index live in migrations.sql, so they run
 -- after those columns are guaranteed to exist (safe on databases predating those columns).
