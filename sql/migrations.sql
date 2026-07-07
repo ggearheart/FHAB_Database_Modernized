@@ -114,6 +114,16 @@ CREATE TABLE IF NOT EXISTS lab_batch_file (
     uploaded_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS lab_batch_file_batch_idx ON lab_batch_file(batch_id);
+CREATE TABLE IF NOT EXISTS sample_station_link (
+    id           bigserial PRIMARY KEY,
+    sample_id    bigint NOT NULL REFERENCES sample(id) ON DELETE CASCADE,
+    station_code text NOT NULL,
+    station_name text,
+    linked_by    bigint,
+    linked_at    timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (sample_id, station_code)
+);
+CREATE INDEX IF NOT EXISTS sample_station_link_sample_idx ON sample_station_link(sample_id);
 
 -- Public submission: full-form illness + community/partner attribution (table predates these).
 ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS no_illness_observed boolean;

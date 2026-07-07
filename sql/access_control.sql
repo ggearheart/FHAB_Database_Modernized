@@ -234,7 +234,7 @@ END $$;
 DO $$
 DECLARE t text;
 BEGIN
-    FOREACH t IN ARRAY ARRAY['lab_batch','lab_batch_file','lab_stage_sample','lab_stage_result'] LOOP
+    FOREACH t IN ARRAY ARRAY['lab_batch','lab_batch_file','lab_stage_sample','lab_stage_result','sample_station_link'] LOOP
         EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
         EXECUTE format('DROP POLICY IF EXISTS %1$I_all ON %1$I', t);
         EXECUTE format(
@@ -311,7 +311,8 @@ GRANT fhab_app TO current_user;
 -- Writes are allowed only on the tables that have write policies above.
 GRANT INSERT, UPDATE, DELETE ON
     event, station, sample, result, hab_case, waterbody, location, response, advisory,
-    lab_batch, lab_batch_file, lab_stage_sample, lab_stage_result, report_illness, report_photo,
+    lab_batch, lab_batch_file, lab_stage_sample, lab_stage_result, sample_station_link,
+    report_illness, report_photo,
     public_report_submission, intake_group, notification TO fhab_app;
 -- analyte is reference vocabulary (no RLS); lab-result entry/upload may add new analytes.
 GRANT INSERT, UPDATE ON analyte TO fhab_app;

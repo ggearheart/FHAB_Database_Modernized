@@ -32,9 +32,9 @@ from ..export import DATASETS, fetch_flatfile
 from ..labquery import count_results, filter_options, query_results
 from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, clear_routine,
                         count_workboard, create_report_from_sample, link_sample,
-                        link_sample_to_reports, qa_review, sample_geo, set_sample_location,
-                        set_sample_point, status_tallies, tag_routine, team_members, unlink_sample,
-                        workboard)
+                        link_sample_stations, link_sample_to_reports, qa_review, sample_geo,
+                        set_sample_location, set_sample_point, status_tallies, tag_routine,
+                        team_members, unlink_sample, unlink_sample_station, workboard)
 from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
@@ -1077,6 +1077,26 @@ def create_app(dsn: str | None = None) -> Flask:
                   "Pending QA review.", "ok")
         else:
             flash(f"Sample linked to R{res['id']} — pending QA review.", "ok")
+        return redirect(request.referrer or url_for("lab_workboard"))
+
+    @app.route("/lab/sample/<int:sid>/link-stations", methods=["POST"])
+    @staff_required
+    def lab_sample_link_stations(sid):
+        conn = db()
+        codes = [c for c in request.form.getlist("station_code") if c.strip()]
+        try:
+            n = link_sample_stations(conn, session["uid"], sid, codes)
+            flash(f"Linked {n} CEDEN station location(s) to the sample." if n
+                  else "Select a CEDEN station to link.", "ok" if n else "error")
+        except psycopg.Error as exc:
+            conn.rollback(); flash("Could not link station(s): " + str(exc).splitlines()[0], "error")
+        return redirect(request.referrer or url_for("lab_workboard"))
+
+    @app.route("/lab/sample/<int:sid>/unlink-station", methods=["POST"])
+    @staff_required
+    def lab_sample_unlink_station(sid):
+        unlink_sample_station(db(), session["uid"], sid, (request.form.get("station_code") or "").strip())
+        flash("CEDEN station location unlinked.", "ok")
         return redirect(request.referrer or url_for("lab_workboard"))
 
     @app.route("/lab/sample/<int:sid>/unlink", methods=["POST"])
