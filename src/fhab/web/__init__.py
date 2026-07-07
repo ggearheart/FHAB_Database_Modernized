@@ -38,6 +38,7 @@ from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, c
 from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov
 from ..samples import count_samples, create_sample, get_sample, list_samples, update_sample
+from ..dedup import candidate_duplicate_samples, duplicate_count, merge_samples
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
                         update_analyte)
@@ -321,6 +322,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Stage a CEDEN chemistry template and link by station + date."},
             {"title": "Sample work area", "href": url_for("samples_list"),
              "desc": "Browse every sample; create one manually or from a CSV; edit location & details."},
+            {"title": "Find duplicate samples", "href": url_for("lab_duplicates"),
+             "desc": "Detect and merge samples that arrived more than once across ingest paths."},
             {"title": "Lab data workboard", "href": url_for("lab_workboard"),
              "desc": "Assign, link, and QA-review lab samples against reports/cases."},
             {"title": "Bulk sample coordinates", "href": url_for("lab_coordinates"),
@@ -989,6 +992,27 @@ def create_app(dsn: str | None = None) -> Flask:
         return resp
 
     # ---------- Lab-data reconciliation workboard ----------
+    @app.route("/lab/duplicates", methods=["GET", "POST"])
+    @staff_required
+    def lab_duplicates():
+        conn = db()
+        if request.method == "POST":
+            survivor = (request.form.get("survivor") or "").strip()
+            members = request.form.getlist("member")
+            if not survivor.isdigit():
+                flash("Pick which sample to keep.", "error")
+            else:
+                try:
+                    r = merge_samples(conn, session["uid"], int(survivor), members)
+                    flash(f"Merged {r['merged']} duplicate(s) into sample {survivor} — "
+                          f"{r['results_repointed']} result(s) moved, {r['results_deduped']} de-duplicated.",
+                          "ok" if r["merged"] else "error")
+                except (ValueError, psycopg.Error) as exc:
+                    conn.rollback()
+                    flash("Could not merge: " + str(exc).splitlines()[0], "error")
+            return redirect(url_for("lab_duplicates"))
+        return render_template("dedup.html", groups=candidate_duplicate_samples(conn))
+
     # ---------- Sample work area (browse / create / edit sample records) ----------
     @app.route("/lab/samples")
     @staff_required
