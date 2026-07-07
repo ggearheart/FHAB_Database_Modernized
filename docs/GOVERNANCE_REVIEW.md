@@ -10,10 +10,14 @@ before broader production use), **MEDIUM** (address on the roadmap).
 
 ## Summary
 
+**Status:** #2 addressed (reserved-range sequence PKs) and #1 partially addressed (detect/merge
+duplicate-samples tool at `/lab/duplicates`; a shared cross-source identifier is still recommended
+upstream). Remaining HIGH items #3–#5 are open.
+
 | # | Finding | Category | Severity |
 |---|---------|----------|----------|
-| 1 | No cross-source identity for samples/results → duplication | Relational / quality | **HIGH** |
-| 2 | `max(id)+1` primary-key assignment (race + id-space overlap) | Relational | **HIGH** |
+| 1 | No cross-source identity for samples/results → duplication | Relational / quality | **HIGH** — tool added |
+| 2 | `max(id)+1` primary-key assignment (race + id-space overlap) | Relational | **HIGH** — fixed |
 | 3 | Circular data.ca.gov lineage — no single source of truth | Governance | **HIGH** |
 | 4 | RLS bypassed at runtime (owner connection) | Governance | **HIGH** |
 | 5 | No row-level audit / change history | Governance | **HIGH** |
