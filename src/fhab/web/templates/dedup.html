@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Find duplicate samples{% endblock %}
+{% block body %}
+<h1>Find duplicate samples</h1>
+<div class="card">
+  <p class="muted">Samples that share an identity fingerprint (an explicit lab ID, or the same
+    station + date + type) — likely the <em>same</em> physical sample ingested more than once.
+    These are <strong>candidates</strong>: station+date+type can also be legitimate field replicates,
+    so review each group and choose which record to <strong>keep</strong>. Merging repoints the
+    others' results and links onto the kept sample, de-duplicates its results, and deletes the
+    duplicates. Un-check any member that is <em>not</em> a duplicate to leave it alone.</p>
+</div>
+
+{% for g in groups %}
+<div class="card">
+  <form method="post" onsubmit="return confirm('Merge the checked samples into the one marked Keep? This deletes the duplicates.')">
+    <div class="muted" style="font-size:.85rem">Fingerprint: <code>{{ g.key }}</code> · {{ g.n }} samples</div>
+    <table style="margin-top:.3rem">
+      <tr><th>Keep</th><th>Merge</th><th>ID</th><th>Station</th><th>Date</th><th>Type</th>
+          <th>BG / lab / sample ID</th><th>Sampling event</th><th>Results</th><th>Status</th></tr>
+      {% for m in g.members %}
+      <tr>
+        <td style="text-align:center"><input type="radio" name="survivor" value="{{ m.id }}" style="width:auto" {% if loop.first %}checked{% endif %}></td>
+        <td style="text-align:center"><input type="checkbox" name="member" value="{{ m.id }}" style="width:auto" checked></td>
+        <td><a href="{{ url_for('sample_detail', sid=m.id) }}">{{ m.id }}</a></td>
+        <td>{{ m.station_code or '—' }}</td>
+        <td>{{ m.sample_date or '—' }}</td>
+        <td class="muted">{{ m.sample_type or '—' }}</td>
+        <td class="muted">{{ m.bg_id or m.lab_sample_id or m.sample_id or '—' }}</td>
+        <td class="muted">{% if m.lab_batch_id %}SE {{ m.lab_batch_id }}{% if m.batch_source %} · {{ m.batch_source }}{% endif %}{% else %}—{% endif %}</td>
+        <td>{{ m.n_results }}</td>
+        <td>{% if m.bloom_report_id %}R{{ m.bloom_report_id }}{% elif m.case_id %}C{{ m.case_id }}{% elif m.sampling_type=='routine' %}routine{% else %}unlinked{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p></p>
+    <button>Merge checked into “Keep”</button>
+  </form>
+</div>
+{% else %}
+<div class="card"><p class="muted">No candidate duplicate samples found.</p></div>
+{% endfor %}
+{% endblock %}
