@@ -17,7 +17,8 @@ from flask import (Flask, Response, flash, g, jsonify, redirect, render_template
 
 import tempfile
 
-from ..auth import (acting_as, authenticate, create_user, grant_role, list_roles_for,
+from ..auth import (acting_as, approve_signup, authenticate, create_user, grant_role,
+                    is_pending_signup, list_roles_for, reject_signup, request_signup,
                     revoke_role, set_password, user_regions)
 from ..cases import (CASE_STATUSES, assign_report_to_case, create_case, update_case)
 from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_for_event)
@@ -382,8 +383,26 @@ def create_app(dsn: str | None = None) -> Flask:
                 session["name"] = user["full_name"] or user["email"]
                 session["roles"] = list_roles_for(db(), user["id"])
                 return redirect(request.args.get("next") or url_for("dashboard"))
-            flash("Invalid email or password.", "error")
+            if is_pending_signup(db(), request.form.get("email", "")):
+                flash("Your account request is awaiting an administrator's approval.", "error")
+            else:
+                flash("Invalid email or password.", "error")
         return render_template("login.html")
+
+    @app.route("/signup", methods=["GET", "POST"])
+    def signup():
+        if request.method == "POST":
+            f = request.form
+            email = (f.get("email") or "").strip()
+            pw = f.get("password") or ""
+            if not email or len(pw) < 8:
+                flash("Enter an email and a password of at least 8 characters.", "error")
+            elif request_signup(db(), email, f.get("full_name"), pw, f.get("note")) is None:
+                flash("An account with that email already exists.", "error")
+            else:
+                flash("Request submitted — an administrator will review your account.", "ok")
+                return redirect(url_for("login"))
+        return render_template("signup.html")
 
     @app.route("/logout")
     def logout():
@@ -1992,12 +2011,38 @@ def create_app(dsn: str | None = None) -> Flask:
         conn = db()
         users = conn.execute(
             """SELECT u.id, u.email, u.full_name, u.is_active,
-                      coalesce(array_agg(ur.role_code) FILTER (WHERE ur.role_code IS NOT NULL), '{}') AS roles
+                      coalesce(json_agg(json_build_object('code', ur.role_code, 'region', ur.scope_region,
+                                        'org', ur.scope_org)) FILTER (WHERE ur.role_code IS NOT NULL), '[]') AS roles
                FROM app_user u LEFT JOIN user_role ur ON ur.user_id = u.id
+               WHERE NOT u.signup_pending
                GROUP BY u.id ORDER BY u.email"""
         ).fetchall()
+        pending = conn.execute(
+            """SELECT id, email, full_name, signup_note, created_at FROM app_user
+               WHERE signup_pending ORDER BY created_at"""
+        ).fetchall()
         roles = conn.execute("SELECT code, name, category FROM role ORDER BY category, code").fetchall()
-        return render_template("users.html", users=users, roles=roles, regions=_regions())
+        return render_template("users.html", users=users, pending=pending, roles=roles,
+                               regions=_regions())
+
+    @app.route("/admin/users/<int:uid>/approve", methods=["POST"])
+    @admin_required
+    def admin_approve_signup(uid):
+        conn, f = db(), request.form
+        approve_signup(conn, uid)
+        if f.get("role"):
+            grant_role(conn, uid, f["role"],
+                       region=(f.get("region") or "").strip() or None,
+                       org=(f.get("org") or "").strip() or None)
+        flash("Account approved.", "ok")
+        return redirect(url_for("admin_users"))
+
+    @app.route("/admin/users/<int:uid>/reject", methods=["POST"])
+    @admin_required
+    def admin_reject_signup(uid):
+        reject_signup(db(), uid)
+        flash("Account request rejected.", "ok")
+        return redirect(url_for("admin_users"))
 
     @app.route("/admin/users/new", methods=["POST"])
     @admin_required

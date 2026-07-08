@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS app_user (
 );
 -- Password for the staff web app (idempotent so existing databases pick it up).
 ALTER TABLE app_user ADD COLUMN IF NOT EXISTS password_hash text;
+-- Self-service signup: a request awaiting admin review (inactive until approved).
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS signup_pending boolean NOT NULL DEFAULT false;
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS signup_note text;
 
 CREATE TABLE IF NOT EXISTS role (
     code        text PRIMARY KEY,
