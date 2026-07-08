@@ -1,11 +1,50 @@
 {% extends "base.html" %}
 {% block title %}Accounts{% endblock %}
+{% set STAFF = ['program_admin','wb_staff','field_staff','lab_analyst','illness_workgroup','ddw_staff','viewer'] %}
+{% macro region_select() %}
+  <select name="region" style="width:auto">
+    <option value="">Statewide (all regions)</option>
+    {% for r in regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+  </select>
+{% endmacro %}
 {% block body %}
 <h1>Accounts &amp; roles</h1>
 
+{% if pending %}
+<div class="card" style="border-left:4px solid #b45309">
+  <h1 style="font-size:1.05rem">Pending account requests ({{ pending|length }})</h1>
+  <table>
+    <tr><th>Email</th><th>Name</th><th>Requested access</th><th>When</th><th>Approve with role + region</th><th></th></tr>
+    {% for p in pending %}
+    <tr>
+      <td>{{ p.email }}</td>
+      <td>{{ p.full_name or '—' }}</td>
+      <td class="muted">{{ p.signup_note or '—' }}</td>
+      <td class="muted">{{ p.created_at.strftime('%Y-%m-%d') if p.created_at else '' }}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin_approve_signup', uid=p.id) }}" style="display:flex; gap:.3rem; flex-wrap:wrap">
+          <select name="role" style="width:auto"><option value="">— no role —</option>
+            {% for r in roles %}<option value="{{ r.code }}">{{ r.code }}</option>{% endfor %}
+          </select>
+          {{ region_select() }}
+          <button>Approve</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="{{ url_for('admin_reject_signup', uid=p.id) }}" style="display:inline"
+              onsubmit="return confirm('Reject and delete this account request?')">
+          <button class="secondary" style="background:#9aa6a1">Reject</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
 <div class="card">
   <table>
-    <tr><th>Email</th><th>Name</th><th>Roles</th><th>Active</th><th></th></tr>
+    <tr><th>Email</th><th>Name</th><th>Roles (scope)</th><th>Active</th><th>Grant role</th></tr>
     {% for u in users %}
     <tr>
       <td>{{ u.email }}</td>
@@ -13,25 +52,27 @@
       <td>
         {% for r in u.roles %}
           <form method="post" action="{{ url_for('admin_revoke', uid=u.id) }}" style="display:inline">
-            <input type="hidden" name="role" value="{{ r }}">
-            <button class="pill" title="Revoke" style="border:0; cursor:pointer">{{ r }} ✕</button>
+            <input type="hidden" name="role" value="{{ r.code }}">
+            <button class="pill" title="Revoke" style="border:0; cursor:pointer">{{ r.code }}{% if r.region %} · {{ r.region }}{% elif r.org %} · {{ r.org }}{% elif r.code in STAFF %} · statewide{% endif %} ✕</button>
           </form>
         {% else %}<span class="muted">none</span>{% endfor %}
       </td>
       <td>{{ 'yes' if u.is_active else 'no' }}</td>
       <td>
-        <form method="post" action="{{ url_for('admin_grant', uid=u.id) }}" style="display:flex; gap:.3rem">
+        <form method="post" action="{{ url_for('admin_grant', uid=u.id) }}" style="display:flex; gap:.3rem; flex-wrap:wrap">
           <select name="role" style="width:auto">
             {% for r in roles %}<option value="{{ r.code }}">{{ r.code }}</option>{% endfor %}
           </select>
-          <input name="region" placeholder="region (opt)" style="width:140px">
-          <input name="org" placeholder="org (opt)" style="width:110px">
+          {{ region_select() }}
+          <input name="org" placeholder="org (opt)" style="width:100px">
           <button class="secondary">Grant</button>
         </form>
       </td>
     </tr>
     {% endfor %}
   </table>
+  <p class="muted" style="font-size:.85rem">For Water Board staff, choose a specific region or
+    <strong>Statewide (all regions)</strong>. Region is ignored for non-staff roles.</p>
 </div>
 
 <div class="card">
@@ -51,11 +92,7 @@
       </div>
     </div>
     <div class="row">
-      <div><label>Region scope (for wb_staff)</label>
-        <select name="region"><option value="">—</option>
-          {% for r in regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
-        </select>
-      </div>
+      <div><label>Region scope (for wb_staff)</label>{{ region_select() }}</div>
       <div><label>Org scope (for contributors)</label><input name="org"></div>
     </div>
     <p></p>

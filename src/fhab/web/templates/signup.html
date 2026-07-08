@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Request an account{% endblock %}
+{% block body %}
+<div class="card" style="max-width:440px; margin:3rem auto;">
+  <h1>Request an FHAB Staff account</h1>
+  <p class="muted">Your request is created as <strong>provisional</strong> and cannot sign in until
+    an administrator reviews and approves it, assigning your role and region.</p>
+  <form method="post">
+    <label>Email *</label>
+    <input name="email" type="email" autofocus required>
+    <label>Full name</label>
+    <input name="full_name">
+    <label>Password * (min 8 characters)</label>
+    <input name="password" type="password" minlength="8" required>
+    <label>What access are you requesting?</label>
+    <input name="note" placeholder="e.g. Water Board staff, Region 5">
+    <p></p>
+    <button type="submit">Submit request</button>
+    <a class="btn secondary" href="{{ url_for('login') }}">Back to sign in</a>
+  </form>
+</div>
+{% endblock %}

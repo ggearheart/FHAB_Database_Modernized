@@ -35,6 +35,46 @@ def set_password(conn: psycopg.Connection, user_id: int, password: str) -> None:
     conn.commit()
 
 
+def request_signup(conn: psycopg.Connection, email: str, full_name: str | None,
+                   password: str, note: str | None = None) -> int | None:
+    """Self-service account request: creates an inactive, pending account with a password.
+
+    Returns the new user id, or None if an account with that email already exists (active or
+    pending). The account cannot sign in until an admin approves it.
+    """
+    email = (email or "").strip().lower()
+    row = conn.execute(
+        """INSERT INTO app_user (email, full_name, password_hash, is_active, signup_pending, signup_note)
+           VALUES (%s, %s, %s, false, true, %s)
+           ON CONFLICT (email) DO NOTHING
+           RETURNING id""",
+        (email, (full_name or "").strip() or None, generate_password_hash(password),
+         (note or "").strip() or None),
+    ).fetchone()
+    conn.commit()
+    return row["id"] if row else None
+
+
+def is_pending_signup(conn: psycopg.Connection, email: str) -> bool:
+    """True if the email belongs to an account awaiting admin approval."""
+    r = conn.execute("SELECT signup_pending FROM app_user WHERE email = %s AND signup_pending",
+                     ((email or "").strip().lower(),)).fetchone()
+    return bool(r)
+
+
+def approve_signup(conn: psycopg.Connection, user_id: int) -> None:
+    """Activate a pending account (an admin grants roles separately)."""
+    conn.execute("UPDATE app_user SET is_active = true, signup_pending = false WHERE id = %s",
+                 (user_id,))
+    conn.commit()
+
+
+def reject_signup(conn: psycopg.Connection, user_id: int) -> None:
+    """Delete a pending signup that was declined."""
+    conn.execute("DELETE FROM app_user WHERE id = %s AND signup_pending", (user_id,))
+    conn.commit()
+
+
 def authenticate(conn: psycopg.Connection, email: str, password: str) -> dict | None:
     """Return the user row if email/password match and the account is active, else None."""
     row = conn.execute(
