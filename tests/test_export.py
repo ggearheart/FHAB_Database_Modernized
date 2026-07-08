@@ -67,12 +67,15 @@ def test_chemistry_and_crosswalk_exports(loaded_conn):
     assert "reporter" not in joined and "illness" not in joined
 
     xw_h, xw = fetch_flatfile(loaded_conn, "chemistry-crosswalk")
-    for col in ("ResultRowID", "Bloom_Report_ID", "Case_ID", "HUC12", "Latitude",
-                "Station_GeoConnex"):
+    for col in ("ResultRowID", "Sample_ID", "Sampling_Event_ID", "Bloom_Report_ID", "Case_ID",
+                "HUC12", "Latitude", "Station_GeoConnex"):
         assert col in xw_h
     # Same row population and a shared join key (ResultRowID) across both files.
     assert len(chem) == len(xw)
     assert {r["ResultRowID"] for r in chem} == {r["ResultRowID"] for r in xw}
+    # Sample_ID is populated and groups a sample's analyte rows (>=1 sample has multiple results).
+    assert all(r["Sample_ID"] for r in xw)
+    assert len({r["Sample_ID"] for r in xw}) <= len(xw)
 
 
 def test_matrix_and_datum_in_chemistry_export(conn):

@@ -108,6 +108,8 @@ CROSSWALK_COLUMNS = [
     ("ResultRowID", "r.result_id_unique"),
     ("StationCode", "st.station_code"),
     ("SampleDate", "s.sample_date"),
+    ("Sample_ID", "s.id"),                    # stable sample key — groups a sample's analyte rows
+    ("Sampling_Event_ID", "s.lab_batch_id"),  # the ingest batch (sampling event), where applicable
     ("AnalyteName", "an.analyte"),
     ("Bloom_Report_ID", "s.bloom_report_id"),
     ("Case_ID", "coalesce(s.case_id, e.case_id)"),
@@ -173,8 +175,9 @@ DATASETS = {
                           "Analyte results in the CEDEN Surface Water Chemistry structure "
                           "(veterinary excluded). Joins to the crosswalk on ResultRowID."),
     "chemistry-crosswalk": ("FHAB ↔ CEDEN Crosswalk",
-                            "Links each chemistry result to the geospatial backbone (HUC-12, "
-                            "lat/lon, GeoConnex) and to FHAB report/case IDs where they exist."),
+                            "Links each chemistry result to its sample and sampling event, the "
+                            "geospatial backbone (HUC-12, lat/lon, GeoConnex), and FHAB report/case "
+                            "IDs where they exist. Joins to CEDEN Chemistry Results on ResultRowID."),
 }
 
 
