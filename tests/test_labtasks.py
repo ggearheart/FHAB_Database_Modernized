@@ -521,6 +521,30 @@ def test_orphan_geojson_carries_sampling_event(client, conn):
     assert feat["properties"]["event_ids"] == [bid]     # reconcile can scope to this sampling event
 
 
+def test_routine_geojson_mode(client, conn):
+    bid = conn.execute("INSERT INTO lab_batch (kind, source) VALUES ('ingested','R') RETURNING id").fetchone()["id"]
+    st = conn.execute("INSERT INTO station (station_code, geom) VALUES ('ROUTST', "
+                      "ST_SetSRID(ST_MakePoint(-121.4,38.5),4326)) RETURNING id").fetchone()["id"]
+    rsid = conn.execute("INSERT INTO sample (station_id, lab_batch_id, sampling_type, sample_date) "
+                        "VALUES (%s,%s,'routine',current_date) RETURNING id", (st, bid)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('rt',%s,'Laboratory')", (rsid,))
+    # a plain unlinked (non-routine) sample at another station
+    st2 = conn.execute("INSERT INTO station (station_code, geom) VALUES ('PLAINST', "
+                       "ST_SetSRID(ST_MakePoint(-121.5,38.6),4326)) RETURNING id").fetchone()["id"]
+    psid = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s,current_date) RETURNING id", (st2,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('pl',%s,'Laboratory')", (psid,)); conn.commit()
+    client.post("/login", data={"email": "staff@wb.ca.gov", "password": "pw"}, follow_redirects=True)
+
+    routine = client.get("/api/reports.geojson?data=routine").get_json()
+    codes = {f["properties"]["station_code"] for f in routine["features"]}
+    assert "ROUTST" in codes and "PLAINST" not in codes           # only routine locations
+    feat = next(f for f in routine["features"] if f["properties"]["station_code"] == "ROUTST")
+    assert feat["properties"]["kind"] == "routine" and feat["properties"]["event_ids"] == [bid]
+    # routine samples stay OUT of the geocoded-unlinked (orphan) mode
+    orphan = client.get("/api/reports.geojson?data=orphan").get_json()
+    assert "ROUTST" not in {f["properties"]["station_code"] for f in orphan["features"]}
+
+
 def test_workboard_requires_staff(client, conn):
     pub = create_user(conn, "v@public.org"); grant_role(conn, pub, "public")
     set_password(conn, pub, "pw")

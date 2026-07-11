@@ -704,6 +704,32 @@ def create_app(dsn: str | None = None) -> Flask:
             } for r in rows]
             return jsonify({"type": "FeatureCollection", "features": features})
 
+        # "Routine sampling": geocoded samples tagged as routine monitoring (not a bloom
+        # report/case), one marker per station, with their sampling events.
+        if a.get("data") == "routine":
+            cond, p = ["s.sampling_type = 'routine'", "st.geom IS NOT NULL"], {}
+            if days:
+                cond.append("s.sample_date >= current_date - %(days)s::int"); p["days"] = days
+            with acting_as(conn, session["uid"]):
+                rows = conn.execute(
+                    f"""SELECT st.id AS station_id, ST_Y(st.geom) AS lat, ST_X(st.geom) AS lon,
+                               st.station_code, st.station_name,
+                               count(DISTINCT s.id) AS n_samples,
+                               max(s.sample_date)::text AS last_sample,
+                               array_remove(array_agg(DISTINCT s.lab_batch_id), NULL) AS event_ids
+                        FROM sample s JOIN station st ON st.id = s.station_id
+                        WHERE {' AND '.join(cond)}
+                        GROUP BY st.id, st.geom, st.station_code, st.station_name
+                        ORDER BY n_samples DESC LIMIT 2000""", p).fetchall()
+            features = [{
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]},
+                "properties": {"kind": "routine", "station_code": r["station_code"],
+                               "station_name": r["station_name"], "n_samples": r["n_samples"],
+                               "last_sample": r["last_sample"], "event_ids": r["event_ids"]},
+            } for r in rows]
+            return jsonify({"type": "FeatureCollection", "features": features})
+
         cond, p = [], {}
         if a.get("region"):
             cond.append("w.regional_water_board = %(region)s"); p["region"] = a["region"]
