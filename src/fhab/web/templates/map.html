@@ -43,6 +43,7 @@
           <button type="button" class="fbtn active" data-val="">All reports</button>
           <button type="button" class="fbtn" data-val="with">Events with lab data</button>
           <button type="button" class="fbtn" data-val="orphan" title="Geocoded lab samples not yet linked or tagged routine">Geocoded, not linked</button>
+          <button type="button" class="fbtn" data-val="routine" title="Locations of samples tagged as routine monitoring">Routine sampling</button>
         </span>
       </div>
       <button type="button" id="clear" class="secondary">Clear all</button>
@@ -76,6 +77,7 @@ const LABELS = {
 };
 const colorFor = p => COLORS[p.determination_code] || COLORS.under_investigation;
 const ORPHAN = '#16a085';   // unlinked analytical data (no report)
+const ROUTINE = '#7c3aed';  // routine monitoring sample locations
 
 const map = L.map('map').setView([37.5, -120.0], 6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -94,10 +96,18 @@ const orphanLeg = document.createElement('span');
 orphanLeg.innerHTML = `<span style="display:inline-block;width:.7rem;height:.7rem;border-radius:50%;`
   + `background:${ORPHAN};margin-right:.3rem;vertical-align:middle"></span>Geocoded lab data, not linked`;
 leg.appendChild(orphanLeg);
+const routineLeg = document.createElement('span');
+routineLeg.innerHTML = `<span style="display:inline-block;width:.7rem;height:.7rem;`
+  + `background:${ROUTINE};margin-right:.3rem;vertical-align:middle"></span>Routine sampling location`;
+leg.appendChild(routineLeg);
 
 const geoOpts = {
   pointToLayer: (f, latlng) => {
-    const orphan = f.properties.kind === 'orphan';
+    const k = f.properties.kind;
+    if (k === 'routine') return L.marker(latlng, { icon: L.divIcon({
+      className: '', iconSize: [14, 14], iconAnchor: [7, 7],
+      html: `<div style="width:12px;height:12px;background:${ROUTINE};border:1.5px solid #4c1d95"></div>` }) });
+    const orphan = k === 'orphan';
     return L.circleMarker(latlng, {
       radius: orphan ? 7 : 6, weight: orphan ? 2 : 1, color: orphan ? '#0e6655' : '#fff',
       fillColor: orphan ? ORPHAN : colorFor(f.properties), fillOpacity:0.9
@@ -105,6 +115,21 @@ const geoOpts = {
   },
   onEachFeature: (f, lyr) => {
     const p = f.properties;
+    if (p.kind === 'routine') {
+      const ev = p.event_ids || [];
+      const href = ev.length === 1
+        ? `/lab/workboard?status=routine&event=${ev[0]}`
+        : `/lab/workboard?status=routine&q=${encodeURIComponent(p.station_code || '')}`;
+      lyr.bindPopup(
+        `<b>Routine sampling — ${p.station_code || '—'}</b><br>`
+        + `${p.station_name || ''}<br>`
+        + `${p.n_samples} routine sample(s)<br>`
+        + `Last sample: ${p.last_sample || '—'}<br>`
+        + `Sampling event(s): ${ev.length ? ev.map(e => 'SE ' + e).join(', ') : '—'}<br>`
+        + `<a href="${href}">View routine samples →</a>`
+      );
+      return;
+    }
     if (p.kind === 'orphan') {
       // Scope Reconcile to what was clicked: the sampling event if these samples all came from
       // one, else this station's unlinked geocoded samples.
@@ -139,11 +164,12 @@ const form = document.getElementById('filters');
 const countEl = document.getElementById('count');
 let layer = null;
 
-// In orphan mode the report dropdowns don't apply — disable them as a cue.
+// In lab-sample modes (orphan / routine) the report dropdowns don't apply — disable them as a cue.
 function syncDisabled() {
-  const orphan = form.querySelector('[name=data]').value === 'orphan';
+  const mode = form.querySelector('[name=data]').value;
+  const labMode = mode === 'orphan' || mode === 'routine';
   ['region', 'county', 'outcome', 'advisory'].forEach(n => {
-    form.querySelector(`[name=${n}]`).disabled = orphan;
+    form.querySelector(`[name=${n}]`).disabled = labMode;
   });
 }
 
@@ -151,7 +177,7 @@ function load() {
   syncDisabled();
   const qs = new URLSearchParams();
   new FormData(form).forEach((v, k) => { if (v) qs.set(k, v); });
-  const orphan = qs.get('data') === 'orphan';
+  const mode = qs.get('data');
   const filtered = [...qs.keys()].length > 0;
   countEl.textContent = 'Loading…';
   fetch('{{ url_for("reports_geojson") }}' + (filtered ? '?' + qs : ''))
@@ -159,7 +185,9 @@ function load() {
       if (layer) layer.remove();
       layer = L.geoJSON(fc, geoOpts).addTo(map);
       const n = fc.features.length;
-      const noun = orphan ? 'station(s) with unlinked lab data' : `report(s) shown${filtered ? ' (filtered)' : ''}`;
+      const noun = mode === 'orphan' ? 'station(s) with unlinked lab data'
+        : mode === 'routine' ? 'routine sampling location(s)'
+        : `report(s) shown${filtered ? ' (filtered)' : ''}`;
       countEl.textContent = `${n} ${noun}`
         + (n >= 2000 ? ' — capped at 2000; narrow the filters to see all.' : '.');
       if (n) map.fitBounds(layer.getBounds().pad(0.1));
