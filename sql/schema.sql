@@ -509,5 +509,13 @@ CREATE TABLE IF NOT EXISTS sample_station_link (
 );
 CREATE INDEX IF NOT EXISTS sample_station_link_sample_idx ON sample_station_link(sample_id);
 
+-- Admin-managed application settings (key/value), e.g. email-forwarding of new-report notices.
+CREATE TABLE IF NOT EXISTS app_setting (
+    key        text PRIMARY KEY,
+    value      text,
+    updated_by bigint,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- The sample.station_id FK and the bg_id unique index live in migrations.sql, so they run
 -- after those columns are guaranteed to exist (safe on databases predating those columns).

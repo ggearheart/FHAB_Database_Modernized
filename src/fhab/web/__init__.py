@@ -39,6 +39,7 @@ from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, c
 from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov
 from ..samples import count_samples, create_sample, get_sample, list_samples, update_sample
+from ..settings import EMAIL_NEW_REPORT, FORWARD_TO, get_setting, set_setting
 from ..dedup import candidate_duplicate_samples, duplicate_count, merge_samples
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
@@ -346,6 +347,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Register community/partner groups and mint API keys."},
             {"title": "Analyte taxonomy", "href": url_for("admin_analytes"),
              "desc": "Curate analytes; merge aliases into canonical names."},
+            {"title": "Notifications", "href": url_for("admin_notifications"),
+             "desc": "Forward new-report notifications by email to a shared inbox."},
             {"title": "Refresh from data.ca.gov", "href": url_for("admin_refresh"),
              "desc": "Pull the latest published reports, cases, responses & results and update the schema."},
             {"title": "Reset / maintenance", "href": url_for("admin_reset"),
@@ -1516,6 +1519,24 @@ def create_app(dsn: str | None = None) -> Flask:
         except TaxonomyError as exc:
             flash(str(exc), "error")
         return redirect(url_for("admin_analytes"))
+
+    # ---------- Notification settings (email forwarding of new reports) ----------
+    @app.route("/admin/notifications", methods=["GET", "POST"])
+    @admin_required
+    def admin_notifications():
+        conn = db()
+        if request.method == "POST":
+            set_setting(conn, EMAIL_NEW_REPORT, "1" if request.form.get("email_on") else "0",
+                        session["uid"])
+            set_setting(conn, FORWARD_TO, (request.form.get("forward_to") or "").strip() or None,
+                        session["uid"])
+            flash("Notification settings saved.", "ok")
+            return redirect(url_for("admin_notifications"))
+        import os as _os
+        return render_template("admin_notifications.html",
+                               email_on=get_setting(conn, EMAIL_NEW_REPORT) == "1",
+                               forward_to=get_setting(conn, FORWARD_TO) or "",
+                               smtp_configured=bool(_os.environ.get("FHAB_SMTP_HOST")))
 
     # ---------- Refresh from data.ca.gov (pull latest published records) ----------
     @app.route("/admin/refresh", methods=["GET", "POST"])

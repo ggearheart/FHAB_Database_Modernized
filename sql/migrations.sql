@@ -124,6 +124,12 @@ CREATE TABLE IF NOT EXISTS sample_station_link (
     UNIQUE (sample_id, station_code)
 );
 CREATE INDEX IF NOT EXISTS sample_station_link_sample_idx ON sample_station_link(sample_id);
+CREATE TABLE IF NOT EXISTS app_setting (
+    key        text PRIMARY KEY,
+    value      text,
+    updated_by bigint,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
 
 -- Public submission: full-form illness + community/partner attribution (table predates these).
 ALTER TABLE public_report_submission ADD COLUMN IF NOT EXISTS no_illness_observed boolean;

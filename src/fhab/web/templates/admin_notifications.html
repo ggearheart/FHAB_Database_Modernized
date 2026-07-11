@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Notification settings{% endblock %}
+{% block body %}
+<h1>Notification settings</h1>
+<div class="card">
+  <p class="muted">Reviewers always receive an in-app 🔔 notification when a new report/submission
+    arrives. Turn on <strong>email forwarding</strong> to also send those notices by email —
+    to the reviewer accounts and to a shared inbox you name below.</p>
+
+  {% if not smtp_configured %}
+  <p style="background:#fbe8d8; padding:.5rem .7rem; border-radius:6px">
+    <strong>Note:</strong> outbound email (SMTP) is not configured on this server, so nothing will
+    actually be sent yet. The setting is saved and takes effect once <code>FHAB_SMTP_HOST</code>
+    (and related SMTP vars) are set. Suspected-illness escalations use the same channel.</p>
+  {% else %}
+  <p class="muted">SMTP is configured on this server — emails will be delivered.</p>
+  {% endif %}
+
+  <form method="post">
+    <label style="display:flex; gap:.5rem; align-items:center; font-weight:600">
+      <input type="checkbox" name="email_on" value="1" style="width:auto" {% if email_on %}checked{% endif %}>
+      Email a notification when a new report is received
+    </label>
+    <p></p>
+    <label>Forward to (shared inbox / distribution list)</label>
+    <input name="forward_to" type="email" value="{{ forward_to }}" placeholder="fhab-intake@example.gov" style="max-width:22rem">
+    <p class="muted" style="font-size:.85rem">Use a work / non-sensitive address. Leave blank to
+      email only the reviewer accounts.</p>
+    <button>Save settings</button>
+  </form>
+</div>
+{% endblock %}

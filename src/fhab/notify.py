@@ -70,14 +70,23 @@ def notify_users(conn: psycopg.Connection, recipients, *, kind, title, body=None
 
 def on_new_submission(conn: psycopg.Connection, submission_id: int, *, water_body=None,
                       has_illness=False, source=None) -> None:
-    """Notify reviewers of a new public submission; escalate to the illness workgroup if needed."""
+    """Notify reviewers of a new public submission; escalate to the illness workgroup if needed.
+
+    If an admin has enabled email forwarding of new-report notices, the reviewer notifications are
+    also emailed and a copy is sent to the configured forward-to address (requires SMTP configured).
+    """
+    from .settings import FORWARD_TO, email_new_report_enabled, get_setting
     wb = water_body or "a waterbody"
     src = f" (via {source})" if source else ""
+    email_on = email_new_report_enabled(conn)
+    title = f"New bloom report: {wb}"
+    body = f"A public submission for {wb}{src} is awaiting review."
     notify_users(
         conn, users_with_roles(conn, REVIEWER_ROLES), kind="new_submission",
-        title=f"New bloom report: {wb}",
-        body=f"A public submission for {wb}{src} is awaiting review.",
-        link="/intake/review", submission_id=submission_id)
+        title=title, body=body, link="/intake/review", submission_id=submission_id, email=email_on)
+    forward_to = get_setting(conn, FORWARD_TO)
+    if email_on and forward_to:
+        send_email(forward_to, title, body + "\n\nReview: /intake/review")
     if has_illness:
         notify_users(
             conn, users_with_roles(conn, ILLNESS_ROLES), kind="illness_alert",
