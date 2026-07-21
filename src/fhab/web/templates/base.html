@@ -42,6 +42,7 @@
     <a href="{{ url_for('new_reports_home') }}">New Reports</a>
     {% if is_staff %}<a href="{{ url_for('ingest_home') }}">Ingest Data</a>
     <a href="{{ url_for('lab_results') }}">Lab</a>
+    <a href="{{ url_for('lab_map') }}">Lab map</a>
     <a href="{{ url_for('export_index') }}">Open data</a>{% endif %}
     {% if is_admin %}<a href="{{ url_for('admin_home') }}">Admin</a>{% endif %}
     <span class="spacer"></span>

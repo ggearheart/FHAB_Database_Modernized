@@ -30,6 +30,7 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
                       promote_submission, promote_trusted_pending, reject_submission,
                       resolve_intake_group, set_group_active, submit_public_report)
 from ..export import DATASETS, fetch_flatfile
+from ..labmap import TIER_META, TIER_ORDER, lab_map_features, tier_counts
 from ..labquery import count_results, filter_options, query_results
 from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, clear_routine,
                         count_workboard, create_report_from_sample, link_sample,
@@ -1026,6 +1027,28 @@ def create_app(dsn: str | None = None) -> Flask:
         return render_template("lab_results.html", rows=rows, total=total, page=page, per=per,
                                f=f, sort=sort, desc=desc, options=filter_options(conn),
                                data_types=DATA_TYPES, base_args=base_args)
+
+    @app.route("/lab/map")
+    @staff_required
+    def lab_map():
+        return render_template("lab_map.html", regions=_regions(),
+                               tier_meta=TIER_META, tier_order=TIER_ORDER)
+
+    @app.route("/lab/map.geojson")
+    @staff_required
+    def lab_map_geojson():
+        a = request.args
+        try:
+            days = int(a["days"]) if a.get("days") else None
+        except ValueError:
+            days = None
+        region = (a.get("region") or "").strip() or None
+        tier = a.get("tier") if a.get("tier") in TIER_META else None
+        kind = a.get("kind") if a.get("kind") in ("routine", "linked", "unlinked") else None
+        feats = lab_map_features(db(), session["uid"], region=region, days=days,
+                                 tier=tier, kind=kind)
+        return jsonify({"type": "FeatureCollection", "features": feats,
+                        "counts": tier_counts(feats)})
 
     @app.route("/lab.csv")
     @staff_required
