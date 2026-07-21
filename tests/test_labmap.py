@@ -85,6 +85,29 @@ def test_method_filter_and_shape(conn):
     assert method_counts(allf).get("genetic", 0) == 1 and method_counts(allf).get("chemistry", 0) == 1
 
 
+def test_spatt_category(conn):
+    from fhab.auth import create_user, grant_role
+    uid = create_user(conn, "sp@wb.ca.gov"); grant_role(conn, uid, "wb_staff", region="Region 5")
+    import_consolidated(conn, [
+        # a water grab (chemistry) and a SPATT passive sampler (toxins/g) at different stations
+        _row(Analyte="Microcystins", Units="ug/L", Result="1.0", StationCode="WG", BG_ID="W1"),
+        _row(Analyte="Microcystins", Units="toxins/g", Result="12", StationCode="SP", BG_ID="S1",
+             SampleType="PassiveSampler SPATT Bank", Latitude="38.9", Longitude="-122.7"),
+    ])
+    sp = lab_map_features(conn, uid, method="spatt")
+    codes = {f["properties"]["station_code"]: f["properties"] for f in sp}
+    assert set(codes) == {"SP"}                              # SPATT filter restricts to toxins/g
+    assert codes["SP"]["shape"] == "diamond" and codes["SP"]["method"] == "spatt"
+    assert codes["SP"]["status_label"] == "Target detected"  # value 12 toxins/g detected
+    assert codes["SP"]["spatt"][0]["name"] == "Microcystins"
+
+    allf = lab_map_features(conn, uid)
+    mc = method_counts(allf)
+    assert mc.get("spatt") == 1 and mc.get("chemistry") == 1  # SPATT split out of chemistry
+    # a toxins/g result is NOT tiered as a chemistry advisory
+    assert "SP" not in {f["properties"]["station_code"] for f in lab_map_features(conn, uid, tier="caution")}
+
+
 def test_station_trend(conn):
     from fhab.auth import create_user, grant_role
     uid = create_user(conn, "tr@wb.ca.gov"); grant_role(conn, uid, "wb_staff", region="Region 5")

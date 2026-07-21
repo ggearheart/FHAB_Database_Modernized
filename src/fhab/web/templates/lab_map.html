@@ -36,7 +36,7 @@
 </style>
 <h1>Lab data map</h1>
 <p class="muted" style="margin-top:-.4rem">Geocoded lab samples by station. <b>Shape</b> = lab method
-  (● chemistry · ▲ genetic · ■ microscopy); <b>colour</b> = status. Hover for a summary; click to pin.</p>
+  (● chemistry · ◆ SPATT · ▲ genetic · ■ microscopy); <b>colour</b> = status. Hover for a summary; click to pin.</p>
 
 <div class="card">
   <form id="filters" onsubmit="return false">
@@ -54,6 +54,7 @@
         <span class="btn-group" data-field="method">
           <button type="button" class="fbtn active" data-val="">All</button>
           <button type="button" class="fbtn" data-val="chemistry">Chemistry</button>
+          <button type="button" class="fbtn" data-val="spatt" title="Passive SPATT samplers (toxins/g)">SPATT</button>
           <button type="button" class="fbtn" data-val="genetic">Genetic</button>
           <button type="button" class="fbtn" data-val="microscopy">Microscopy</button>
         </span></div>
@@ -113,8 +114,11 @@ const form = document.getElementById('filters');
 function swatch(shape, color) {
   if (shape === 'circle') return `<svg width="16" height="16"><circle cx="8" cy="8" r="6" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
   if (shape === 'triangle') return `<svg width="16" height="16"><polygon points="8,1 15,15 1,15" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
+  if (shape === 'diamond') return `<svg width="16" height="16"><polygon points="8,1 15,8 8,15 1,8" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
   return `<svg width="16" height="16"><rect x="2" y="2" width="12" height="12" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
 }
+// representative swatch colours for the method legend (marker colour = status, not method)
+const METHOD_SWATCH = { chemistry:'#64748b', spatt:'#7c3aed', genetic:'#d97706', microscopy:'#0e7490' };
 
 const map = L.map('map').setView([37.5, -120.0], 6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -140,7 +144,7 @@ const legMethod = document.getElementById('legend-method');
 METHOD_ORDER.forEach(k => {
   const row = document.createElement('span');
   row.className = 'leg-row'; row.dataset.method = k;
-  const c = k === 'chemistry' ? '#64748b' : (k === 'genetic' ? '#d97706' : '#0e7490');
+  const c = METHOD_SWATCH[k] || '#64748b';
   row.innerHTML = `<span class="leg-swatch">${swatch(METHOD[k].shape, c)}</span>${METHOD[k].label}<span class="leg-count" id="mc-${k}"></span>`;
   row.addEventListener('click', () => { setBtn('method', k, true); load(); });
   legMethod.appendChild(row);
@@ -165,6 +169,11 @@ function tipHTML(p, pin) {
       return `<tr class="tox"><td>${t}</td><td>${val}${latest}</td></tr>`;
     }).join('');
     body = rows || '<tr><td colspan="2" style="color:#889">No cyanotoxin water result</td></tr>';
+  } else if (p.method === 'spatt') {
+    body = (p.spatt.length ? p.spatt.map(x =>
+      `<tr class="tox"><td>${esc(x.name)}</td><td>${x.detected
+        ? '<b style="color:#d97706">Detected</b>' : 'Non-detect'} <span style="color:#889">(toxins/g)</span></td></tr>`).join('')
+      : '<tr><td colspan="2" style="color:#889">No SPATT result</td></tr>');
   } else if (p.method === 'genetic') {
     body = (p.genes.length ? p.genes.map(g =>
       `<tr class="tox"><td>${esc(g.name)}</td><td>${g.detected
