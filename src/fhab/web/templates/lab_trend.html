@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Trend — {{ data.station.station_code }}{% endblock %}
+{% block body %}
+<style>
+  .trend-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:1rem; }
+  .trend-card { border:1px solid var(--line); border-radius:8px; padding:.8rem 1rem; }
+  .trend-card h3 { margin:0 0 .1rem; font-size:.95rem; }
+  .trend-card .sub { color:#667; font-size:.75rem; margin-bottom:.4rem; }
+  .trend-svg { width:100%; height:auto; display:block; }
+</style>
+<p style="margin:0 0 .3rem"><a href="{{ url_for('lab_map') }}">← Lab map</a></p>
+<h1 style="margin-bottom:.1rem">{{ data.station.station_name or data.station.station_code }}</h1>
+<p class="muted" style="margin-top:0">{{ data.station.station_code }} · sample trend over time
+  ({{ data.series|length }} analyte series, {{ data.n_points }} results)</p>
+
+{% if not data.series %}
+  <div class="card"><p class="muted">This station has fewer than two dated results for any analyte —
+    no trend to plot yet.</p></div>
+{% else %}
+<div class="card">
+  <div class="trend-grid" id="grid"></div>
+  <p class="muted" style="font-size:.78rem; margin-top:.8rem">Dashed lines mark California recreational HAB
+    trigger levels where they apply (µg/L). Hollow points are non-detects (plotted at baseline). Point colour
+    follows the advisory tier for that value.</p>
+</div>
+{% endif %}
+
+<script>
+const SERIES = {{ data.series | tojson }};
+const TIER = {{ tier_meta | tojson }};
+
+function tierColor(analyte, value, nd, thr) {
+  if (nd || value == null) return TIER.nondetect.color;
+  if (!thr) return '#334155';                       // no threshold (e.g. genes) -> neutral
+  if (thr.danger != null && value >= thr.danger) return TIER.danger.color;
+  if (thr.warning != null && value >= thr.warning) return TIER.warning.color;
+  if (thr.caution == null || value >= thr.caution) return TIER.caution.color;
+  return TIER.nondetect.color;
+}
+
+function chart(s) {
+  const W = 320, H = 150, padL = 40, padR = 12, padT = 12, padB = 26;
+  const pts = s.points;
+  const thr = s.thresholds;
+  const vals = pts.filter(p => p.value != null).map(p => p.value);
+  const thrVals = thr ? [thr.caution, thr.warning, thr.danger].filter(v => v != null) : [];
+  let cap = Math.max(0.0001, ...vals, ...(thrVals.length ? [thrVals[0] * 1.15] : []));
+  cap *= 1.1;
+  const n = pts.length;
+  const x = i => padL + (n === 1 ? (W - padL - padR) / 2 : i * (W - padL - padR) / (n - 1));
+  const y = v => H - padB - Math.max(0, Math.min(v, cap)) / cap * (H - padT - padB);
+
+  let svg = `<svg class="trend-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`;
+  // axes
+  svg += `<line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#cbd5e1"/>`;
+  svg += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="#cbd5e1"/>`;
+  svg += `<text x="${padL}" y="${padT-2}" font-size="8" fill="#889">${cap.toFixed(cap<2?2:0)}</text>`;
+  svg += `<text x="${padL-3}" y="${H-padB}" font-size="8" fill="#889" text-anchor="end">0</text>`;
+  // threshold lines
+  if (thr) {
+    [['caution', TIER.caution.color, 'C'], ['warning', TIER.warning.color, 'W'], ['danger', TIER.danger.color, 'D']]
+      .forEach(([k, col, lab]) => {
+        const v = thr[k]; if (v == null || v > cap) return;
+        const yy = y(v);
+        svg += `<line x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}" stroke="${col}" stroke-width="1" stroke-dasharray="3,3" opacity="0.8"/>`;
+        svg += `<text x="${W-padR}" y="${yy-2}" font-size="8" fill="${col}" text-anchor="end">${lab} ${v}</text>`;
+      });
+  }
+  // connecting line (detects only)
+  const line = pts.map((p, i) => p.value == null ? null : `${x(i)},${y(p.value)}`).filter(Boolean).join(' ');
+  if (line) svg += `<polyline points="${line}" fill="none" stroke="#94a3b8" stroke-width="1"/>`;
+  // points
+  pts.forEach((p, i) => {
+    const col = tierColor(s.analyte, p.value, p.nd, thr);
+    const yy = p.value == null ? (H - padB) : y(p.value);
+    const title = `${p.date}: ${p.nd ? 'ND' : p.value + ' ' + (s.unit || '')}`;
+    svg += p.nd
+      ? `<circle cx="${x(i)}" cy="${yy}" r="3" fill="#fff" stroke="${col}" stroke-width="1.5"><title>${title}</title></circle>`
+      : `<circle cx="${x(i)}" cy="${yy}" r="3.5" fill="${col}" stroke="#fff" stroke-width="1"><title>${title}</title></circle>`;
+  });
+  // x labels: first + last date
+  if (n) {
+    svg += `<text x="${x(0)}" y="${H-padB+12}" font-size="8" fill="#889" text-anchor="start">${pts[0].date.slice(5)}</text>`;
+    if (n > 1) svg += `<text x="${x(n-1)}" y="${H-padB+12}" font-size="8" fill="#889" text-anchor="end">${pts[n-1].date.slice(5)}</text>`;
+  }
+  svg += `</svg>`;
+  return svg;
+}
+
+const grid = document.getElementById('grid');
+if (grid) SERIES.forEach(s => {
+  const card = document.createElement('div');
+  card.className = 'trend-card';
+  const detects = s.points.filter(p => p.value != null).length;
+  card.innerHTML = `<h3>${s.analyte}</h3>
+    <div class="sub">${s.unit || '—'} · ${s.method} · ${s.points.length} results, ${detects} detect(s)</div>
+    ${chart(s)}`;
+  grid.appendChild(card);
+});
+</script>
+{% endblock %}

@@ -12,7 +12,7 @@ import shutil
 from functools import wraps
 
 import psycopg
-from flask import (Flask, Response, flash, g, jsonify, redirect, render_template, request,
+from flask import (Flask, Response, abort, flash, g, jsonify, redirect, render_template, request,
                    session, url_for)
 
 import tempfile
@@ -30,7 +30,8 @@ from ..intake import (SubmissionError, create_intake_group, list_intake_groups, 
                       promote_submission, promote_trusted_pending, reject_submission,
                       resolve_intake_group, set_group_active, submit_public_report)
 from ..export import DATASETS, fetch_flatfile
-from ..labmap import TIER_META, TIER_ORDER, lab_map_features, tier_counts
+from ..labmap import (METHOD_META, METHOD_ORDER, TIER_META, TIER_ORDER, lab_map_features,
+                      method_counts, station_trend, tier_counts)
 from ..labquery import count_results, filter_options, query_results
 from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, clear_routine,
                         count_workboard, create_report_from_sample, link_sample,
@@ -1032,7 +1033,8 @@ def create_app(dsn: str | None = None) -> Flask:
     @staff_required
     def lab_map():
         return render_template("lab_map.html", regions=_regions(),
-                               tier_meta=TIER_META, tier_order=TIER_ORDER)
+                               tier_meta=TIER_META, tier_order=TIER_ORDER,
+                               method_meta=METHOD_META, method_order=METHOD_ORDER)
 
     @app.route("/lab/map.geojson")
     @staff_required
@@ -1045,10 +1047,19 @@ def create_app(dsn: str | None = None) -> Flask:
         region = (a.get("region") or "").strip() or None
         tier = a.get("tier") if a.get("tier") in TIER_META else None
         kind = a.get("kind") if a.get("kind") in ("routine", "linked", "unlinked") else None
+        method = a.get("method") if a.get("method") in METHOD_META else None
         feats = lab_map_features(db(), session["uid"], region=region, days=days,
-                                 tier=tier, kind=kind)
+                                 tier=tier, kind=kind, method=method)
         return jsonify({"type": "FeatureCollection", "features": feats,
-                        "counts": tier_counts(feats)})
+                        "counts": tier_counts(feats), "method_counts": method_counts(feats)})
+
+    @app.route("/lab/station/<int:sid>/trend")
+    @staff_required
+    def lab_station_trend(sid):
+        data = station_trend(db(), session["uid"], sid)
+        if not data["station"]:
+            abort(404)
+        return render_template("lab_trend.html", data=data, tier_meta=TIER_META)
 
     @app.route("/lab.csv")
     @staff_required
