@@ -41,13 +41,16 @@ TIER_META = {
 }
 TIER_ORDER = sorted(TIER_META, key=lambda k: TIER_META[k]["order"])
 
-# Lab method -> marker shape. Chemistry is coloured by TIER_META; genetic/microscopy by DETECT_META.
+# Lab category -> marker shape. Chemistry is coloured by TIER_META; the rest by DETECT_META.
+# SPATT is chemically an ELISA assay but on a passive solid-phase sampler (toxins/g, no swim
+# threshold), so the map treats it as its own category rather than folding it into water chemistry.
 METHOD_META = {
     "chemistry":  {"label": "Chemistry (ELISA toxins, µg/L)", "shape": "circle"},
+    "spatt":      {"label": "SPATT (passive sampler, toxins/g)", "shape": "diamond"},
     "genetic":    {"label": "Genetic (qPCR gene assay)", "shape": "triangle"},
     "microscopy": {"label": "Microscopy (cell ID / counts)", "shape": "square"},
 }
-METHOD_ORDER = ["chemistry", "genetic", "microscopy"]
+METHOD_ORDER = ["chemistry", "spatt", "genetic", "microscopy"]
 
 # Detection status for genetic/microscopy (no swim threshold applies).
 DETECT_META = {
@@ -69,6 +72,19 @@ def method_of(analysis_type: str) -> str:
     if at in ("cyanotoxin", "pigment"):
         return "chemistry"
     return "other"
+
+
+def _is_spatt(unit: str) -> bool:
+    """SPATT passive-sampler results are reported per gram of resin (toxins/g, toxin/g)."""
+    u = (unit or "").lower().replace(" ", "")
+    return "toxin/g" in u or "toxins/g" in u
+
+
+def result_category(analysis_type: str, unit: str) -> str:
+    """Map one result to a map category: spatt (toxins/g) wins over its ELISA analysis_type."""
+    if _is_spatt(unit):
+        return "spatt"
+    return method_of(analysis_type)
 
 
 def tier_for(analyte: str, value, is_nd: bool) -> str:
@@ -145,7 +161,7 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None,
                 "station_code": r["station_code"], "station_name": r["station_name"],
                 "region": r["region"], "samples": set(), "events": {}, "last_sample": None,
                 "linked": False, "routine": False, "methods": set(), "dates": set(),
-                "toxins": {}, "genes": {}, "taxa": [],
+                "toxins": {}, "spatt": {}, "genes": {}, "taxa": [],
             }
         st["samples"].add(r["sample_id"])
         if r["lab_batch_id"]:
@@ -160,11 +176,11 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None,
             if st["last_sample"] is None or d > st["last_sample"]:
                 st["last_sample"] = d
 
-        meth = method_of(r["analysis_type"])
+        cat = result_category(r["analysis_type"], r["unit"])
         analyte, unit = r["analyte"], (r["unit"] or "")
-        if meth in METHOD_META:
-            st["methods"].add(meth)
-        if meth == "chemistry" and analyte in CYANOTOXINS and "g/l" in unit.lower():   # tiered toxin
+        if cat in METHOD_META:
+            st["methods"].add(cat)
+        if cat == "chemistry" and analyte in CYANOTOXINS and "g/l" in unit.lower():   # tiered toxin
             is_nd = (r["rqc"] or "").upper() == "ND" or r["val"] is None
             val = None if is_nd else float(r["val"])
             cur = st["toxins"].get(analyte)
@@ -176,11 +192,15 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None,
                     cur["max"] = val
                 if d and (cur["latest_date"] is None or d > cur["latest_date"]):
                     cur["latest"], cur["latest_date"], cur["nd"] = val, d, is_nd
-        elif meth == "genetic" and analyte:
+        elif cat == "spatt" and analyte:
+            det = _is_detected(r["val"], r["rqc"])
+            sp = st["spatt"].setdefault(analyte, {"detected": False, "unit": unit or "toxins/g"})
+            sp["detected"] = sp["detected"] or det
+        elif cat == "genetic" and analyte:
             det = _is_detected(r["val"], r["rqc"])
             g = st["genes"].setdefault(analyte, {"detected": False, "unit": unit or "copies/mL"})
             g["detected"] = g["detected"] or det
-        elif meth == "microscopy" and (r["txt"] or analyte):
+        elif cat == "microscopy" and (r["txt"] or analyte):
             label = r["txt"] or analyte
             if label and label not in st["taxa"]:
                 st["taxa"].append(label)
@@ -188,20 +208,16 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None,
     features = []
     for st in stations.values():
         methods = st["methods"]
-        # Choose which method the marker displays: an explicit filter (station must have it),
-        # else chemistry > genetic > microscopy by information value.
+        # Choose which category the marker displays: an explicit filter (station must have it),
+        # else chemistry > spatt > genetic > microscopy by information value.
         if method in METHOD_META:
             if method not in methods:
                 continue
             dm = method
-        elif "chemistry" in methods:
-            dm = "chemistry"
-        elif "genetic" in methods:
-            dm = "genetic"
-        elif "microscopy" in methods:
-            dm = "microscopy"
         else:
-            continue
+            dm = next((m for m in METHOD_ORDER if m in methods), None)
+            if dm is None:
+                continue
 
         if dm == "chemistry":
             worst = "none"
@@ -217,6 +233,9 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None,
             if dm == "genetic":
                 det = any(g["detected"] for g in st["genes"].values())
                 dk = "detected" if det else ("nondetect" if st["genes"] else "none")
+            elif dm == "spatt":
+                det = any(sp["detected"] for sp in st["spatt"].values())
+                dk = "detected" if det else ("nondetect" if st["spatt"] else "none")
             else:  # microscopy
                 dk = "detected" if st["taxa"] else "none"
             meta = DETECT_META[dk]
@@ -236,6 +255,7 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None,
                 "n_dates": len(st["dates"]), "last_sample": st["last_sample"],
                 "linked": st["linked"], "routine": st["routine"],
                 "toxins": st["toxins"],
+                "spatt": [{"name": k, "detected": v["detected"]} for k, v in st["spatt"].items()],
                 "genes": [{"name": k, "detected": v["detected"]} for k, v in st["genes"].items()],
                 "taxa": st["taxa"], "events": events,
             },
