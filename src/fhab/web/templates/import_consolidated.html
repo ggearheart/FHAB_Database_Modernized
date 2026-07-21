@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Import prepared CSV{% endblock %}
+{% block body %}
+<h1>Import prepared CSV</h1>
+<div class="card">
+  <p class="muted">Load a <strong>consolidated CEDEN-long CSV</strong> that already has geocoding and
+    routine classification computed (e.g. the prepared Bend export). Each distinct
+    <code>SamplingEvent</code> becomes its own sampling event (batch); samples are materialized with
+    their <code>Latitude</code>/<code>Longitude</code>, tagged routine where <code>SamplingType</code>
+    says so, and left <em>unlinked</em> otherwise for reconciliation on the workboard.</p>
+  <p class="muted" style="font-size:.85rem">Expected columns: SamplingEvent, Region, StationCode,
+    StationName, SampleDate, SampleTime, ProjectCode, LabBatch, BG_ID, LabSampleID, SampleType,
+    Analyte, MethodName, Result, ResQualCode, Units, Fraction, MatrixName, Latitude, Longitude,
+    SamplingType. Idempotent on BG_ID.</p>
+  <form method="post" enctype="multipart/form-data">
+    <label>Consolidated CSV *</label><input type="file" name="file" accept=".csv" required>
+    <p></p>
+    <button>Import</button>
+  </form>
+</div>
+{% endblock %}
