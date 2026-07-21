@@ -1,11 +1,13 @@
-"""Lab-data map: per-station cyanotoxin summaries with a swim-advisory colour tier.
+"""Lab-data map: per-station lab results with a swim-advisory colour tier + a trend view.
 
-Plots geocoded lab samples on a map, one marker per station, coloured by the worst
-cyanotoxin advisory tier seen at that station — mirroring the public "Can I Swim Here?"
-map. Tiers use California's recreational HAB trigger levels (the CCHAB/OEHHA voluntary
-guidance action levels for microcystins, anatoxin-a and cylindrospermopsin; detection
-for saxitoxin, which has no published recreational level). SPATT (toxins/g) and qPCR
-gene results are presence indicators, not tiered — they are summarised as metadata.
+Plots geocoded lab samples on a map, one marker per station. Marker **shape** encodes the
+lab method (● chemistry / ▲ genetic / ■ microscopy); marker **colour** encodes status —
+chemistry uses California's recreational HAB trigger levels (the CCHAB/OEHHA voluntary
+guidance action levels for microcystins, anatoxin-a and cylindrospermopsin; detection for
+saxitoxin, which has no published recreational level), while genetic and microscopy assays
+have no swim threshold so they read simply as target-detected / non-detect / no-result.
+
+`station_trend` backs a per-station time-series page for locations sampled more than once.
 """
 
 from __future__ import annotations
@@ -24,20 +26,49 @@ TRIGGERS = {
     "Saxitoxin":          {"caution": None, "warning": None, "danger": None},   # detection -> Caution
 }
 
-# Tier presentation, shared with the map legend/tooltip. order sorts worst-last.
+# Chemistry advisory-tier presentation, shared with the map legend/tooltip. order sorts worst-last.
 TIER_META = {
     "none":    {"order": 0, "color": "#94a3b8", "label": "No toxin result",
-                "guidance": "No cyanotoxin water result at this station (gene/SPATT only, or awaiting analysis)."},
+                "guidance": "No cyanotoxin water result at this station (gene/microscopy only, or awaiting analysis)."},
     "nondetect": {"order": 1, "color": "#16a34a", "label": "Non-detect",
                 "guidance": "Cyanotoxins below the reporting limit in the latest water grab."},
     "caution": {"order": 2, "color": "#eab308", "label": "Caution",
-                "guidance": "Toxins detected at low levels. Advise the public to keep an eye out for scums and keep kids and pets away from algae."},
+                "guidance": "Toxins detected at low levels. Advise the public to watch for scums and keep kids and pets away from algae."},
     "warning": {"order": 3, "color": "#ea580c", "label": "Warning",
                 "guidance": "Toxins above the Warning trigger. Recreational-use warning is appropriate; avoid contact with water and scum."},
     "danger":  {"order": 4, "color": "#dc2626", "label": "Danger",
                 "guidance": "Toxins above the Danger trigger. Danger advisory is appropriate; no water contact — a health hazard to people and animals."},
 }
 TIER_ORDER = sorted(TIER_META, key=lambda k: TIER_META[k]["order"])
+
+# Lab method -> marker shape. Chemistry is coloured by TIER_META; genetic/microscopy by DETECT_META.
+METHOD_META = {
+    "chemistry":  {"label": "Chemistry (ELISA toxins, µg/L)", "shape": "circle"},
+    "genetic":    {"label": "Genetic (qPCR gene assay)", "shape": "triangle"},
+    "microscopy": {"label": "Microscopy (cell ID / counts)", "shape": "square"},
+}
+METHOD_ORDER = ["chemistry", "genetic", "microscopy"]
+
+# Detection status for genetic/microscopy (no swim threshold applies).
+DETECT_META = {
+    "none":      {"color": "#94a3b8", "label": "No result",
+                  "guidance": "No result of this type at this station yet."},
+    "nondetect": {"color": "#16a34a", "label": "Non-detect",
+                  "guidance": "Assay run; the target was below detection."},
+    "detected":  {"color": "#d97706", "label": "Target detected",
+                  "guidance": "The assay detected its target (e.g. a toxin-producing gene or cyanobacteria). A screening signal, not a toxin concentration."},
+}
+
+
+def method_of(analysis_type: str) -> str:
+    at = (analysis_type or "").strip().lower()
+    if at == "genetic":
+        return "genetic"
+    if at == "microscopy":
+        return "microscopy"
+    if at in ("cyanotoxin", "pigment"):
+        return "chemistry"
+    return "other"
 
 
 def tier_for(analyte: str, value, is_nd: bool) -> str:
@@ -61,11 +92,18 @@ def _worse(a: str, b: str) -> str:
     return a if TIER_META[a]["order"] >= TIER_META[b]["order"] else b
 
 
-def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None) -> list[dict]:
-    """One feature per geocoded station: worst cyanotoxin tier + a metadata summary.
+def _is_detected(value, rqc: str) -> bool:
+    if (rqc or "").upper() == "ND":
+        return False
+    return value is not None and float(value) > 0
 
-    Filters: region (lab_batch.region), days (recent samples only), tier (advisory tier),
-    kind ('routine' | 'linked' | 'unlinked').
+
+def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None, method=None) -> list[dict]:
+    """One feature per geocoded station.
+
+    Filters: region (lab_batch.region), days (recent samples only), tier (chemistry advisory
+    tier), kind ('routine' | 'linked' | 'unlinked'), method ('chemistry' | 'genetic' | 'microscopy').
+    Marker shape follows the displayed method; colour follows its status.
     """
     cond = ["st.geom IS NOT NULL"]
     p: dict = {}
@@ -87,8 +125,8 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None)
                        st.station_code, st.station_name, b.region,
                        s.id AS sample_id, s.sample_date, s.sampling_type,
                        s.bloom_report_id, s.case_id, s.lab_batch_id, b.source AS event_name,
-                       a.analyte, r.measurement_value AS val, r.measurement_unit AS unit,
-                       r.res_qual_code AS rqc
+                       a.analyte, a.analysis_type, r.measurement_value AS val,
+                       r.measurement_unit AS unit, r.measurement_text AS txt, r.res_qual_code AS rqc
                 FROM sample s
                 JOIN station st ON st.id = s.station_id
                 LEFT JOIN lab_batch b ON b.id = s.lab_batch_id
@@ -106,7 +144,8 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None)
                 "station_id": sid, "lat": r["lat"], "lon": r["lon"],
                 "station_code": r["station_code"], "station_name": r["station_name"],
                 "region": r["region"], "samples": set(), "events": {}, "last_sample": None,
-                "linked": False, "routine": False, "toxins": {}, "spatt": 0, "genes": 0,
+                "linked": False, "routine": False, "methods": set(), "dates": set(),
+                "toxins": {}, "genes": {}, "taxa": [],
             }
         st["samples"].add(r["sample_id"])
         if r["lab_batch_id"]:
@@ -116,37 +155,73 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None)
         if r["sampling_type"] == "routine":
             st["routine"] = True
         d = str(r["sample_date"]) if r["sample_date"] else None
-        if d and (st["last_sample"] is None or d > st["last_sample"]):
-            st["last_sample"] = d
+        if d:
+            st["dates"].add(d)
+            if st["last_sample"] is None or d > st["last_sample"]:
+                st["last_sample"] = d
 
+        meth = method_of(r["analysis_type"])
         analyte, unit = r["analyte"], (r["unit"] or "")
-        if analyte in CYANOTOXINS and "g/l" in unit.lower():           # ug/L water grab -> tiered
+        if meth in METHOD_META:
+            st["methods"].add(meth)
+        if meth == "chemistry" and analyte in CYANOTOXINS and "g/l" in unit.lower():   # tiered toxin
             is_nd = (r["rqc"] or "").upper() == "ND" or r["val"] is None
             val = None if is_nd else float(r["val"])
             cur = st["toxins"].get(analyte)
-            # keep the highest value seen, and the value/date of the latest sample
             if cur is None:
-                st["toxins"][analyte] = {"max": val, "unit": "ug/L", "latest": val,
+                st["toxins"][analyte] = {"max": val, "unit": "µg/L", "latest": val,
                                          "latest_date": d, "nd": is_nd}
             else:
                 if val is not None and (cur["max"] is None or val > cur["max"]):
                     cur["max"] = val
                 if d and (cur["latest_date"] is None or d > cur["latest_date"]):
                     cur["latest"], cur["latest_date"], cur["nd"] = val, d, is_nd
-        elif analyte in CYANOTOXINS and "toxin" in unit.lower():        # toxins/g -> SPATT indicator
-            st["spatt"] += 1
-        elif analyte and "gene" in analyte.lower():
-            st["genes"] += 1
+        elif meth == "genetic" and analyte:
+            det = _is_detected(r["val"], r["rqc"])
+            g = st["genes"].setdefault(analyte, {"detected": False, "unit": unit or "copies/mL"})
+            g["detected"] = g["detected"] or det
+        elif meth == "microscopy" and (r["txt"] or analyte):
+            label = r["txt"] or analyte
+            if label and label not in st["taxa"]:
+                st["taxa"].append(label)
 
     features = []
     for st in stations.values():
-        # Worst tier across the toxins present; "none" if no water cyanotoxin result at all.
-        worst = "none"
-        for analyte, tox in st["toxins"].items():
-            worst = _worse(worst, tier_for(analyte, tox["max"], tox["nd"]))
-        if tier and worst != tier:
+        methods = st["methods"]
+        # Choose which method the marker displays: an explicit filter (station must have it),
+        # else chemistry > genetic > microscopy by information value.
+        if method in METHOD_META:
+            if method not in methods:
+                continue
+            dm = method
+        elif "chemistry" in methods:
+            dm = "chemistry"
+        elif "genetic" in methods:
+            dm = "genetic"
+        elif "microscopy" in methods:
+            dm = "microscopy"
+        else:
             continue
-        meta = TIER_META[worst]
+
+        if dm == "chemistry":
+            worst = "none"
+            for a, tox in st["toxins"].items():
+                worst = _worse(worst, tier_for(a, tox["max"], tox["nd"]))
+            if tier and worst != tier:
+                continue
+            meta = TIER_META[worst]
+            status_key, color, label, guidance = worst, meta["color"], meta["label"], meta["guidance"]
+        else:
+            if tier:                                  # tier filter is a chemistry concept
+                continue
+            if dm == "genetic":
+                det = any(g["detected"] for g in st["genes"].values())
+                dk = "detected" if det else ("nondetect" if st["genes"] else "none")
+            else:  # microscopy
+                dk = "detected" if st["taxa"] else "none"
+            meta = DETECT_META[dk]
+            status_key, color, label, guidance = dk, meta["color"], meta["label"], meta["guidance"]
+
         events = [{"id": eid, "name": name} for eid, name in st["events"].items()]
         features.append({
             "type": "Feature",
@@ -154,20 +229,72 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None)
             "properties": {
                 "station_id": st["station_id"], "station_code": st["station_code"],
                 "station_name": st["station_name"], "region": st["region"],
-                "tier": worst, "tier_label": meta["label"], "tier_color": meta["color"],
-                "guidance": meta["guidance"], "n_samples": len(st["samples"]),
-                "last_sample": st["last_sample"], "linked": st["linked"],
-                "routine": st["routine"], "spatt": st["spatt"], "genes": st["genes"],
-                "events": events, "toxins": st["toxins"],
+                "method": dm, "shape": METHOD_META[dm]["shape"],
+                "status_key": status_key, "tier": status_key if dm == "chemistry" else None,
+                "status_label": label, "color": color, "guidance": guidance,
+                "methods": sorted(methods), "n_samples": len(st["samples"]),
+                "n_dates": len(st["dates"]), "last_sample": st["last_sample"],
+                "linked": st["linked"], "routine": st["routine"],
+                "toxins": st["toxins"],
+                "genes": [{"name": k, "detected": v["detected"]} for k, v in st["genes"].items()],
+                "taxa": st["taxa"], "events": events,
             },
         })
-    # worst tier drawn last (on top)
-    features.sort(key=lambda f: TIER_META[f["properties"]["tier"]]["order"])
+    # draw chemistry worst-tier last (on top); non-chemistry sit below
+    features.sort(key=lambda f: TIER_META.get(f["properties"]["tier"], {"order": 0})["order"])
     return features
 
 
 def tier_counts(features: list[dict]) -> dict:
-    c = defaultdict(int)
+    c: dict = defaultdict(int)
     for f in features:
-        c[f["properties"]["tier"]] += 1
+        c[f["properties"]["status_key"]] += 1
     return dict(c)
+
+
+def method_counts(features: list[dict]) -> dict:
+    c: dict = defaultdict(int)
+    for f in features:
+        c[f["properties"]["method"]] += 1
+    return dict(c)
+
+
+def station_trend(conn, uid, station_id: int) -> dict:
+    """Time series for one station: numeric lab results grouped by (analyte, unit) over date.
+
+    Backs the trend page linked from the map tooltip when a station has >1 sample date.
+    """
+    with acting_as(conn, uid):
+        st = conn.execute(
+            """SELECT id, station_code, station_name FROM station WHERE id = %s""",
+            (station_id,)).fetchone()
+        rows = conn.execute(
+            """SELECT s.sample_date, a.analyte, a.analysis_type, r.measurement_value AS val,
+                      r.measurement_unit AS unit, r.res_qual_code AS rqc
+               FROM sample s
+               JOIN result r ON r.sample_id = s.id
+               LEFT JOIN analyte a ON a.id = r.analyte_id
+               WHERE s.station_id = %s AND s.sample_date IS NOT NULL AND a.analyte IS NOT NULL
+               ORDER BY s.sample_date""",
+            (station_id,)).fetchall()
+
+    series: dict = {}
+    for r in rows:
+        analyte, unit = r["analyte"], (r["unit"] or "")
+        key = f"{analyte}|{unit}"
+        s = series.get(key)
+        if s is None:
+            tox = analyte if (analyte in TRIGGERS and "g/l" in unit.lower()) else None
+            s = series[key] = {
+                "analyte": analyte, "unit": unit, "method": method_of(r["analysis_type"]),
+                "thresholds": TRIGGERS.get(tox) if tox else None, "points": [],
+            }
+        is_nd = (r["rqc"] or "").upper() == "ND" or r["val"] is None
+        s["points"].append({"date": str(r["sample_date"]),
+                            "value": None if is_nd else float(r["val"]), "nd": is_nd})
+
+    # Keep series with at least two dated points; toxins first, then the rest.
+    kept = [v for v in series.values() if len(v["points"]) >= 2]
+    kept.sort(key=lambda v: (v["thresholds"] is None, v["analyte"]))
+    return {"station": dict(st) if st else None, "series": kept,
+            "n_points": len(rows)}

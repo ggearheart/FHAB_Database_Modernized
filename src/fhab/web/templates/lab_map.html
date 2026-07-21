@@ -9,32 +9,34 @@
   .btn-group { display:inline-flex; gap:.25rem; }
   /* Can-I-Swim-Here-style hover/pinned tooltip */
   #tip { position:fixed; background:#fff; border:1px solid var(--line); border-radius:8px;
-         padding:10px 13px; display:none; z-index:1200; max-width:320px;
+         padding:10px 13px; display:none; z-index:1200; max-width:330px;
          box-shadow:0 4px 16px rgba(0,0,0,.16); font-size:.8rem; line-height:1.5; }
-  #tip h3 { font-size:.95rem; font-weight:800; color:var(--green); margin:0 0 5px; }
+  #tip h3 { font-size:.95rem; font-weight:800; color:var(--green); margin:0 0 4px; }
   #tip .t-badge { display:inline-block; padding:2px 9px; border-radius:12px; font-size:.68rem;
                   font-weight:700; text-transform:uppercase; color:#fff; margin-bottom:6px; }
   #tip table { border-collapse:collapse; width:100%; }
   #tip td { padding:2px 0; vertical-align:top; border:0; font-size:.78rem; }
-  #tip td:first-child { color:#667; padding-right:8px; font-weight:600; width:44%; white-space:nowrap; }
-  #tip .guidance { margin-top:7px; padding:7px 9px; border-radius:5px; font-size:.74rem; }
-  #tip .tox td:first-child { font-weight:700; color:var(--ink); width:52%; }
-  #tip .pin-actions { margin-top:8px; display:flex; gap:.4rem; flex-wrap:wrap; }
+  #tip td:first-child { color:#667; padding-right:8px; font-weight:600; width:46%; white-space:nowrap; }
+  #tip .tox td:first-child { font-weight:700; color:var(--ink); }
+  #tip .guidance { margin-top:7px; padding:7px 9px; border-radius:5px; font-size:.74rem; background:#f8fafc; }
+  #tip .guidance strong { display:block; margin-bottom:2px; }
+  #tip .pin-actions { margin-top:8px; display:flex; gap:.7rem; flex-wrap:wrap; align-items:center; }
   #tip .pin-actions a { font-size:.75rem; color:var(--green); font-weight:700; text-decoration:none; }
-  .g-none{background:#f4f6f8;border-left:3px solid #94a3b8;}
-  .g-nondetect{background:#f0fdf4;border-left:3px solid #16a34a;}
-  .g-caution{background:#fffbeb;border-left:3px solid #eab308;}
-  .g-warning{background:#fff7ed;border-left:3px solid #ea580c;}
-  .g-danger{background:#fef2f2;border-left:3px solid #dc2626;}
+  .leg-group { margin-top:.4rem; }
+  .leg-group h4 { font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:#667;
+                  margin:.3rem 0 .3rem; font-weight:700; }
+  .leg-items { display:flex; flex-wrap:wrap; gap:.3rem 1.1rem; }
+  .leg-row { cursor:pointer; padding:.2rem .35rem; border-radius:5px; display:inline-flex; align-items:center; }
+  .leg-row:hover { background:var(--bg); }
+  .leg-row.dimmed { opacity:.38; }
   .leg-dot { display:inline-block; width:.75rem; height:.75rem; border-radius:50%;
-             margin-right:.35rem; vertical-align:middle; border:1px solid rgba(0,0,0,.15); }
-  .leg-row { cursor:pointer; padding:.2rem .35rem; border-radius:5px; }
-  .leg-row.dimmed { opacity:.4; }
-  .leg-count { color:#667; font-weight:600; margin-left:.25rem; }
+             margin-right:.35rem; border:1px solid rgba(0,0,0,.15); }
+  .leg-count { color:#667; font-weight:600; margin-left:.3rem; }
+  .leg-swatch { margin-right:.35rem; display:inline-flex; }
 </style>
 <h1>Lab data map</h1>
-<p class="muted" style="margin-top:-.4rem">Geocoded lab samples by station, coloured by the worst
-  cyanotoxin advisory tier. Hover a station for a summary; click to pin it.</p>
+<p class="muted" style="margin-top:-.4rem">Geocoded lab samples by station. <b>Shape</b> = lab method
+  (● chemistry · ▲ genetic · ■ microscopy); <b>colour</b> = status. Hover for a summary; click to pin.</p>
 
 <div class="card">
   <form id="filters" onsubmit="return false">
@@ -42,12 +44,19 @@
       <div><label>Region</label>
         <select name="region"><option value="">All regions</option>
           {% for r in regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select></div>
-      <div><label>Tier</label>
+      <div><label>Tier (chemistry)</label>
         <select name="tier"><option value="">All tiers</option>
           {% for k in tier_order %}<option value="{{ k }}">{{ tier_meta[k].label }}</option>{% endfor %}</select></div>
     </div>
-    <input type="hidden" name="days"><input type="hidden" name="kind">
+    <input type="hidden" name="days"><input type="hidden" name="kind"><input type="hidden" name="method">
     <div style="margin-top:.8rem; display:flex; flex-wrap:wrap; gap:1.4rem; align-items:center">
+      <div><span class="muted" style="margin-right:.4rem">Method</span>
+        <span class="btn-group" data-field="method">
+          <button type="button" class="fbtn active" data-val="">All</button>
+          <button type="button" class="fbtn" data-val="chemistry">Chemistry</button>
+          <button type="button" class="fbtn" data-val="genetic">Genetic</button>
+          <button type="button" class="fbtn" data-val="microscopy">Microscopy</button>
+        </span></div>
       <div><span class="muted" style="margin-right:.4rem">Last</span>
         <span class="btn-group" data-field="days">
           <button type="button" class="fbtn" data-val="30">30d</button>
@@ -71,12 +80,19 @@
   <div id="map" style="height:64vh; width:100%"></div>
 </div>
 <div class="card">
-  <strong>Cyanotoxin advisory tier</strong>
-  <div id="legend" style="margin-top:.5rem; display:flex; flex-wrap:wrap; gap:.4rem 1.2rem"></div>
+  <div class="leg-group">
+    <h4>Cyanotoxin advisory tier — chemistry (● circles)</h4>
+    <div class="leg-items" id="legend-tier"></div>
+  </div>
+  <div class="leg-group">
+    <h4>Lab method — marker shape</h4>
+    <div class="leg-items" id="legend-method"></div>
+  </div>
   <p class="muted" id="count" style="margin-top:.6rem"></p>
-  <p class="muted" style="font-size:.78rem; margin-top:.2rem">Tiers use California's recreational HAB
-    trigger levels (Microcystins 0.8 / 6 / 20 µg/L; Anatoxin-a detection / 20 / 90; Cylindrospermopsin
-    1 / 4 / 17; Saxitoxin on detection). SPATT (toxins/g) and gene results are shown as metadata, not tiered.</p>
+  <p class="muted" style="font-size:.78rem; margin-top:.2rem">Chemistry tiers use California's recreational
+    HAB trigger levels (Microcystins 0.8 / 6 / 20 µg/L; Anatoxin-a detection / 20 / 90; Cylindrospermopsin
+    1 / 4 / 17; Saxitoxin on detection). Genetic (qPCR) and microscopy assays have no swim threshold, so
+    they read as <b style="color:#16a34a">non-detect</b> / <b style="color:#d97706">target detected</b> / <b style="color:#94a3b8">no result</b>.</p>
 </div>
 
 <div id="tip"></div>
@@ -89,27 +105,48 @@ if (typeof L === 'undefined') { countEl.textContent = 'Map library failed to loa
 
 const TIER = {{ tier_meta | tojson }};
 const TIER_ORDER = {{ tier_order | tojson }};
+const METHOD = {{ method_meta | tojson }};
+const METHOD_ORDER = {{ method_order | tojson }};
+const form = document.getElementById('filters');
+
+// shape swatch as inline SVG (matches map markers)
+function swatch(shape, color) {
+  if (shape === 'circle') return `<svg width="16" height="16"><circle cx="8" cy="8" r="6" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
+  if (shape === 'triangle') return `<svg width="16" height="16"><polygon points="8,1 15,15 1,15" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
+  return `<svg width="16" height="16"><rect x="2" y="2" width="12" height="12" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
+}
 
 const map = L.map('map').setView([37.5, -120.0], 6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   { attribution:'© OpenStreetMap contributors', maxZoom:18 }).addTo(map);
 
-// ── legend (also acts as a tier filter) ─────────────────────────────────────────
-const form = document.getElementById('filters');
-const legend = document.getElementById('legend');
+// ── tier legend (colours; also a tier filter) ───────────────────────────────────
+const legTier = document.getElementById('legend-tier');
 TIER_ORDER.forEach(k => {
   const row = document.createElement('span');
   row.className = 'leg-row'; row.dataset.tier = k;
-  row.innerHTML = `<span class="leg-dot" style="background:${TIER[k].color}"></span>${TIER[k].label}<span class="leg-count" id="lc-${k}"></span>`;
+  row.innerHTML = `<span class="leg-dot" style="background:${TIER[k].color}"></span>${TIER[k].label}<span class="leg-count" id="tc-${k}"></span>`;
   row.addEventListener('click', () => {
     const sel = form.querySelector('[name=tier]');
     sel.value = (sel.value === k) ? '' : k;
+    // a tier filter implies chemistry
+    if (sel.value) setBtn('method', 'chemistry');
     load();
   });
-  legend.appendChild(row);
+  legTier.appendChild(row);
+});
+// ── method legend (shapes; also a method filter) ────────────────────────────────
+const legMethod = document.getElementById('legend-method');
+METHOD_ORDER.forEach(k => {
+  const row = document.createElement('span');
+  row.className = 'leg-row'; row.dataset.method = k;
+  const c = k === 'chemistry' ? '#64748b' : (k === 'genetic' ? '#d97706' : '#0e7490');
+  row.innerHTML = `<span class="leg-swatch">${swatch(METHOD[k].shape, c)}</span>${METHOD[k].label}<span class="leg-count" id="mc-${k}"></span>`;
+  row.addEventListener('click', () => { setBtn('method', k, true); load(); });
+  legMethod.appendChild(row);
 });
 
-// ── tooltip (hover shows; click pins with links) ────────────────────────────────
+// ── tooltip ─────────────────────────────────────────────────────────────────────
 const tip = document.getElementById('tip');
 let pinned = false;
 const esc = s => (s == null ? '' : String(s)).replace(/[&<>"]/g, c =>
@@ -117,43 +154,58 @@ const esc = s => (s == null ? '' : String(s)).replace(/[&<>"]/g, c =>
 const fmt = v => v == null ? '—' : (v >= 1000 ? Math.round(v).toLocaleString() : v);
 
 function tipHTML(p, pin) {
-  const toxOrder = ['Microcystins','Anatoxin-a','Cylindrospermopsin','Saxitoxin'];
-  const toxRows = toxOrder.filter(t => p.toxins[t]).map(t => {
-    const x = p.toxins[t];
-    const val = x.nd ? 'ND' : `${fmt(x.max)} µg/L`;
-    const latest = (x.latest_date && !x.nd && x.latest != null && x.latest !== x.max)
-      ? ` <span style="color:#889">(latest ${fmt(x.latest)})</span>` : '';
-    return `<tr class="tox"><td>${t}</td><td>${val}${latest}</td></tr>`;
-  }).join('');
+  let body = '';
+  if (p.method === 'chemistry') {
+    const order = ['Microcystins','Anatoxin-a','Cylindrospermopsin','Saxitoxin'];
+    const rows = order.filter(t => p.toxins[t]).map(t => {
+      const x = p.toxins[t];
+      const val = x.nd ? 'ND' : `${fmt(x.max)} µg/L`;
+      const latest = (!x.nd && x.latest != null && x.latest !== x.max)
+        ? ` <span style="color:#889">(latest ${fmt(x.latest)})</span>` : '';
+      return `<tr class="tox"><td>${t}</td><td>${val}${latest}</td></tr>`;
+    }).join('');
+    body = rows || '<tr><td colspan="2" style="color:#889">No cyanotoxin water result</td></tr>';
+  } else if (p.method === 'genetic') {
+    body = (p.genes.length ? p.genes.map(g =>
+      `<tr class="tox"><td>${esc(g.name)}</td><td>${g.detected
+        ? '<b style="color:#d97706">Detected</b>' : 'Non-detect'}</td></tr>`).join('')
+      : '<tr><td colspan="2" style="color:#889">No gene result</td></tr>');
+  } else {
+    body = (p.taxa.length ? p.taxa.map(t =>
+      `<tr class="tox"><td colspan="2">${esc(t)}</td></tr>`).join('')
+      : '<tr><td colspan="2" style="color:#889">No microscopy result</td></tr>');
+  }
   const flags = [];
   if (p.routine) flags.push('<span style="color:#7c3aed;font-weight:700">Routine</span>');
   if (p.linked) flags.push('<span style="color:#2563eb;font-weight:700">Linked</span>');
   if (!p.routine && !p.linked) flags.push('<span style="color:#0e6655;font-weight:700">Not linked</span>');
-  const extra = [];
-  if (p.spatt) extra.push(`${p.spatt} SPATT`);
-  if (p.genes) extra.push(`${p.genes} gene`);
   const evs = (p.events || []).map(e => 'SE ' + e.id);
   const q = encodeURIComponent(p.station_code || '');
+  const trend = (pin && p.n_dates > 1)
+    ? `<a href="/lab/station/${p.station_id}/trend" target="_blank">📈 Trend (${p.n_dates} dates) →</a>` : '';
   const actions = pin ? `<div class="pin-actions">
+      ${trend}
       <a href="/lab/samples?q=${q}" target="_blank">Samples →</a>
       <a href="/lab/workboard?q=${q}" target="_blank">Workboard →</a>
-      ${p.region ? `<span style="color:#889;font-size:.72rem">${esc(p.region)}</span>` : ''}
-    </div>` : '';
+    </div>` : (p.n_dates > 1 ? `<div style="margin-top:6px;color:#889;font-size:.72rem">Click to pin — ${p.n_dates} sample dates, trend available</div>` : '');
   return `
-    <span class="t-badge" style="background:${p.tier_color}">${esc(p.tier_label)}</span>
+    <span class="t-badge" style="background:${p.color}">${esc(p.status_label)}</span>
+    <span style="font-size:.68rem;color:#667;font-weight:600">${esc((METHOD[p.method]||{}).label || p.method)}</span>
     <h3>${esc(p.station_name || p.station_code || 'Station')}</h3>
-    <div style="color:#889;font-size:.72rem;margin:-3px 0 5px">${esc(p.station_code || '')} · ${flags.join(' · ')}</div>
+    <div style="color:#889;font-size:.72rem;margin:-2px 0 5px">${esc(p.station_code || '')} · ${flags.join(' · ')}</div>
     <table>
-      ${toxRows || '<tr><td colspan="2" style="color:#889">No cyanotoxin water result</td></tr>'}
+      ${body}
       <tr><td>Latest sample</td><td>${esc(p.last_sample || '—')}</td></tr>
-      <tr><td>Samples</td><td>${p.n_samples}${extra.length ? ' · ' + extra.join(' · ') : ''}</td></tr>
+      <tr><td>Samples / dates</td><td>${p.n_samples} / ${p.n_dates}</td></tr>
+      <tr><td>Methods</td><td>${esc((p.methods||[]).join(', ') || '—')}</td></tr>
       <tr><td>Sampling event(s)</td><td>${evs.length ? esc(evs.join(', ')) : '—'}</td></tr>
     </table>
-    <div class="guidance g-${p.tier}"><strong>Guidance</strong>${esc(p.guidance)}</div>
-    ${actions}`;
+    <div class="guidance" style="border-left:3px solid ${p.color}"><strong>Guidance</strong>${esc(p.guidance)}</div>
+    ${actions}
+    ${p.region ? `<div style="color:#889;font-size:.7rem;margin-top:5px">${esc(p.region)}</div>` : ''}`;
 }
 function place(cx, cy) {
-  const tw = 320, th = tip.offsetHeight || 240, vw = innerWidth, vh = innerHeight;
+  const tw = 330, th = tip.offsetHeight || 260, vw = innerWidth, vh = innerHeight;
   tip.style.left = (cx + tw + 14 > vw ? Math.max(8, cx - tw - 10) : cx + 14) + 'px';
   tip.style.top  = (cy + th + 14 > vh ? Math.max(8, vh - th - 8) : cy + 14) + 'px';
 }
@@ -169,9 +221,17 @@ document.addEventListener('click', e => {
     { pinned = false; tip.style.display = 'none'; }
 });
 
+// ── markers (shape = method, colour = status) ───────────────────────────────────
+function markerFor(f, latlng) {
+  const p = f.properties;
+  if (p.shape === 'circle')
+    return L.circleMarker(latlng, { radius: 7, weight: 2, color: '#fff',
+                                    fillColor: p.color, fillOpacity: 0.9 });
+  return L.marker(latlng, { icon: L.divIcon({ className: '',
+    html: swatch(p.shape, p.color), iconSize: [16, 16], iconAnchor: [8, 8] }) });
+}
 const geoOpts = {
-  pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-    radius: 7, weight: 2, color: '#fff', fillColor: f.properties.tier_color, fillOpacity: 0.9 }),
+  pointToLayer: markerFor,
   onEachFeature: (f, lyr) => {
     const p = f.properties;
     lyr.on('mouseover', e => { if (!pinned) show(p, e.originalEvent.clientX, e.originalEvent.clientY, false); });
@@ -185,10 +245,12 @@ const geoOpts = {
 
 let layer = null;
 function load() {
-  // reflect the tier filter on the legend
   const activeTier = form.querySelector('[name=tier]').value;
-  document.querySelectorAll('.leg-row').forEach(r =>
+  const activeMethod = form.querySelector('[name=method]').value;
+  document.querySelectorAll('#legend-tier .leg-row').forEach(r =>
     r.classList.toggle('dimmed', activeTier && r.dataset.tier !== activeTier));
+  document.querySelectorAll('#legend-method .leg-row').forEach(r =>
+    r.classList.toggle('dimmed', activeMethod && r.dataset.method !== activeMethod));
   const qs = new URLSearchParams();
   new FormData(form).forEach((v, k) => { if (v) qs.set(k, v); });
   countEl.textContent = 'Loading…';
@@ -198,29 +260,34 @@ function load() {
       layer = L.geoJSON(fc, geoOpts).addTo(map);
       const n = fc.features.length;
       countEl.textContent = `${n} station${n === 1 ? '' : 's'} shown.`;
-      TIER_ORDER.forEach(k => {
-        const el = document.getElementById('lc-' + k);
-        if (el) el.textContent = fc.counts && fc.counts[k] ? `(${fc.counts[k]})` : '';
-      });
+      TIER_ORDER.forEach(k => { const el = document.getElementById('tc-' + k);
+        if (el) el.textContent = fc.counts && fc.counts[k] ? `(${fc.counts[k]})` : ''; });
+      METHOD_ORDER.forEach(k => { const el = document.getElementById('mc-' + k);
+        if (el) el.textContent = fc.method_counts && fc.method_counts[k] ? `(${fc.method_counts[k]})` : ''; });
       if (n) map.fitBounds(layer.getBounds().pad(0.12));
     })
     .catch(() => { countEl.textContent = 'Could not load — reload to retry.'; });
 }
 
+// set a toggle-group's value + active state (toggles off if same value re-selected)
+function setBtn(field, val, toggle) {
+  const hidden = form.querySelector(`[name=${field}]`);
+  if (toggle && hidden.value === val) val = '';
+  hidden.value = val;
+  const group = document.querySelector(`.btn-group[data-field=${field}]`);
+  group.querySelectorAll('.fbtn').forEach(x => x.classList.toggle('active', x.dataset.val === val));
+}
 document.querySelectorAll('.btn-group').forEach(group => {
-  const field = group.dataset.field;
   group.addEventListener('click', e => {
     const b = e.target.closest('.fbtn'); if (!b) return;
-    form.querySelector(`[name=${field}]`).value = b.dataset.val;
-    group.querySelectorAll('.fbtn').forEach(x => x.classList.toggle('active', x === b));
+    setBtn(group.dataset.field, b.dataset.val);
     load();
   });
 });
 form.addEventListener('change', load);
 document.getElementById('clear').addEventListener('click', () => {
   form.reset();
-  form.querySelector('[name=days]').value = '';
-  form.querySelector('[name=kind]').value = '';
+  ['days','kind','method'].forEach(f => form.querySelector(`[name=${f}]`).value = '');
   document.querySelectorAll('.btn-group').forEach(g => g.querySelectorAll('.fbtn')
     .forEach(x => x.classList.toggle('active', x.dataset.val === '')));
   load();
