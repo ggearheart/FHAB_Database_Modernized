@@ -41,6 +41,7 @@ from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov
 from ..samples import count_samples, create_sample, get_sample, list_samples, update_sample
 from ..settings import EMAIL_NEW_REPORT, FORWARD_TO, get_setting, set_setting
 from ..dedup import candidate_duplicate_samples, duplicate_count, merge_samples
+from ..bulkimport import import_consolidated
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
                         update_analyte)
@@ -320,6 +321,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Ingest a CEDEN WaterChemistry CSV, or pull from a URL."},
             {"title": "Ingest lab email folders", "href": url_for("folder_ingest"),
              "desc": "Load a Bend/partner results folder (CSV + CoC/transmittal PDFs); files kept on the batch."},
+            {"title": "Import prepared CSV", "href": url_for("import_consolidated_csv"),
+             "desc": "Load a consolidated, pre-geocoded & classified CSV (many sampling events at once)."},
             {"title": "Lab batch reconciliation", "href": url_for("lab_reconcile"),
              "desc": "Stage a CEDEN chemistry template and link by station + date."},
             {"title": "Sample work area", "href": url_for("samples_list"),
@@ -1775,6 +1778,28 @@ def create_app(dsn: str | None = None) -> Flask:
                WHERE s.lab_batch_id = %s ORDER BY s.id""", (bid,)).fetchall()
         return render_template("batch_coordinates.html", batch=batch, samples=samples,
                                files=batch_files(conn, bid))
+
+    @app.route("/ingest/consolidated", methods=["GET", "POST"])
+    @staff_required
+    def import_consolidated_csv():
+        conn = db()
+        if request.method == "POST":
+            up = request.files.get("file")
+            if not up or not up.filename:
+                flash("Choose a prepared consolidated CSV.", "error")
+                return redirect(url_for("import_consolidated_csv"))
+            import csv as _csv
+            import io as _io
+            try:
+                rows = list(_csv.DictReader(_io.StringIO(up.read().decode("utf-8-sig"))))
+                s = import_consolidated(conn, rows)
+                flash(f"Imported {s['events']} sampling event(s): {s['samples']} samples "
+                      f"({s['geocoded']} geocoded, {s['routine']} routine), {s['results']} results.", "ok")
+                return redirect(url_for("lab_workboard"))
+            except Exception as exc:  # noqa: BLE001
+                conn.rollback()
+                flash("Import failed: " + str(exc).splitlines()[0], "error")
+        return render_template("import_consolidated.html")
 
     @app.route("/lab/coordinates", methods=["GET", "POST"])
     @staff_required
