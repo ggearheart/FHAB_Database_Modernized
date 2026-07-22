@@ -231,18 +231,36 @@ def build_geospatial_backbone(conn: psycopg.Connection, huc12_geojson: Path) -> 
     return report
 
 
-def refresh_boundaries(conn: psycopg.Connection) -> dict:
+# (source name, target table, loader) for the boundary layers, in fetch order (HUC12 is slowest).
+_BOUNDARY_PLAN = (
+    ("huc12", "huc12", load_huc12),
+    ("county", "ca_county", load_counties),
+    ("regional_board", "regional_board", load_regional_boards),
+)
+
+
+def _row_count(conn: psycopg.Connection, table: str) -> int:
+    return conn.execute(f"SELECT count(*) AS c FROM {table}").fetchone()["c"]
+
+
+def refresh_boundaries(conn: psycopg.Connection, force: bool = False) -> dict:
     """Fetch the authoritative boundary layers from their services, load them, and re-derive.
 
-    One admin action: HUC12 + counties + regional boards -> point-in-polygon onto every station.
-    Returns loaded/derived counts for display.
+    Resumable: a layer that already has rows is left as-is (skipped) unless `force=True`, so a
+    run cut short by the request timeout finishes on the next click in seconds — the expensive
+    HUC12 fetch only happens once. The point-in-polygon derive always runs (cheap + idempotent).
+    Returns {loaded, skipped, derived, minted} for display.
     """
-    loaded = {
-        "huc12": load_huc12(conn, fetch_layer("huc12")),
-        "county": load_counties(conn, fetch_layer("county")),
-        "regional_board": load_regional_boards(conn, fetch_layer("regional_board")),
-    }
-    return {"loaded": loaded, "derived": derive_geo(conn), "minted": mint_geoconnex(conn)}
+    loaded: dict = {}
+    skipped: dict = {}
+    for name, table, loader in _BOUNDARY_PLAN:
+        existing = _row_count(conn, table)
+        if existing and not force:
+            skipped[name] = existing
+        else:
+            loaded[name] = loader(conn, fetch_layer(name))
+    return {"loaded": loaded, "skipped": skipped,
+            "derived": derive_geo(conn), "minted": mint_geoconnex(conn)}
 
 
 def boundary_status(conn: psycopg.Connection) -> dict:
