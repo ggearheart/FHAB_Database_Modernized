@@ -98,6 +98,24 @@ CREATE TABLE IF NOT EXISTS waterbody (
 
 CREATE INDEX IF NOT EXISTS huc12_geom_gix ON huc12 USING gist (geom);
 
+-- Authoritative CA boundary layers for point-in-polygon enrichment of station coordinates.
+-- county: CA state geoportal "CA_Counties"; regional_board: CA Water Boards "Regional Board
+-- Boundaries" (RB 1-9). Loaded via fhab.geo; used to fill the crosswalk County / Regional_Water_Board.
+CREATE TABLE IF NOT EXISTS ca_county (
+    county text PRIMARY KEY,
+    fips   text,
+    geom   geometry(MultiPolygon, 4326)
+);
+CREATE INDEX IF NOT EXISTS ca_county_geom_gix ON ca_county USING gist (geom);
+
+CREATE TABLE IF NOT EXISTS regional_board (
+    rb                   smallint PRIMARY KEY,
+    rb_name              text,
+    regional_water_board text,                 -- "Region 5 - Central Valley" (matches app usage)
+    geom                 geometry(MultiPolygon, 4326)
+);
+CREATE INDEX IF NOT EXISTS regional_board_geom_gix ON regional_board USING gist (geom);
+
 -- A point: an ad-hoc report/observation location or a fixed monitoring site.
 CREATE TABLE IF NOT EXISTS location (
     id            bigserial PRIMARY KEY,

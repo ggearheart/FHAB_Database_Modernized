@@ -159,3 +159,7 @@ DO $$ DECLARE m bigint; BEGIN
   m := (SELECT max(response_action_id) FROM response WHERE response_action_id >= 1000000000); IF m IS NOT NULL THEN PERFORM setval('app_response_id_seq', m); END IF;
   m := (SELECT max(advisory_id)        FROM advisory WHERE advisory_id        >= 1000000000); IF m IS NOT NULL THEN PERFORM setval('app_advisory_id_seq', m); END IF;
 END $$;
+
+-- Derived authoritative geo attributes on station (point-in-polygon; see fhab.geo).
+ALTER TABLE station ADD COLUMN IF NOT EXISTS county               text;
+ALTER TABLE station ADD COLUMN IF NOT EXISTS regional_water_board text;

@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"County":"Test County","FIPS":"06999"},"geometry":{"type":"Polygon","coordinates":[[[-124.0,37.0],[-122.0,37.0],[-122.0,39.0],[-124.0,39.0],[-124.0,37.0]]]}}]}

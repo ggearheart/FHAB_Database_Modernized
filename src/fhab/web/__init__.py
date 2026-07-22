@@ -92,7 +92,7 @@ def _csv_text(headers, records) -> str:
     for rec in records:
         w.writerow(["" if rec[h] is None else rec[h] for h in headers])
     return buf.getvalue()
-from ..geo import GEOCONNEX
+from ..geo import GEOCONNEX, SOURCES as GEO_SOURCES, boundary_status, refresh_boundaries
 from ..reports import (ILLNESS_SUBJECTS, add_response, add_result, enter_report,
                        set_report_illness, update_report)
 
@@ -356,6 +356,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Forward new-report notifications by email to a shared inbox."},
             {"title": "Refresh from data.ca.gov", "href": url_for("admin_refresh"),
              "desc": "Pull the latest published reports, cases, responses & results and update the schema."},
+            {"title": "Geo boundaries", "href": url_for("admin_geo"),
+             "desc": "Load authoritative HUC12, county & regional-board layers; fill station County / HUC12 / Region."},
             {"title": "Reset / maintenance", "href": url_for("admin_reset"),
              "desc": "Purge lab data to reset the test environment."},
         ]
@@ -1600,6 +1602,27 @@ def create_app(dsn: str | None = None) -> Flask:
                     flash("Refresh failed: " + str(exc).splitlines()[0], "error")
         return render_template("admin_refresh.html", report=report, mode=mode,
                                dataset_url=DATASET_URL)
+
+    # ---------- Authoritative geo boundaries (HUC12 / county / regional board) ----------
+    @app.route("/admin/geo", methods=["GET", "POST"])
+    @admin_required
+    def admin_geo():
+        report = None
+        if request.method == "POST":
+            if (request.form.get("confirm") or "").strip().upper() != "BUILD":
+                flash("Type BUILD to confirm fetching and rebuilding the boundary layers.", "error")
+            else:
+                try:
+                    report = refresh_boundaries(db())
+                    lo, de = report["loaded"], report["derived"]
+                    flash(f"Loaded HUC12 {lo['huc12']:,}, counties {lo['county']}, regional boards "
+                          f"{lo['regional_board']}; derived HUC12 {de['huc12']['station']}, "
+                          f"county {de['county']}, region {de['region']} on stations.", "ok")
+                except Exception as exc:  # noqa: BLE001
+                    db().rollback()
+                    flash("Boundary refresh failed: " + str(exc).splitlines()[0], "error")
+        return render_template("admin_geo.html", status=boundary_status(db()), report=report,
+                               sources=GEO_SOURCES)
 
     # ---------- Reset / maintenance (test environment) ----------
     @app.route("/admin/reset")
