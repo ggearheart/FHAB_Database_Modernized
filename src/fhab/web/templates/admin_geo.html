@@ -31,22 +31,37 @@
     <strong>{{ status.stations_county }}</strong> a county,
     <strong>{{ status.stations_region }}</strong> a regional board.</p>
 
-  <form method="post" style="display:flex; gap:.5rem; align-items:center; margin-top:.6rem">
-    <input name="confirm" placeholder="BUILD" style="width:8rem" autocomplete="off">
-    <button style="background:#b45309">Fetch &amp; rebuild boundaries</button>
-    <span class="muted" style="font-size:.82rem">Type BUILD to confirm — the HUC12 fetch pulls
-      ~4,500 CA polygons and can take a minute.</span>
+  <form method="post" style="margin-top:.6rem">
+    <div style="display:flex; gap:.5rem; align-items:center">
+      <input name="confirm" placeholder="BUILD" style="width:8rem" autocomplete="off">
+      <button style="background:#b45309">Fetch &amp; rebuild boundaries</button>
+    </div>
+    <label style="display:flex; align-items:center; gap:.4rem; margin-top:.5rem; font-size:.85rem; width:auto">
+      <input type="checkbox" name="force" value="1" style="width:auto"> Force re-fetch every layer
+      (otherwise layers already loaded are kept)
+    </label>
   </form>
+  <p class="muted" style="font-size:.82rem; margin-top:.5rem">The HUC12 fetch pulls ~4,500 CA
+    polygons — on the free tier this can approach the request timeout. It's <strong>resumable</strong>:
+    layers already loaded are skipped, so if a run is cut short just click again and it finishes in
+    seconds. The station derive always re-runs. Check "Force" only to re-pull after the published
+    boundaries change.</p>
 </div>
 
 {% if report %}
 <div class="card">
-  <h2 style="font-size:1.05rem; margin-top:0">Rebuilt</h2>
+  <h2 style="font-size:1.05rem; margin-top:0">Result</h2>
   <table>
-    <tr><th>Layer</th><th>Loaded</th><th>Derived onto stations</th></tr>
-    <tr><td>HUC12</td><td>{{ '{:,}'.format(report.loaded.huc12) }}</td><td>{{ report.derived.huc12.station }}</td></tr>
-    <tr><td>County</td><td>{{ report.loaded.county }}</td><td>{{ report.derived.county }}</td></tr>
-    <tr><td>Regional board</td><td>{{ report.loaded.regional_board }}</td><td>{{ report.derived.region }}</td></tr>
+    <tr><th>Layer</th><th>This run</th><th>Derived onto stations</th></tr>
+    {% for name, label, dkey in [('huc12','HUC12', report.derived.huc12.station),
+                                 ('county','County', report.derived.county),
+                                 ('regional_board','Regional board', report.derived.region)] %}
+    <tr>
+      <td>{{ label }}</td>
+      <td>{% if name in report.loaded %}loaded {{ '{:,}'.format(report.loaded[name]) }}{% elif name in report.skipped %}kept {{ '{:,}'.format(report.skipped[name]) }} (already loaded){% else %}—{% endif %}</td>
+      <td>{{ dkey }}</td>
+    </tr>
+    {% endfor %}
   </table>
 </div>
 {% endif %}

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from fhab.geo import (derive_county, derive_geo, derive_huc12, derive_region, load_counties,
-                      load_huc12, load_regional_boards, mint_geoconnex)
+                      load_huc12, load_regional_boards, mint_geoconnex, refresh_boundaries)
 
 FIX = Path(__file__).parent / "fixtures" / "geo"
 HUC12_FIXTURE = FIX / "huc12_sample.geojson"
@@ -102,3 +102,18 @@ def test_derive_geo_all_layers(conn):
     assert out["huc12"]["station"] == 1 and out["county"] == 1 and out["region"] == 1
     s = conn.execute("SELECT huc12, county, regional_water_board FROM station").fetchone()
     assert s["huc12"].strip() == "180500059999" and s["county"] == "Test County"
+
+
+def test_refresh_boundaries_skips_already_loaded(conn):
+    """Resumability: with every layer already populated, refresh_boundaries fetches nothing
+    (would need the network) and only re-derives. If it tried to fetch, this test would error."""
+    load_huc12(conn, HUC12_FIXTURE)
+    load_counties(conn, COUNTY_FIXTURE)
+    load_regional_boards(conn, REGION_FIXTURE)
+    conn.execute(f"INSERT INTO station (station_code, geom) VALUES ('S1', {INSIDE})")
+    conn.commit()
+
+    rep = refresh_boundaries(conn)          # no force -> all layers kept, no fetch_layer call
+    assert rep["loaded"] == {}
+    assert set(rep["skipped"]) == {"huc12", "county", "regional_board"}
+    assert rep["derived"]["county"] == 1    # derive still runs (idempotent)

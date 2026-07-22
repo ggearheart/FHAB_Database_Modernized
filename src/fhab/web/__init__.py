@@ -1613,11 +1613,18 @@ def create_app(dsn: str | None = None) -> Flask:
                 flash("Type BUILD to confirm fetching and rebuilding the boundary layers.", "error")
             else:
                 try:
-                    report = refresh_boundaries(db())
-                    lo, de = report["loaded"], report["derived"]
-                    flash(f"Loaded HUC12 {lo['huc12']:,}, counties {lo['county']}, regional boards "
-                          f"{lo['regional_board']}; derived HUC12 {de['huc12']['station']}, "
-                          f"county {de['county']}, region {de['region']} on stations.", "ok")
+                    report = refresh_boundaries(db(), force=request.form.get("force") == "1")
+                    lo, sk, de = report["loaded"], report["skipped"], report["derived"]
+                    parts = []
+                    for name, label in (("huc12", "HUC12"), ("county", "counties"),
+                                        ("regional_board", "regional boards")):
+                        if name in lo:
+                            parts.append(f"loaded {lo[name]:,} {label}")
+                        elif name in sk:
+                            parts.append(f"kept {sk[name]:,} {label}")
+                    flash(f"{'; '.join(parts)}. Derived onto stations — HUC12 "
+                          f"{de['huc12']['station']}, county {de['county']}, region {de['region']}.",
+                          "ok")
                 except Exception as exc:  # noqa: BLE001
                     db().rollback()
                     flash("Boundary refresh failed: " + str(exc).splitlines()[0], "error")
