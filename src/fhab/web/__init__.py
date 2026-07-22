@@ -94,6 +94,7 @@ def _csv_text(headers, records) -> str:
     return buf.getvalue()
 from ..geo import GEOCONNEX, SOURCES as GEO_SOURCES, boundary_status, refresh_boundaries
 from ..dbops import activity_summary, clear_stuck, session_activity
+from ..audit import AUDITED_TABLES, actors as audit_actors, count as audit_count, recent as audit_recent
 from ..reports import (ILLNESS_SUBJECTS, add_response, add_result, enter_report,
                        set_report_illness, update_report)
 
@@ -171,11 +172,15 @@ def create_app(dsn: str | None = None) -> Flask:
     def db():
         if "conn" not in g:
             g.conn = connect(app.config["DSN"])
-            # Per-request only: a write blocked on a lock fails fast with a clear error rather
-            # than hanging the worker until the gunicorn --timeout. Not set globally so the boot
-            # migration can wait out a self-terminating zombie instead of fast-failing the deploy.
             try:
+                # Per-request only: a write blocked on a lock fails fast with a clear error rather
+                # than hanging the worker until the gunicorn --timeout. Not set globally so the
+                # boot migration can wait out a self-terminating zombie instead of failing.
                 g.conn.execute("SET lock_timeout = '30s'")
+                # Stamp the actor so the audit triggers attribute changes to this user, whether
+                # the write goes through acting_as (RLS) or the owner path. Empty = anonymous.
+                g.conn.execute("SELECT set_config('fhab.user_id', %s, false)",
+                               (str(session["uid"]) if session.get("uid") else "",))
                 g.conn.commit()
             except Exception:  # noqa: BLE001 — never block request setup on this
                 g.conn.rollback()
@@ -369,6 +374,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Load authoritative HUC12, county & regional-board layers; fill station County / HUC12 / Region."},
             {"title": "Database activity", "href": url_for("admin_db"),
              "desc": "See running/blocked queries and clear stuck sessions if a long job wedged the DB."},
+            {"title": "Audit log", "href": url_for("admin_audit"),
+             "desc": "Row-level change history — who changed what & when on reports, cases, advisories, samples."},
             {"title": "Reset / maintenance", "href": url_for("admin_reset"),
              "desc": "Purge lab data to reset the test environment."},
         ]
@@ -1641,6 +1648,26 @@ def create_app(dsn: str | None = None) -> Flask:
                     flash("Boundary refresh failed: " + str(exc).splitlines()[0], "error")
         return render_template("admin_geo.html", status=boundary_status(db()), report=report,
                                sources=GEO_SOURCES)
+
+    # ---------- Audit log (row-level change history) ----------
+    @app.route("/admin/audit")
+    @admin_required
+    def admin_audit():
+        a = request.args
+        f = {"table": a.get("table") or None, "row_key": (a.get("row_key") or "").strip() or None,
+             "action": a.get("action") or None}
+        f["actor_id"] = int(a["actor_id"]) if (a.get("actor_id") or "").isdigit() else None
+        try:
+            page = max(0, int(a.get("page", 0)))
+        except ValueError:
+            page = 0
+        per, conn = 100, db()
+        rows = audit_recent(conn, limit=per, offset=page * per, **f)
+        total = audit_count(conn, **f)
+        base_args = {k: v for k, v in a.items() if k != "page"}
+        return render_template("admin_audit.html", rows=rows, total=total, page=page, per=per,
+                               f=f, tables=AUDITED_TABLES, actors=audit_actors(conn),
+                               base_args=base_args)
 
     # ---------- Database activity / clear stuck sessions ----------
     @app.route("/admin/db", methods=["GET", "POST"])

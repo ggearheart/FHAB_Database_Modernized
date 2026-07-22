@@ -11,6 +11,7 @@ SQL_DIR = Path(__file__).resolve().parents[2] / "sql"
 SCHEMA_PATH = SQL_DIR / "schema.sql"
 MIGRATIONS_PATH = SQL_DIR / "migrations.sql"
 ACCESS_CONTROL_PATH = SQL_DIR / "access_control.sql"
+AUDIT_PATH = SQL_DIR / "audit.sql"
 
 # Connection string: FHAB_DATABASE_URL or DATABASE_URL (e.g. on Render), else a local
 # default suited to the cluster created by scripts/devdb.sh. psycopg accepts URL form.
@@ -46,13 +47,16 @@ def apply_schema(conn: psycopg.Connection, schema_path: Path = SCHEMA_PATH) -> N
     """Apply the schema, forward migrations, and access-control layer. Idempotent.
 
     Runs schema.sql (CREATE … IF NOT EXISTS), then migrations.sql (ADD COLUMN IF NOT EXISTS,
-    bringing an existing database up to date), then access_control.sql.
+    bringing an existing database up to date), then access_control.sql, then audit.sql
+    (audit-log table + change triggers).
     """
     conn.execute(schema_path.read_text())
     conn.commit()
     conn.execute(MIGRATIONS_PATH.read_text())
     conn.commit()
     conn.execute(ACCESS_CONTROL_PATH.read_text())
+    conn.commit()
+    conn.execute(AUDIT_PATH.read_text())
     conn.commit()
 
 
