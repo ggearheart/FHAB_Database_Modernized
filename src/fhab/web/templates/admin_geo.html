@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Geo boundaries{% endblock %}
+{% block body %}
+<h1>Authoritative geo boundaries</h1>
+<div class="card">
+  <p class="muted">Load the authoritative boundary layers and assign <strong>HUC12</strong>,
+    <strong>County</strong> and <strong>Regional Water Board</strong> to every geocoded station by
+    point-in-polygon. These feed the <strong>crosswalk</strong> export's County / HUC12 /
+    Regional_Water_Board (and the watershed-scale Water_Body_Name fallback) for lab samples that
+    aren't tied to a report.</p>
+  <ul class="muted" style="font-size:.9rem">
+    <li><strong>HUC12</strong> — USGS Watershed Boundary Dataset (12-digit subwatershed), CA subset.</li>
+    <li><strong>County</strong> — CA State Geoportal county boundaries.</li>
+    <li><strong>Regional board</strong> — CA Water Boards Regional Board Boundaries (RB 1–9).</li>
+  </ul>
+  <p class="muted" style="font-size:.82rem">Fetched live from the agency ArcGIS services (needs
+    outbound network + curl). Existing rows are upserted; nothing is deleted. Re-run any time the
+    published boundaries change or after ingesting new stations.</p>
+</div>
+
+<div class="card">
+  <h2 style="font-size:1.05rem; margin-top:0">Current status</h2>
+  <table>
+    <tr><th>Layer</th><th>Rows loaded</th></tr>
+    <tr><td>HUC12 subwatersheds</td><td>{{ '{:,}'.format(status.huc12) }}</td></tr>
+    <tr><td>CA counties</td><td>{{ status.county }}</td></tr>
+    <tr><td>Regional boards</td><td>{{ status.regional_board }}</td></tr>
+  </table>
+  <p class="muted" style="margin-top:.7rem">Of <strong>{{ status.stations_total }}</strong> geocoded
+    stations: <strong>{{ status.stations_huc12 }}</strong> have a HUC12,
+    <strong>{{ status.stations_county }}</strong> a county,
+    <strong>{{ status.stations_region }}</strong> a regional board.</p>
+
+  <form method="post" style="display:flex; gap:.5rem; align-items:center; margin-top:.6rem">
+    <input name="confirm" placeholder="BUILD" style="width:8rem" autocomplete="off">
+    <button style="background:#b45309">Fetch &amp; rebuild boundaries</button>
+    <span class="muted" style="font-size:.82rem">Type BUILD to confirm — the HUC12 fetch pulls
+      ~4,500 CA polygons and can take a minute.</span>
+  </form>
+</div>
+
+{% if report %}
+<div class="card">
+  <h2 style="font-size:1.05rem; margin-top:0">Rebuilt</h2>
+  <table>
+    <tr><th>Layer</th><th>Loaded</th><th>Derived onto stations</th></tr>
+    <tr><td>HUC12</td><td>{{ '{:,}'.format(report.loaded.huc12) }}</td><td>{{ report.derived.huc12.station }}</td></tr>
+    <tr><td>County</td><td>{{ report.loaded.county }}</td><td>{{ report.derived.county }}</td></tr>
+    <tr><td>Regional board</td><td>{{ report.loaded.regional_board }}</td><td>{{ report.derived.region }}</td></tr>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

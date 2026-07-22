@@ -2,9 +2,13 @@
 
 from pathlib import Path
 
-from fhab.geo import derive_huc12, load_huc12, mint_geoconnex
+from fhab.geo import (derive_county, derive_geo, derive_huc12, derive_region, load_counties,
+                      load_huc12, load_regional_boards, mint_geoconnex)
 
-HUC12_FIXTURE = Path(__file__).parent / "fixtures" / "geo" / "huc12_sample.geojson"
+FIX = Path(__file__).parent / "fixtures" / "geo"
+HUC12_FIXTURE = FIX / "huc12_sample.geojson"
+COUNTY_FIXTURE = FIX / "county_sample.geojson"
+REGION_FIXTURE = FIX / "regional_board_sample.geojson"
 
 # A point inside the test watershed polygon (-123..-122.5 lon, 37.8..38.2 lat).
 INSIDE = "ST_SetSRID(ST_MakePoint(-122.8675, 38.0525), 4326)"
@@ -69,3 +73,32 @@ def test_mint_is_idempotent(conn):
     conn.commit()
     assert mint_geoconnex(conn)["stations"] == 1
     assert mint_geoconnex(conn)["stations"] == 0  # already minted; not re-minted
+
+
+def test_load_and_derive_county_region(conn):
+    assert load_counties(conn, COUNTY_FIXTURE) == 1
+    r = conn.execute("SELECT county, fips, ST_GeometryType(geom) g FROM ca_county").fetchone()
+    assert r["county"] == "Test County" and r["fips"] == "06999" and r["g"] == "ST_MultiPolygon"
+
+    assert load_regional_boards(conn, REGION_FIXTURE) == 1
+    b = conn.execute("SELECT rb, regional_water_board FROM regional_board").fetchone()
+    assert b["rb"] == 5 and b["regional_water_board"] == "Region 5 - Central Valley"
+
+    conn.execute(f"INSERT INTO station (station_code, geom) VALUES ('S1', {INSIDE})")
+    conn.commit()
+    assert derive_county(conn) == 1
+    assert derive_region(conn) == 1
+    s = conn.execute("SELECT county, regional_water_board FROM station WHERE station_code='S1'").fetchone()
+    assert s["county"] == "Test County" and s["regional_water_board"] == "Region 5 - Central Valley"
+
+
+def test_derive_geo_all_layers(conn):
+    load_huc12(conn, HUC12_FIXTURE)
+    load_counties(conn, COUNTY_FIXTURE)
+    load_regional_boards(conn, REGION_FIXTURE)
+    conn.execute(f"INSERT INTO station (station_code, geom) VALUES ('S1', {INSIDE})")
+    conn.commit()
+    out = derive_geo(conn)
+    assert out["huc12"]["station"] == 1 and out["county"] == 1 and out["region"] == 1
+    s = conn.execute("SELECT huc12, county, regional_water_board FROM station").fetchone()
+    assert s["huc12"].strip() == "180500059999" and s["county"] == "Test County"

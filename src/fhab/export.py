@@ -113,9 +113,12 @@ CROSSWALK_COLUMNS = [
     ("AnalyteName", "an.analyte"),
     ("Bloom_Report_ID", "s.bloom_report_id"),
     ("Case_ID", "coalesce(s.case_id, e.case_id)"),
-    ("Water_Body_Name", "w.water_body_name"),
-    ("Regional_Water_Board", "w.regional_water_board"),
-    ("County", "w.county"),
+    # Authoritative fill: prefer the linked report's waterbody, else the value derived from the
+    # station's coordinates by point-in-polygon against the authoritative boundary layers
+    # (WBD HUC12 subwatershed name, CA counties, Regional Water Board boundaries). See fhab.geo.
+    ("Water_Body_Name", "coalesce(w.water_body_name, hu.name)"),
+    ("Regional_Water_Board", "coalesce(w.regional_water_board, st.regional_water_board)"),
+    ("County", "coalesce(w.county, st.county)"),
     ("HUC12", "coalesce(st.huc12, l.huc12)"),
     ("Latitude", "coalesce(ST_Y(st.geom), ST_Y(l.geom))"),
     ("Longitude", "coalesce(ST_X(st.geom), ST_X(l.geom))"),
@@ -132,6 +135,7 @@ _CHEM_FROM = """
     LEFT JOIN event e ON e.bloom_report_id = s.bloom_report_id
     LEFT JOIN location l ON l.id = e.location_id
     LEFT JOIN waterbody w ON w.id = l.waterbody_id
+    LEFT JOIN huc12 hu ON hu.huc12 = coalesce(st.huc12, l.huc12)
     WHERE r.data_type IS DISTINCT FROM 'Veterinary'
     ORDER BY r.result_id_unique
 """
