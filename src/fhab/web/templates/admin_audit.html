@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block body %}
+<style>
+  .aud td { vertical-align:top; font-size:.85rem; }
+  .aud .diff { margin:0; padding:0; list-style:none; }
+  .aud .diff li { font-size:.78rem; line-height:1.5; }
+  .aud .col { font-weight:700; }
+  .aud .old { color:#b91c1c; text-decoration:line-through; }
+  .aud .new { color:#15803d; }
+  .badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:.7rem; font-weight:700; }
+  .b-UPDATE { background:#fef3c7; color:#92400e; }
+  .b-DELETE { background:#fee2e2; color:#991b1b; }
+  .filters select, .filters input { width:auto; }
+</style>
+<h1>Audit log</h1>
+<p class="muted" style="margin-top:-.4rem">Append-only history of in-place changes (UPDATE / DELETE)
+  to reports, cases, responses, advisories and samples. A blank actor = a system write (import,
+  data.ca.gov refresh, migration).</p>
+
+<div class="card">
+  <form class="filters" method="get" style="display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end">
+    <div><label>Table</label>
+      <select name="table"><option value="">All tables</option>
+        {% for t in tables %}<option value="{{ t }}" {{ 'selected' if f.table==t }}>{{ t }}</option>{% endfor %}</select></div>
+    <div><label>Action</label>
+      <select name="action"><option value="">All</option>
+        <option value="UPDATE" {{ 'selected' if f.action=='UPDATE' }}>UPDATE</option>
+        <option value="DELETE" {{ 'selected' if f.action=='DELETE' }}>DELETE</option></select></div>
+    <div><label>Actor</label>
+      <select name="actor_id"><option value="">Anyone</option>
+        {% for a in actors %}<option value="{{ a.actor_id }}" {{ 'selected' if f.actor_id==a.actor_id }}>{{ a.email or a.actor_id }}</option>{% endfor %}</select></div>
+    <div><label>Row key</label><input name="row_key" value="{{ f.row_key or '' }}" placeholder="e.g. 1000000042" style="width:11rem"></div>
+    <button>Filter</button>
+    <a href="{{ url_for('admin_audit') }}" class="secondary" style="align-self:center">Clear</a>
+  </form>
+</div>
+
+<div class="card" style="overflow-x:auto">
+  <p class="muted">{{ '{:,}'.format(total) }} entr{{ 'y' if total==1 else 'ies' }}.</p>
+  {% if rows %}
+  <table class="aud">
+    <tr><th>When</th><th>Actor</th><th>Table</th><th>Row</th><th>Action</th><th>Change</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td style="white-space:nowrap">{{ r.at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ r.actor_email or ('user ' ~ r.actor_id if r.actor_id else 'system') }}</td>
+      <td>{{ r.table_name }}</td>
+      <td><code>{{ r.row_key or '—' }}</code></td>
+      <td><span class="badge b-{{ r.action }}">{{ r.action }}</span></td>
+      <td>
+        {% if r.action == 'DELETE' %}
+          <span class="muted">row deleted ({{ (r.before or {}) | length }} fields)</span>
+        {% elif r.diff %}
+          <ul class="diff">
+            {% for d in r.diff %}
+            <li><span class="col">{{ d.col }}</span>:
+              <span class="old">{{ d.before if d.before is not none else '∅' }}</span> →
+              <span class="new">{{ d.after if d.after is not none else '∅' }}</span></li>
+            {% endfor %}
+          </ul>
+        {% else %}<span class="muted">—</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% set pages = (total + per - 1) // per %}
+  {% if pages > 1 %}
+  <div style="margin-top:.8rem; display:flex; gap:.8rem; align-items:center">
+    {% if page > 0 %}<a href="{{ url_for('admin_audit', page=page-1, **base_args) }}">← Newer</a>{% endif %}
+    <span class="muted">Page {{ page + 1 }} of {{ pages }}</span>
+    {% if page + 1 < pages %}<a href="{{ url_for('admin_audit', page=page+1, **base_args) }}">Older →</a>{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="muted">No audit entries match.</p>
+  {% endif %}
+</div>
+{% endblock %}
