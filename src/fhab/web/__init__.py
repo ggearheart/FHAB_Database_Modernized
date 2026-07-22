@@ -93,6 +93,7 @@ def _csv_text(headers, records) -> str:
         w.writerow(["" if rec[h] is None else rec[h] for h in headers])
     return buf.getvalue()
 from ..geo import GEOCONNEX, SOURCES as GEO_SOURCES, boundary_status, refresh_boundaries
+from ..dbops import activity_summary, clear_stuck, session_activity
 from ..reports import (ILLNESS_SUBJECTS, add_response, add_result, enter_report,
                        set_report_illness, update_report)
 
@@ -358,6 +359,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Pull the latest published reports, cases, responses & results and update the schema."},
             {"title": "Geo boundaries", "href": url_for("admin_geo"),
              "desc": "Load authoritative HUC12, county & regional-board layers; fill station County / HUC12 / Region."},
+            {"title": "Database activity", "href": url_for("admin_db"),
+             "desc": "See running/blocked queries and clear stuck sessions if a long job wedged the DB."},
             {"title": "Reset / maintenance", "href": url_for("admin_reset"),
              "desc": "Purge lab data to reset the test environment."},
         ]
@@ -1630,6 +1633,24 @@ def create_app(dsn: str | None = None) -> Flask:
                     flash("Boundary refresh failed: " + str(exc).splitlines()[0], "error")
         return render_template("admin_geo.html", status=boundary_status(db()), report=report,
                                sources=GEO_SOURCES)
+
+    # ---------- Database activity / clear stuck sessions ----------
+    @app.route("/admin/db", methods=["GET", "POST"])
+    @admin_required
+    def admin_db():
+        conn = db()
+        if request.method == "POST":
+            try:
+                killed = clear_stuck(conn, older_than_secs=60)
+                flash(f"Terminated {len(killed)} stuck session(s)"
+                      + (f": PID {', '.join(map(str, killed))}." if killed else
+                         " — none were idle-in-transaction over 60s."), "ok")
+            except Exception as exc:  # noqa: BLE001
+                conn.rollback()
+                flash("Could not clear sessions: " + str(exc).splitlines()[0], "error")
+            return redirect(url_for("admin_db"))
+        return render_template("admin_db.html", sessions=session_activity(conn),
+                               summary=activity_summary(conn))
 
     # ---------- Reset / maintenance (test environment) ----------
     @app.route("/admin/reset")
