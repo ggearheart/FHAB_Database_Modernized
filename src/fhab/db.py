@@ -20,10 +20,24 @@ DEFAULT_DSN = (
     or "dbname=fhab"
 )
 
+# Per-session safety timeouts (libpq `options`, overridable via FHAB_DB_OPTIONS):
+#   idle_in_transaction_session_timeout — a connection left mid-transaction (e.g. a gunicorn
+#     worker SIGKILLed at its --timeout) is terminated by Postgres, releasing its locks, so a
+#     zombie can't wedge every later write. lock_timeout — a statement blocked on a lock fails
+#     fast with a clear error instead of stalling indefinitely. Long fetch+load jobs still run:
+#     these bound *waiting*, not work (statement_timeout is left unset).
+DB_SESSION_OPTIONS = os.environ.get(
+    "FHAB_DB_OPTIONS",
+    "-c idle_in_transaction_session_timeout=120s -c lock_timeout=30s",
+)
+
 
 def connect(dsn: str | None = None) -> psycopg.Connection:
-    """Open a connection. Row factory returns dict-like rows."""
-    return psycopg.connect(dsn or DEFAULT_DSN, row_factory=psycopg.rows.dict_row)
+    """Open a connection. Row factory returns dict-like rows; per-session safety timeouts set."""
+    kw = {"row_factory": psycopg.rows.dict_row}
+    if DB_SESSION_OPTIONS:
+        kw["options"] = DB_SESSION_OPTIONS
+    return psycopg.connect(dsn or DEFAULT_DSN, **kw)
 
 
 def apply_schema(conn: psycopg.Connection, schema_path: Path = SCHEMA_PATH) -> None:
