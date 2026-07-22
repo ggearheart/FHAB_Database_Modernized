@@ -171,6 +171,14 @@ def create_app(dsn: str | None = None) -> Flask:
     def db():
         if "conn" not in g:
             g.conn = connect(app.config["DSN"])
+            # Per-request only: a write blocked on a lock fails fast with a clear error rather
+            # than hanging the worker until the gunicorn --timeout. Not set globally so the boot
+            # migration can wait out a self-terminating zombie instead of fast-failing the deploy.
+            try:
+                g.conn.execute("SET lock_timeout = '30s'")
+                g.conn.commit()
+            except Exception:  # noqa: BLE001 — never block request setup on this
+                g.conn.rollback()
         return g.conn
 
     @app.teardown_appcontext

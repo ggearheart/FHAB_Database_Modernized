@@ -20,15 +20,17 @@ DEFAULT_DSN = (
     or "dbname=fhab"
 )
 
-# Per-session safety timeouts (libpq `options`, overridable via FHAB_DB_OPTIONS):
+# Global per-session safety (libpq `options`, overridable via FHAB_DB_OPTIONS):
 #   idle_in_transaction_session_timeout — a connection left mid-transaction (e.g. a gunicorn
-#     worker SIGKILLed at its --timeout) is terminated by Postgres, releasing its locks, so a
-#     zombie can't wedge every later write. lock_timeout — a statement blocked on a lock fails
-#     fast with a clear error instead of stalling indefinitely. Long fetch+load jobs still run:
-#     these bound *waiting*, not work (statement_timeout is left unset).
+#   worker SIGKILLed at its --timeout) is terminated by Postgres, releasing its locks, so a
+#   zombie can't wedge every later write. Applied everywhere, INCLUDING the boot/migration
+#   connection — which is safe: boot never sits idle-in-transaction, and it means a boot ALTER
+#   waits at most this long for a pre-existing zombie to self-terminate, then proceeds.
+#   `lock_timeout` is deliberately NOT global (it would fast-fail the boot migration against a
+#   held lock); the web layer sets it per-request instead (see db() in fhab.web).
 DB_SESSION_OPTIONS = os.environ.get(
     "FHAB_DB_OPTIONS",
-    "-c idle_in_transaction_session_timeout=120s -c lock_timeout=30s",
+    "-c idle_in_transaction_session_timeout=120s",
 )
 
 

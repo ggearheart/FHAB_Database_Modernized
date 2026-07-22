@@ -7,8 +7,12 @@ import pytest
 from fhab.dbops import activity_summary, clear_stuck, session_activity
 
 
-def test_connect_sets_session_timeouts():
-    """A connection opened via fhab.db.connect carries the self-heal / lock-timeout GUCs."""
+def test_connect_sets_idle_in_transaction_timeout():
+    """Every connection self-heals: a stranded transaction is terminated after the timeout.
+
+    lock_timeout is intentionally NOT global (it would fast-fail the boot migration); the web
+    layer sets it per-request. So connect() carries idle_in_transaction only.
+    """
     from fhab.db import connect
     try:
         c = connect(os.environ.get("FHAB_TEST_DATABASE_URL", "dbname=fhab_test host=/tmp port=5432"))
@@ -17,7 +21,7 @@ def test_connect_sets_session_timeouts():
     try:
         assert c.execute("SHOW idle_in_transaction_session_timeout").fetchone()[
             "idle_in_transaction_session_timeout"] == "2min"
-        assert c.execute("SHOW lock_timeout").fetchone()["lock_timeout"] == "30s"
+        assert c.execute("SHOW lock_timeout").fetchone()["lock_timeout"] == "0"   # not global
     finally:
         c.close()
 
