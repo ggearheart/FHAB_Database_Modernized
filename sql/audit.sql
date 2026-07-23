@@ -68,3 +68,31 @@ BEGIN
         END IF;
     END LOOP;
 END $$;
+
+-- Governance #3: mark a published record as locally edited when a human (a set fhab.user_id)
+-- changes it, so the data.ca.gov refresh (which runs with no actor) won't clobber the
+-- correction. BEFORE UPDATE so it can set the flag on the outgoing row. Skips the refresh's own
+-- writes (actor NULL) and no-op updates.
+CREATE OR REPLACE FUNCTION flag_local_edit() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF nullif(current_setting('fhab.user_id', true), '') IS NOT NULL
+       AND to_jsonb(NEW) IS DISTINCT FROM to_jsonb(OLD) THEN
+        NEW.locally_edited := true;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DO $$
+DECLARE t text;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['event','hab_case','response','advisory'] LOOP
+        IF to_regclass('public.' || t) IS NOT NULL THEN
+            EXECUTE format('DROP TRIGGER IF EXISTS flag_local_edit_%1$s ON public.%1$I', t);
+            EXECUTE format(
+                'CREATE TRIGGER flag_local_edit_%1$s BEFORE UPDATE ON public.%1$I '
+                'FOR EACH ROW EXECUTE FUNCTION flag_local_edit()', t);
+        END IF;
+    END LOOP;
+END $$;

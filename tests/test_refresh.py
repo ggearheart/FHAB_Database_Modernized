@@ -41,6 +41,27 @@ def test_apply_refreshes_published_but_preserves_local(loaded_conn):
     assert sum(rep.updated.values()) >= 1
 
 
+def test_locally_edited_record_is_preserved(loaded_conn):
+    """Governance #3: a staff correction (human actor -> locally_edited) is NOT reverted by the
+    refresh; it's counted as preserved. A system-made change (no actor) still gets refreshed."""
+    conn = loaded_conn
+    from fhab.auth import create_user
+    uid = create_user(conn, "corrector@wb.ca.gov")
+    eid = _an_event(conn)["bloom_report_id"]
+
+    conn.execute("SELECT set_config('fhab.user_id', %s, false)", (str(uid),))   # a human edit
+    conn.execute("UPDATE event SET bloom_size='STAFF FIX' WHERE bloom_report_id=%s", (eid,))
+    conn.commit()
+    assert conn.execute("SELECT locally_edited FROM event WHERE bloom_report_id=%s",
+                        (eid,)).fetchone()["locally_edited"] is True
+
+    conn.execute("SELECT set_config('fhab.user_id', '', false)")                # refresh = system
+    rep = refresh_from_dir(conn, FIXTURES, dry_run=False)
+    assert conn.execute("SELECT bloom_size FROM event WHERE bloom_report_id=%s",
+                        (eid,)).fetchone()["bloom_size"] == "STAFF FIX"          # preserved, not clobbered
+    assert rep.preserved.get("events", 0) >= 1
+
+
 def test_apply_inserts_missing_records(loaded_conn):
     conn = loaded_conn
     eid = conn.execute("SELECT bloom_report_id FROM event ORDER BY bloom_report_id DESC "
