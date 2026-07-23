@@ -10,17 +10,19 @@ before broader production use), **MEDIUM** (address on the roadmap).
 
 ## Summary
 
-**Status:** #2 addressed (reserved-range sequence PKs) and #1 partially addressed (detect/merge
+**Status:** #2 addressed (reserved-range sequence PKs); #1 partially addressed (detect/merge
 duplicate-samples tool at `/lab/duplicates`; a shared cross-source identifier is still recommended
-upstream). Remaining HIGH items #3–#5 are open.
+upstream); **#5 addressed** (row-level audit log — trigger-based history + `/admin/audit`); **#3
+addressed** (per-record `locally_edited`/`last_synced_at` provenance + refresh guard so staff
+corrections aren't reverted). **#4 (enforce RLS at runtime) is the remaining HIGH item.**
 
 | # | Finding | Category | Severity |
 |---|---------|----------|----------|
 | 1 | No cross-source identity for samples/results → duplication | Relational / quality | **HIGH** — tool added |
 | 2 | `max(id)+1` primary-key assignment (race + id-space overlap) | Relational | **HIGH** — fixed |
-| 3 | Circular data.ca.gov lineage — no single source of truth | Governance | **HIGH** |
-| 4 | RLS bypassed at runtime (owner connection) | Governance | **HIGH** |
-| 5 | No row-level audit / change history | Governance | **HIGH** |
+| 3 | Circular data.ca.gov lineage — no single source of truth | Governance | **HIGH** — addressed (row-level provenance guard) |
+| 4 | RLS bypassed at runtime (owner connection) | Governance | **HIGH** — open |
+| 5 | No row-level audit / change history | Governance | **HIGH** — fixed (audit_log triggers + /admin/audit) |
 | 6 | Fragile reference links (registry code, parallel linkage, no user FKs) | Relational | MEDIUM |
 | 7 | Controlled vocabularies stored as free text | Governance / quality | MEDIUM |
 | 8 | `owner_org` contributor-scoping defined but not populated | Governance | MEDIUM |
