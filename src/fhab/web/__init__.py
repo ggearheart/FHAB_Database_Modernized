@@ -1608,11 +1608,13 @@ def create_app(dsn: str | None = None) -> Flask:
                 try:
                     rep = refresh_from_ca_gov(db(), dry_run=not apply)
                     report = {"inserted": rep.inserted, "updated": rep.updated,
-                              "skipped": rep.skipped}
+                              "skipped": rep.skipped, "preserved": rep.preserved}
                     mode = "apply" if apply else "preview"
                     if apply:
                         tot_i = sum(rep.inserted.values()); tot_u = sum(rep.updated.values())
-                        flash(f"Applied — inserted {tot_i}, updated {tot_u} record(s).", "ok")
+                        tot_p = sum(rep.preserved.values())
+                        flash(f"Applied — inserted {tot_i}, updated {tot_u}, "
+                              f"preserved {tot_p} locally-edited record(s).", "ok")
                 except RefreshError as exc:
                     flash("Could not reach data.ca.gov: " + str(exc).splitlines()[0], "error")
                 except Exception as exc:  # noqa: BLE001

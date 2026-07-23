@@ -25,16 +25,20 @@
   <h1 style="font-size:1.05rem">{{ 'Applied' if mode == 'apply' else 'Preview' }} — what
     {{ 'was' if mode == 'apply' else 'would be' }} changed</h1>
   <table>
-    <tr><th>Dataset</th><th>New</th><th>Updated</th><th>Skipped</th></tr>
+    <tr><th>Dataset</th><th>New</th><th>Updated</th><th>Preserved</th><th>Skipped</th></tr>
     {% for t in ['cases','events','responses','advisories','results'] %}
     <tr>
       <td>{{ 'reports' if t == 'events' else t }}</td>
       <td>{{ report.inserted.get(t, 0) }}</td>
       <td>{{ report.updated.get(t, 0) }}</td>
+      <td>{{ report.preserved.get(t, 0) if report.preserved.get(t) else '—' }}</td>
       <td>{{ report.skipped.get(t, 0) if report.skipped.get(t) else '—' }}</td>
     </tr>
     {% endfor %}
   </table>
+  <p class="muted" style="font-size:.82rem"><strong>Preserved</strong> = existing records a staff
+    member has locally edited; the refresh leaves their published fields untouched so corrections
+    aren't reverted.</p>
 
   {% if mode == 'preview' %}
   <p style="margin-top:.8rem">Ready to write these changes? Type <strong>UPDATE</strong> to confirm.</p>

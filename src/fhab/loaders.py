@@ -30,6 +30,7 @@ class LoadReport:
     skipped: dict[str, int] = field(default_factory=dict)
     inserted: dict[str, int] = field(default_factory=dict)   # refresh: new rows per table
     updated: dict[str, int] = field(default_factory=dict)     # refresh: existing rows updated
+    preserved: dict[str, int] = field(default_factory=dict)   # refresh: skipped (locally edited)
 
     def summary(self) -> str:
         lines = ["loaded:"]

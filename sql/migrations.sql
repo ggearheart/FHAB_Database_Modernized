@@ -163,3 +163,19 @@ END $$;
 -- Derived authoritative geo attributes on station (point-in-polygon; see fhab.geo).
 ALTER TABLE station ADD COLUMN IF NOT EXISTS county               text;
 ALTER TABLE station ADD COLUMN IF NOT EXISTS regional_water_board text;
+
+-- Governance #3: source-of-truth provenance. A staff correction to a published record must not
+-- be silently reverted by the next data.ca.gov refresh. locally_edited is flipped true by a
+-- human edit (see audit.sql flag_local_edit); the refresh skips rows where it is set.
+ALTER TABLE event    ADD COLUMN IF NOT EXISTS locally_edited boolean NOT NULL DEFAULT false;
+ALTER TABLE event    ADD COLUMN IF NOT EXISTS last_synced_at timestamptz;
+ALTER TABLE event    ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE hab_case ADD COLUMN IF NOT EXISTS locally_edited boolean NOT NULL DEFAULT false;
+ALTER TABLE hab_case ADD COLUMN IF NOT EXISTS last_synced_at timestamptz;
+ALTER TABLE hab_case ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE response ADD COLUMN IF NOT EXISTS locally_edited boolean NOT NULL DEFAULT false;
+ALTER TABLE response ADD COLUMN IF NOT EXISTS last_synced_at timestamptz;
+ALTER TABLE response ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE advisory ADD COLUMN IF NOT EXISTS locally_edited boolean NOT NULL DEFAULT false;
+ALTER TABLE advisory ADD COLUMN IF NOT EXISTS last_synced_at timestamptz;
+ALTER TABLE advisory ADD COLUMN IF NOT EXISTS source text;

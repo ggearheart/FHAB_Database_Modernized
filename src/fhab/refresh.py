@@ -83,9 +83,19 @@ class RefreshLoader(Loader):
         d = self.report.inserted if inserted else self.report.updated
         d[table] = d.get(table, 0) + 1
 
+    def _bump_preserved(self, table: str) -> None:
+        self.report.preserved[table] = self.report.preserved.get(table, 0) + 1
+
     def _exists(self, table: str, keycol: str, val) -> bool:
         return bool(self.conn.execute(
             f"SELECT 1 FROM {table} WHERE {keycol} = %s", (val,)).fetchone())
+
+    def _guarded_update(self, table: str, sql: str, params: tuple) -> None:
+        """Run a refresh UPDATE that carries `AND NOT locally_edited` + `last_synced_at`. If it
+        touches no row, the record was locally corrected — count it preserved, not updated
+        (governance #3: never clobber a staff edit with the published feed)."""
+        rc = self.conn.execute(sql, params).rowcount
+        self._bump(table, False) if rc else self._bump_preserved(table)
 
     def load_cases(self) -> None:
         for row in _rows(self.data_dir / "cases.csv"):
@@ -103,14 +113,16 @@ class RefreshLoader(Loader):
                 self.conn.execute(
                     """INSERT INTO hab_case (case_id, waterbody_id, case_water_body_name, case_class,
                          case_status, case_lead, case_year, case_start_date, case_end_date,
-                         case_datetimestamp) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (cid, *vals))
+                         case_datetimestamp, source, last_synced_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'data.ca.gov',now())""", (cid, *vals))
+                self._bump("cases", True)
             else:
-                self.conn.execute(
+                self._guarded_update("cases",
                     """UPDATE hab_case SET waterbody_id=%s, case_water_body_name=%s, case_class=%s,
                          case_status=%s, case_lead=%s, case_year=%s, case_start_date=%s,
-                         case_end_date=%s, case_datetimestamp=%s WHERE case_id=%s""", (*vals, cid))
+                         case_end_date=%s, case_datetimestamp=%s, last_synced_at=now()
+                       WHERE case_id=%s AND NOT locally_edited""", (*vals, cid))
             self._cases.add(cid)
-            self._bump("cases", new)
 
     def load_events(self) -> None:
         for row in _rows(self.data_dir / "bloom_reports.csv"):
@@ -140,8 +152,8 @@ class RefreshLoader(Loader):
                     """INSERT INTO event (bloom_report_id, case_id, location_id, report_type,
                          observation_date, bloom_date_created, bloom_type, bloom_size, bloom_location,
                          bloom_texture, surface_water_condition, weather_condition,
-                         reported_advisory_types, has_pictures)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                         reported_advisory_types, has_pictures, source, last_synced_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'data.ca.gov',now())""",
                     (eid, vals[0], loc, *vals[1:]))
                 self._bump("events", True)
             else:
@@ -151,13 +163,13 @@ class RefreshLoader(Loader):
                     self._update_location(loc, wb, lat, lon, datum, landmark)
                 else:
                     loc = self._location_id(wb, lat, lon, datum, landmark)
-                self.conn.execute(
+                self._guarded_update("events",
                     """UPDATE event SET case_id=%s, location_id=%s, report_type=%s, observation_date=%s,
                          bloom_date_created=%s, bloom_type=%s, bloom_size=%s, bloom_location=%s,
                          bloom_texture=%s, surface_water_condition=%s, weather_condition=%s,
-                         reported_advisory_types=%s, has_pictures=%s WHERE bloom_report_id=%s""",
+                         reported_advisory_types=%s, has_pictures=%s, last_synced_at=now()
+                       WHERE bloom_report_id=%s AND NOT locally_edited""",
                     (vals[0], loc, *vals[1:], eid))
-                self._bump("events", False)
             self._events.add(eid)
 
     def _update_location(self, loc_id, waterbody_id, lat, lon, datum, landmark) -> None:
@@ -188,16 +200,15 @@ class RefreshLoader(Loader):
             vals = (eid, cid, clean(_g(row, "Response_Category")), clean(_g(row, "Response_Type")),
                     parse_datetime(_g(row, "Response_DateTimeStamp")))
             if self._exists("response", "response_action_id", rid):
-                self.conn.execute(
+                self._guarded_update("responses",
                     """UPDATE response SET bloom_report_id=%s, case_id=%s, response_category=%s,
-                         response_type=%s, response_datetimestamp=%s WHERE response_action_id=%s""",
-                    (*vals, rid))
-                self._bump("responses", False)
+                         response_type=%s, response_datetimestamp=%s, last_synced_at=now()
+                       WHERE response_action_id=%s AND NOT locally_edited""", (*vals, rid))
             else:
                 self.conn.execute(
                     """INSERT INTO response (response_action_id, bloom_report_id, case_id,
-                         response_category, response_type, response_datetimestamp)
-                       VALUES (%s,%s,%s,%s,%s,%s)""", (rid, *vals))
+                         response_category, response_type, response_datetimestamp, source, last_synced_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,'data.ca.gov',now())""", (rid, *vals))
                 self._bump("responses", True)
 
             aid = parse_int(_g(row, "Advisory_ID"))
@@ -211,20 +222,21 @@ class RefreshLoader(Loader):
                          parse_date(_g(row, "Advisory_Date_of_Recommendation")),
                          parse_datetime(_g(row, "Advisory_Date")))
                 if self._exists("advisory", "advisory_id", aid):
-                    self.conn.execute(
+                    self._guarded_update("advisories",
                         """UPDATE advisory SET response_action_id=%s, advisory_recommended=%s,
                              advisory_start_date=%s, advisory_end_date=%s, advisory_detail=%s,
                              spatial_extent_of_advisory=%s, extent_unit_of_measure=%s,
                              display_advisory_on_map=%s, advisory_date_of_recommendation=%s,
-                             advisory_date=%s WHERE advisory_id=%s""", (*avals, aid))
-                    self._bump("advisories", False)
+                             advisory_date=%s, last_synced_at=now()
+                           WHERE advisory_id=%s AND NOT locally_edited""", (*avals, aid))
                 else:
                     self.conn.execute(
                         """INSERT INTO advisory (advisory_id, response_action_id, advisory_recommended,
                              advisory_start_date, advisory_end_date, advisory_detail,
                              spatial_extent_of_advisory, extent_unit_of_measure,
-                             display_advisory_on_map, advisory_date_of_recommendation, advisory_date)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""", (aid, *avals))
+                             display_advisory_on_map, advisory_date_of_recommendation, advisory_date,
+                             source, last_synced_at)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'data.ca.gov',now())""", (aid, *avals))
                     self._bump("advisories", True)
                 seen_adv.add(aid)
         self.report.skipped["responses"] = skipped
