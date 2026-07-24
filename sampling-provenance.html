@@ -73,9 +73,6 @@ ul.task-list li input[type="checkbox"] {
   }
 }</script>
 <style>html{ scroll-behavior: smooth; }</style>
-<script src="site_libs/quarto-diagram/mermaid.min.js"></script>
-<script src="site_libs/quarto-diagram/mermaid-init.js"></script>
-<link href="site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
 
 
 </head>
@@ -217,6 +214,7 @@ ul.task-list li input[type="checkbox"] {
 
 
 <p>The companion to <strong><a href="./lab-ingest.html">★ Ingesting lab data</a></strong> is this: <em>why</em> linking lab data to the right event/case is hard today, and a concrete idea for making it easy going forward. The how-to page covers what you do now; this page is about where we’re headed.</p>
+<p><a href="sampling-provenance.docx" class="btn btn-primary btn-sm" role="button" download=""><i class="bi bi-file-earmark-word"></i> Download as Word (.docx)</a></p>
 <div class="callout callout-style-default callout-note callout-titled" title="This is a proposal, not a current feature">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -276,23 +274,10 @@ ul.task-list li input[type="checkbox"] {
 </div>
 </div>
 <p>One high-concern case naturally holds <strong>many</strong> sampling events over time — each new field effort mints a new SEC under the same case:</p>
-<div class="cell" data-layout-align="default">
-<div class="cell-output-display">
-<div>
-<p></p><figure class="figure"><p></p>
-<div>
-<pre class="mermaid mermaid-js">flowchart LR
-  C[Case] --&gt; R[Report / Event]
-  R --&gt; S1[Sampling Event · SEC #1]
-  R --&gt; S2[Sampling Event · SEC #2]
-  S1 --&gt; A[Sample] --&gt; AR[Result]
-  S2 --&gt; B[Sample] --&gt; BR[Result]
-</pre>
-</div>
-<p></p></figure><p></p>
-</div>
-</div>
-</div>
+<pre class="text"><code>Case
+└─ Report / Event
+   ├─ Sampling Event · SEC #1  →  Sample  →  Result
+   └─ Sampling Event · SEC #2  →  Sample  →  Result</code></pre>
 </section>
 <section id="the-workflow-pre-register-then-reconcile-on-arrival" class="level2">
 <h2 class="anchored" data-anchor-id="the-workflow-pre-register-then-reconcile-on-arrival">The workflow: pre-register, then reconcile on arrival</h2>
