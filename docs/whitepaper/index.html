@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linking Lab Data to FHAB Incidents — White Paper</title>
+<style>
+  :root {
+    --ink:#10201f; --sub:#4a5c5a; --faint:#7c8c8a;
+    --brand:#0d3b3a; --green:#2f7d5b; --amber:#b4530a; --amber-chip:#f0a34a;
+    --paper:#f3f6f5; --panel:#ffffff; --line:#dbe4e1; --line-soft:#e8eeec;
+    --tag-bg:#12302f; --tag-ink:#f4e9d8;
+    --serif:Georgia,'Iowan Old Style','Times New Roman',serif;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,'SF Mono','Cascadia Mono','Roboto Mono',Menlo,Consolas,monospace;
+    --measure:66ch;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink:#e7efec; --sub:#a7b7b3; --faint:#7f918d;
+      --brand:#7fd9c0; --green:#5cc79c; --amber:#f0a34a; --amber-chip:#f0a34a;
+      --paper:#0b1615; --panel:#111f1d; --line:#243a37; --line-soft:#1b2c2a;
+      --tag-bg:#0a1b1a; --tag-ink:#f4e9d8;
+    }
+  }
+  :root[data-theme="light"] {
+    --ink:#10201f; --sub:#4a5c5a; --faint:#7c8c8a; --brand:#0d3b3a; --green:#2f7d5b;
+    --amber:#b4530a; --paper:#f3f6f5; --panel:#ffffff; --line:#dbe4e1; --line-soft:#e8eeec;
+    --tag-bg:#12302f; --tag-ink:#f4e9d8;
+  }
+  :root[data-theme="dark"] {
+    --ink:#e7efec; --sub:#a7b7b3; --faint:#7f918d; --brand:#7fd9c0; --green:#5cc79c;
+    --amber:#f0a34a; --paper:#0b1615; --panel:#111f1d; --line:#243a37; --line-soft:#1b2c2a;
+    --tag-bg:#0a1b1a; --tag-ink:#f4e9d8;
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); font-size:17px; line-height:1.65;
+    font-variant-numeric:tabular-nums;
+  }
+  .wrap { max-width:920px; margin:0 auto; padding:0 24px; }
+  .paper { background:var(--panel); border:1px solid var(--line);
+    margin:32px auto 56px; }
+  .col { max-width:var(--measure); }
+
+  /* ---- masthead ---- */
+  header.mast { border-bottom:3px solid var(--brand); padding:44px 0 28px; }
+  .eyebrow { font-family:var(--mono); font-size:.72rem; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--green); margin:0 0 16px; }
+  h1 { font-family:var(--serif); font-weight:700; color:var(--brand);
+    font-size:clamp(1.9rem,4.4vw,2.9rem); line-height:1.1; letter-spacing:-.01em;
+    text-wrap:balance; margin:0 0 14px; }
+  .deck { font-family:var(--serif); font-style:italic; font-size:clamp(1.05rem,2.4vw,1.3rem);
+    color:var(--sub); margin:0 0 22px; max-width:52ch; text-wrap:balance; }
+  .byline { display:flex; flex-wrap:wrap; gap:8px 18px; font-size:.82rem; color:var(--faint);
+    font-family:var(--mono); letter-spacing:.02em; }
+  .byline b { color:var(--sub); font-weight:600; }
+
+  /* ---- abstract ---- */
+  .abstract { padding:26px 0 8px; }
+  .abstract p { font-size:1.06rem; color:var(--sub); }
+  .abstract .lead::first-letter {
+    font-family:var(--serif); font-weight:700; color:var(--brand);
+    font-size:3.1rem; line-height:.8; float:left; padding:6px 12px 0 0; }
+
+  /* ---- sections ---- */
+  section { padding:30px 0; border-top:1px solid var(--line-soft); }
+  .snum { font-family:var(--mono); font-size:.74rem; color:var(--amber);
+    letter-spacing:.1em; font-weight:600; }
+  h2 { font-family:var(--serif); color:var(--brand); font-weight:700;
+    font-size:clamp(1.3rem,2.8vw,1.7rem); line-height:1.2; margin:.15em 0 .5em;
+    text-wrap:balance; }
+  h3 { font-family:var(--sans); font-weight:700; color:var(--ink); font-size:1.02rem;
+    margin:1.6em 0 .3em; letter-spacing:-.005em; }
+  p { margin:0 0 1em; }
+  .col p, .col ul, .col ol { max-width:var(--measure); }
+  a { color:var(--green); text-underline-offset:2px; }
+  strong { color:var(--ink); }
+  ul, ol { padding-left:1.2em; margin:0 0 1em; }
+  li { margin:.35em 0; }
+  li::marker { color:var(--green); }
+
+  /* ---- SEC label motif ---- */
+  .seclabel { margin:22px 0; background:var(--tag-bg); color:var(--tag-ink);
+    border-radius:10px; padding:20px 22px; max-width:var(--measure);
+    box-shadow:0 8px 30px rgba(6,24,22,.18); }
+  .seclabel .kicker { font-family:var(--mono); font-size:.66rem; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--amber-chip); margin:0 0 10px; }
+  .seccode { font-family:var(--mono); font-size:clamp(1.15rem,3.4vw,1.8rem); font-weight:700;
+    letter-spacing:.04em; color:#fff; margin:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:.15em; }
+  .seccode .sep { color:var(--amber-chip); }
+  .barcode { height:34px; margin:14px 0 10px; border-radius:3px;
+    background-image:repeating-linear-gradient(90deg,
+      var(--tag-ink) 0 2px, transparent 2px 4px, var(--tag-ink) 4px 5px, transparent 5px 9px,
+      var(--tag-ink) 9px 12px, transparent 12px 13px, var(--tag-ink) 13px 14px, transparent 14px 18px);
+    opacity:.85; }
+  .secparts { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:2px;
+    margin-top:12px; border-top:1px solid rgba(244,233,216,.2); }
+  .secparts div { padding:9px 4px 2px; }
+  .secparts .p-code { font-family:var(--mono); color:var(--amber-chip); font-size:.9rem; font-weight:700; }
+  .secparts .p-lab { font-size:.72rem; color:rgba(244,233,216,.7); letter-spacing:.02em; }
+
+  /* ---- pull quote ---- */
+  blockquote { margin:26px 0; padding:4px 0 4px 22px; border-left:4px solid var(--amber);
+    max-width:60ch; }
+  blockquote p { font-family:var(--serif); font-style:italic; font-size:1.28rem;
+    line-height:1.4; color:var(--brand); margin:0; text-wrap:balance; }
+
+  /* ---- timeline ---- */
+  .flow { list-style:none; padding:0; margin:20px 0; max-width:none; }
+  .flow li { position:relative; padding:0 0 22px 40px; margin:0; border-left:2px solid var(--line); }
+  .flow li:last-child { border-left-color:transparent; padding-bottom:0; }
+  .flow .dot { position:absolute; left:-9px; top:2px; width:16px; height:16px; border-radius:50%;
+    background:var(--panel); border:3px solid var(--green); }
+  .flow .t { font-family:var(--mono); font-size:.72rem; letter-spacing:.06em; color:var(--amber);
+    text-transform:uppercase; }
+  .flow h3 { margin:.1em 0 .2em; font-size:1rem; }
+  .flow p { margin:0; color:var(--sub); font-size:.96rem; max-width:60ch; }
+
+  /* ---- table ---- */
+  .tablewrap { overflow-x:auto; margin:20px 0; }
+  table { border-collapse:collapse; width:100%; font-size:.92rem; }
+  th, td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line-soft);
+    vertical-align:top; }
+  thead th { font-family:var(--mono); font-size:.7rem; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--faint); border-bottom:2px solid var(--line); }
+  td .have { color:var(--green); font-weight:700; }
+  td .add { color:var(--amber); font-weight:700; }
+
+  /* ---- KPI tiles ---- */
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px;
+    margin:22px 0; max-width:none; }
+  .tile { background:var(--paper); border:1px solid var(--line); border-radius:10px;
+    padding:16px 16px 14px; }
+  .tile .big { font-family:var(--serif); font-weight:700; color:var(--brand);
+    font-size:1.7rem; line-height:1; }
+  .tile .lbl { font-size:.82rem; color:var(--sub); margin-top:7px; }
+
+  /* ---- phases ---- */
+  .phase { display:flex; gap:16px; padding:14px 0; border-bottom:1px solid var(--line-soft); }
+  .phase:last-child { border-bottom:0; }
+  .phase .n { font-family:var(--mono); font-weight:700; color:var(--amber); font-size:.9rem;
+    flex:0 0 auto; padding-top:2px; width:64px; letter-spacing:.02em; }
+  .phase .body { flex:1; }
+  .phase h3 { margin:0 0 .2em; }
+  .phase p { margin:0; color:var(--sub); font-size:.95rem; }
+
+  footer { border-top:3px solid var(--brand); padding:26px 0 40px; color:var(--faint);
+    font-size:.85rem; }
+  footer .col { max-width:var(--measure); }
+  footer a { color:var(--green); }
+
+  .toggle { position:fixed; top:14px; right:14px; z-index:10; font-family:var(--mono);
+    font-size:.72rem; letter-spacing:.06em; background:var(--panel); color:var(--sub);
+    border:1px solid var(--line); border-radius:999px; padding:7px 13px; cursor:pointer; }
+  .toggle:hover { color:var(--ink); border-color:var(--green); }
+  :focus-visible { outline:2px solid var(--green); outline-offset:2px; border-radius:2px; }
+  @media (max-width:560px){ body{font-size:16px;} .wrap{padding:0 16px;} .phase{flex-direction:column; gap:4px;} }
+</style>
+</head>
+<body>
+<button class="toggle" id="themeToggle" type="button" aria-label="Toggle light or dark theme">◐ Theme</button>
+
+<div class="wrap paper">
+  <header class="mast">
+    <div class="col">
+      <p class="eyebrow">FHAB Database Modernization · Technical White Paper · Draft</p>
+      <h1>Linking Laboratory Data to a Bloom Incident — Before the Samples Are Even Taken</h1>
+      <p class="deck">A sampling‑provenance approach: issue the identifier at the moment of sampling,
+        and let event → sample → result linkage happen by construction, not by archaeology.</p>
+      <div class="byline">
+        <span><b>Prepared by</b> the FHAB Database Modernization project</span>
+        <span><b>Audience</b> FHAB program &amp; Regional Water Board staff</span>
+        <span><b>Status</b> Draft for discussion · July 2026</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="abstract col">
+    <p class="lead"><strong>The hardest part of managing HAB laboratory data isn't the chemistry — it's the
+      timing.</strong> An incident opens before anyone knows who will sample, how many samples they'll
+      collect, or which analyses they'll run. Samples flow to one or more laboratories; results return a
+      week or more later; high‑concern cases spawn additional sampling events over weeks or months. Each
+      artifact lands in a folder, and the work of connecting it back to the right report, case, and
+      response is deferred — sometimes for years. This paper argues that the linkage problem is fundamentally
+      a problem of <em>when identity is assigned</em>, and proposes a single, low‑friction fix: a
+      <strong>Sampling Event Code</strong> minted at the first hint of sampling and carried on every
+      communication that follows.</p>
+  </div>
+
+  <section class="col">
+    <span class="snum">§ 01 — The problem</span>
+    <h2>A moving timeline that outruns its own recordkeeping</h2>
+    <p>Freshwater HAB response is not a tidy pipeline. A typical incident unfolds like this:</p>
+    <ul>
+      <li>An incident is <strong>opened on partial information</strong> — a report, a photo, a phone
+        call. Whether anyone samples, and who, is often undecided.</li>
+      <li>One or more parties — Water Board staff, a tribe, a lake association, a partner agency —
+        <strong>decide independently to sample</strong>, each on their own timeline.</li>
+      <li>Samples are collected, split, and shipped to <strong>different laboratories</strong>, each
+        with its own submission forms, sample IDs, and turnaround.</li>
+      <li>Results <strong>trickle back about a week later</strong> — as spreadsheets, PDFs, and
+        chain‑of‑custody scans, under the lab's naming, not the program's.</li>
+      <li>For a high‑concern case, <strong>additional sampling events follow</strong>, repeating the
+        cycle and multiplying the artifacts.</li>
+    </ul>
+    <p>Everything gets "tucked into folders." Months or years later, someone opens those folders and tries
+      to reconstruct which result belongs to which sampling event, which event to which case, and which
+      case to which response and advisory. That reconstruction is slow, ambiguous, and lossy — and it
+      delays the moment the data can become authoritative public information.</p>
+  </section>
+
+  <section class="col">
+    <span class="snum">§ 02 — Root cause</span>
+    <h2>We assign identity too late</h2>
+    <p>From a database perspective, the difficulty has one root: <strong>the shared key that ties an
+      analytical result to its incident does not exist at the time the sample is taken.</strong> It has to
+      be <em>reconstructed later</em> from weak, circumstantial signals:</p>
+    <ul>
+      <li><strong>Fuzzy matching after the fact.</strong> Identity is inferred from station code, sample
+        date, coordinates, and water‑body name. The modernized system already does this — a station
+        registry plus a "within ~2&nbsp;km and ±14&nbsp;days" reconciler — but that is a <em>heuristic
+        backstop</em>, not ground truth. Two blooms on the same lake in the same fortnight are genuinely
+        hard to tell apart from coordinates alone.</li>
+      <li><strong>The Chain‑of‑Custody carries the only authoritative location and date</strong> — and it
+        arrives as paper or a rotated PDF that must be read and transcribed by hand, often long after the
+        fact.</li>
+      <li><strong>Every party uses its own identifiers.</strong> The field crew, each lab, and the case
+        file name the same sample three different ways, with no key in common.</li>
+      <li><strong>One sampling event is fragmented across records</strong> — grab samples to Lab A, SPATT
+        passive samplers to Lab B, genetic assays to Lab C — with nothing declaring they belong together.</li>
+    </ul>
+    <p>No amount of downstream cleverness fully recovers information that was never captured. The fix is to
+      move identity <em>upstream</em>, to the one moment every party passes through: the act of sampling.</p>
+  </section>
+
+  <section class="col">
+    <span class="snum">§ 03 — The proposal</span>
+    <h2>One code, issued at sampling time, on every communication</h2>
+    <p>Issue a <strong>Sampling Event Code (SEC)</strong> the moment a sampling effort is first
+      anticipated — <em>before</em> you know the party, the sample count, or the analyses. The SEC is a
+      short, human‑usable, collision‑free token that goes on <strong>everything</strong>: the sampling
+      tasking or order, the chain‑of‑custody, the sample labels, the lab submission, the returned results
+      file, the folder and file names, and the case record.</p>
+
+    <div class="seclabel" role="img" aria-label="Example Sampling Event Code label, FHAB dash R5 dash 20260731 dash 7QK2">
+      <p class="kicker">Sampling Event Code · affix to CoC &amp; every deliverable</p>
+      <p class="seccode">FHAB<span class="sep">‑</span>R5<span class="sep">‑</span>20260731<span class="sep">‑</span>7QK2</p>
+      <div class="barcode" aria-hidden="true"></div>
+      <div class="secparts">
+        <div><div class="p-code">FHAB</div><div class="p-lab">Program</div></div>
+        <div><div class="p-code">R5</div><div class="p-lab">Regional board</div></div>
+        <div><div class="p-code">20260731</div><div class="p-lab">Event opened (date)</div></div>
+        <div><div class="p-code">7QK2</div><div class="p-lab">Random + check char</div></div>
+      </div>
+    </div>
+
+    <p>The format is deliberately <strong>self‑describing</strong> so a person can sanity‑check it at a
+      glance, with a trailing check character so a mistyped code is caught at entry rather than silently
+      mis‑linked. Crucially, the SEC is <strong>scope‑free at issue</strong>: the responsible party, the
+      number of samples, the target analytes, and the destination labs all attach to the code <em>as they
+      materialize</em>. You never have to know the shape of the sampling effort in advance — you only have
+      to name it.</p>
+
+    <h3>It maps onto the model you already have</h3>
+    <p>The SEC is the human‑facing face of an identifier the database already uses. The modernized schema
+      represents each ingested batch as a <strong>Sampling Event</strong> with its own
+      <code>Sampling_Event_ID</code>, drawn from a reserved id range (≥&nbsp;1,000,000,000) that can never
+      collide with the integer keys published on data.ca.gov. The SEC simply <strong>pre‑registers</strong>
+      that sampling event and pushes its identifier upstream to the field and the lab, so the batch exists
+      <em>before</em> its data arrives instead of being conjured at ingest. The relationships are already
+      in place:</p>
+    <p style="font-family:var(--mono);font-size:.92rem;color:var(--sub);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 14px;">
+      Case → Report / Event → <strong style="color:var(--amber)">Sampling Event (SEC)</strong> → Sample → Result</p>
+    <p>A single high‑concern case naturally holds <strong>many</strong> sampling events over time — each new
+      field effort mints a new SEC under the same case, which is exactly the "additional sampling for the
+      cases we worry about" pattern.</p>
+  </section>
+
+  <section class="col">
+    <span class="snum">§ 04 — The workflow</span>
+    <h2>Pre‑register, then reconcile on arrival</h2>
+    <p>The SEC inverts today's order of operations. Instead of "collect data, then reconstruct identity,"
+      the flow becomes "declare identity, then collect data against it."</p>
+    <ol class="flow">
+      <li><span class="dot" aria-hidden="true"></span>
+        <div class="t">T0 · sampling anticipated</div>
+        <h3>Open a sampling event</h3>
+        <p>A staffer clicks "Start a sampling event." The system mints the SEC and produces a pre‑stamped
+          field packet — CoC header, sample labels, and a QR code — carrying the SEC, the region, and the
+          water body if known. Party and analyses are left blank.</p></li>
+      <li><span class="dot" aria-hidden="true"></span>
+        <div class="t">Field</div>
+        <h3>Everything wears the code</h3>
+        <p>Samples are labeled with the SEC; the CoC is pre‑filled with it. Splits sent to different labs
+          all carry the same SEC plus a short sample suffix, so the fragments stay a family.</p></li>
+      <li><span class="dot" aria-hidden="true"></span>
+        <div class="t">Laboratory</div>
+        <h3>The code rides the submission and returns</h3>
+        <p>The SEC travels on the lab submission and is <strong>required back</strong> on the electronic
+          deliverable — a dedicated field, or a filename convention. This is a one‑line ask in a lab
+          contract or SOP.</p></li>
+      <li><span class="dot" aria-hidden="true"></span>
+        <div class="t">≈ 1 week later · results arrive</div>
+        <h3>Linking is a lookup, not a guess</h3>
+        <p>Ingest matches on the SEC and auto‑attaches every sample and result to the pre‑registered
+          sampling event — and thus to the case. Results that arrive without a code fall to the existing
+          workboard reconciler as the <em>exception path</em>, not the default.</p></li>
+    </ol>
+    <blockquote><p>Move the identifier to the front of the timeline, and the reconciliation work that
+      consumes staff months mostly disappears — because it never has to happen.</p></blockquote>
+  </section>
+
+  <section class="col">
+    <span class="snum">§ 05 — Build vs. buy‑forward</span>
+    <h2>Most of the machinery already exists</h2>
+    <p>This is an increment on the modernized system, not a rebuild. The linking spine, reconciler, and
+      provenance controls are in place; what's new is pushing the identifier upstream.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Capability</th><th>Status</th><th>Role in the SEC workflow</th></tr></thead>
+        <tbody>
+          <tr><td>Sampling Event batch + <code>Sampling_Event_ID</code></td><td><span class="have">In place</span></td><td>Becomes the record the SEC pre‑registers</td></tr>
+          <tr><td>Reserved id range (≥ 1e9)</td><td><span class="have">In place</span></td><td>Mints SECs that never collide with published ids</td></tr>
+          <tr><td>Station registry (shared codes)</td><td><span class="have">In place</span></td><td>Common location vocabulary for field &amp; labs</td></tr>
+          <tr><td>Workboard reconciler (2&nbsp;km / ±14&nbsp;d)</td><td><span class="have">In place</span></td><td>Fallback for uncoded / legacy data</td></tr>
+          <tr><td>Duplicate detect &amp; merge</td><td><span class="have">In place</span></td><td>Trivial once an SEC is present</td></tr>
+          <tr><td>Provenance &amp; row‑level audit</td><td><span class="have">In place</span></td><td>Every SEC‑linked ingest is attributable</td></tr>
+          <tr><td>Pre‑issued SEC + printable field packet</td><td><span class="add">To add</span></td><td>The front door of the workflow</td></tr>
+          <tr><td>Lab EDD template + "return the code" clause</td><td><span class="add">To add</span></td><td>Guarantees the code comes home</td></tr>
+          <tr><td>SEC auto‑match on ingest</td><td><span class="add">To add</span></td><td>Turns linking into a lookup</td></tr>
+          <tr><td>QR labels / mobile CoC capture</td><td><span class="add">Later</span></td><td>Removes hand‑transcription entirely</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="col">
+    <span class="snum">§ 06 — Supporting practices</span>
+    <h2>Habits that make the code stick</h2>
+    <ul>
+      <li><strong>One code, every communication.</strong> The SEC belongs on the CoC, the sample order,
+        the lab deliverable, and the folder and file names — plus a scannable QR/barcode for
+        one‑tap linking.</li>
+      <li><strong>Standardize the deliverable.</strong> Ask labs for a CEDEN‑aligned electronic data
+        deliverable carrying the SEC and station code, instead of a PDF to be transcribed. Provide a
+        template; make it the default in agreements.</li>
+      <li><strong>Capture the CoC as data at T0.</strong> A mobile chain‑of‑custody form stamped with the
+        SEC makes the authoritative location and date digital from the first minute — ending the
+        rotated‑PDF‑and‑retype problem.</li>
+      <li><strong>Share the station registry.</strong> When field crews and labs draw station codes from
+        the same published list, locations line up by construction.</li>
+      <li><strong>Keep the reconciler forever.</strong> Legacy folders and the occasional un‑coded
+        submission will always exist; the heuristic matcher remains the safety net beneath the code.</li>
+    </ul>
+  </section>
+
+  <section class="col">
+    <span class="snum">§ 07 — Why it's worth it</span>
+    <h2>What good looks like</h2>
+    <div class="tiles">
+      <div class="tile"><div class="big">months → same‑week</div><div class="lbl">Time to link a result to its case</div></div>
+      <div class="tile"><div class="big">&gt; 90%</div><div class="lbl">Results auto‑linked on arrival (target)</div></div>
+      <div class="tile"><div class="big">↓ duplicates</div><div class="lbl">One code makes doubles obvious</div></div>
+      <div class="tile"><div class="big">↑ speed</div><div class="lbl">Faster path to authoritative public data</div></div>
+    </div>
+    <p>Beyond the numbers: complete provenance for every result, far less staff time spent on folder
+      archaeology, and the confidence that a determination or advisory rests on evidence that is
+      unambiguously tied to its incident.</p>
+  </section>
+
+  <section class="col">
+    <span class="snum">§ 08 — Getting there</span>
+    <h2>A phased, low‑risk rollout</h2>
+    <div class="phase"><div class="n">Phase 1</div><div class="body">
+      <h3>Mint &amp; match (now)</h3>
+      <p>Generate the SEC in the app, print it on a CoC cover sheet and sample labels, ask labs to return
+        it, and auto‑link on an SEC match at ingest. Uses the sampling‑event batch and reconciler that
+        already exist — no field hardware required.</p></div></div>
+    <div class="phase"><div class="n">Phase 2</div><div class="body">
+      <h3>Scan &amp; standardize</h3>
+      <p>Add QR labels and a mobile CoC form for digital capture at T0, and publish a CEDEN‑aligned lab
+        deliverable template so results arrive machine‑ready.</p></div></div>
+    <div class="phase"><div class="n">Phase 3</div><div class="body">
+      <h3>Direct submission</h3>
+      <p>Offer partners and labs a portal or API to submit deliverables keyed by SEC, closing the loop
+        from field to public data with no manual hop.</p></div></div>
+  </section>
+
+  <section class="col">
+    <span class="snum">§ 09 — Honest limits</span>
+    <h2>Risks &amp; how we blunt them</h2>
+    <ul>
+      <li><strong>Adoption depends on people using the code.</strong> Mitigate by making the SEC the path
+        of least resistance — pre‑printed packets, a one‑click issue button, and a "return the code"
+        clause in lab agreements — with the reconciler catching whatever slips through.</li>
+      <li><strong>Parties who don't coordinate.</strong> Whoever opens the incident can issue and share the
+        SEC; where several parties sample independently, each event gets its own SEC and all of them
+        reconcile cleanly under one case.</li>
+      <li><strong>Legacy data.</strong> Everything already in folders keeps flowing through the existing
+        heuristic matcher; the SEC changes the future, not the past.</li>
+    </ul>
+  </section>
+
+  <section class="col">
+    <span class="snum">§ 10 — Recommendation</span>
+    <h2>Adopt the Sampling Event Code as the linking spine</h2>
+    <p>Pre‑register every sampling event and push its code upstream to the field and the labs; standardize
+      the electronic deliverable so the code comes home; and keep heuristic reconciliation as the exception
+      path, not the default. The database is already built for it — the SEC simply lets us capture, at the
+      one moment every party shares, the small piece of information that today we spend months trying to
+      recover.</p>
+  </section>
+
+  <footer>
+    <div class="col">
+      <p><strong>Draft for discussion.</strong> Prepared from the FHAB Database Modernization project's
+        data‑governance perspective as input to program and Regional Water Board planning. Terminology
+        (report / event / case / response / advisory, Sampling Event, station registry) follows the
+        modernized FHAB schema and the published CA FHAB data model.</p>
+      <p style="color:var(--faint)">FHAB Database Modernization · July 2026 · An editable Word version of
+        this paper accompanies it in the project repository.</p>
+    </div>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement, btn = document.getElementById('themeToggle');
+    function current() {
+      return root.getAttribute('data-theme') ||
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    }
+    btn.addEventListener('click', function () {
+      root.setAttribute('data-theme', current() === 'dark' ? 'light' : 'dark');
+    });
+  })();
+</script>
+</body>
+</html>
