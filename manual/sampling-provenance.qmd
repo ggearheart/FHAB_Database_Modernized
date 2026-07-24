@@ -170,3 +170,51 @@ comes home; keep heuristic reconciliation as the exception path. The database is
 it — the SEC just captures, at the one moment every party shares, the small piece of information
 we currently spend months trying to recover.
 :::
+
+## Further reading
+
+Resources for the team to dive deeper. Each note says *why it's relevant to linking lab data*.
+
+### California program & data standards
+
+- [California Harmful Algal Blooms (HABs) Portal](https://mywaterquality.ca.gov/habs/) — the
+  statewide program hub this system supports.
+- [CCHAB Network & Voluntary Guidance](https://mywaterquality.ca.gov/cyanohab/) — the recreational
+  HAB response framework and the **cyanotoxin trigger levels** used to colour the Lab data map
+  (Microcystins 0.8 / 6 / 20 µg/L, etc.).
+- [SWAMP Freshwater CyanoHABs Program](https://www.waterboards.ca.gov/water_issues/programs/swamp/freshwater_cyanobacteria.html)
+  — the Water Boards monitoring program context.
+- [CEDEN — California Environmental Data Exchange Network](https://ceden.waterboards.ca.gov/) — the
+  state exchange our lab chemistry is shaped to; the natural home for a standardized deliverable.
+- [CEDEN data templates & business rules](https://ceden.waterboards.ca.gov/data-templates.html) —
+  the electronic data deliverable (EDD) a *"return the SEC"* field would extend. Its **Chemistry
+  template** is exactly the format the ingest workflow expects.
+
+### National water-data exchange — align the SEC with these
+
+- [EPA Water Quality Exchange (WQX) / Water Quality Data](https://www.epa.gov/waterdata/water-quality-data)
+  — the national submission standard. Note its **Activity ID**, **Project ID**, and **Monitoring
+  Location ID**: the SEC essentially plays the role of a program-issued *Project/Activity*
+  identifier, so aligning with WQX keeps us interoperable.
+- [WQX Web template files](https://www.epa.gov/waterdata/water-quality-exchange-web-template-files)
+  — concrete templates that show how those identifiers travel with results.
+- [Water Quality Portal (USGS + EPA)](https://www.waterqualitydata.us/) — the national discovery
+  portal our published open data ultimately feeds.
+
+### Persistent identifiers — the precedent for issuing an ID at sampling time
+
+- [IGSN / SESAR — persistent identifiers for physical samples](https://www.geosamples.org/) — the
+  closest real-world analog to the Sampling Event Code: a **globally unique ID registered when a
+  physical sample is collected** (now issued via [DataCite](https://datacite.org/)). The same idea,
+  applied to a bloom incident's sampling effort.
+- [GeoConnex (Internet of Water)](https://geoconnex.us/) ([docs](https://docs.geoconnex.us/)) —
+  persistent identifiers for hydrologic features (rivers, watersheds, monitoring sites); already
+  used in FHAB for station and watershed URIs.
+- [USGS Watershed Boundary Dataset (HUC-12)](https://www.usgs.gov/national-hydrography/watershed-boundary-dataset)
+  — the authoritative watershed layer behind the crosswalk's HUC12 assignment.
+
+### Data-management principle
+
+- [FAIR data principles](https://www.go-fair.org/fair-principles/) — Findable, Accessible,
+  Interoperable, Reusable. The SEC is, in effect, the tactic that makes a result **Findable** and
+  **Interoperable** by construction instead of by reconciliation.
