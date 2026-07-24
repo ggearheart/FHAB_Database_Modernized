@@ -1,11 +1,19 @@
 ---
 title: "Linking lab data by design"
 subtitle: "A sampling-provenance proposal for future incidents"
+format:
+  html: default
+  docx: default
+format-links: false
 ---
 
 The companion to **[★ Ingesting lab data](lab-ingest.qmd)** is this: *why* linking lab data to the
 right event/case is hard today, and a concrete idea for making it easy going forward. The
 how-to page covers what you do now; this page is about where we're headed.
+
+::: {.content-visible when-format="html"}
+[<i class="bi bi-file-earmark-word"></i> Download as Word (.docx)](sampling-provenance.docx){.btn .btn-primary .btn-sm role="button" download=""}
+:::
 
 ::: {.callout-note title="This is a proposal, not a current feature"}
 The **Sampling Event Code** described here isn't built yet — it's a design direction for
@@ -80,13 +88,11 @@ id upstream, so the batch exists *before* its data arrives instead of being crea
 One high-concern case naturally holds **many** sampling events over time — each new field effort
 mints a new SEC under the same case:
 
-```{mermaid}
-flowchart LR
-  C[Case] --> R[Report / Event]
-  R --> S1[Sampling Event · SEC #1]
-  R --> S2[Sampling Event · SEC #2]
-  S1 --> A[Sample] --> AR[Result]
-  S2 --> B[Sample] --> BR[Result]
+``` text
+Case
+└─ Report / Event
+   ├─ Sampling Event · SEC #1  →  Sample  →  Result
+   └─ Sampling Event · SEC #2  →  Sample  →  Result
 ```
 
 ## The workflow: pre-register, then reconcile on arrival
