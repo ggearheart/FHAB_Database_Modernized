@@ -38,6 +38,8 @@ sensitive personal email.
   (email folders, CEDEN, spreadsheets) and reconcile it to events/reports/cases.
 - **[Program staff](staff.qmd)** — the rest of the staff workspace: submissions, reports, cases,
   map, open data, admin.
+- **[Linking lab data by design](sampling-provenance.qmd)** — a proposal for why lab-data linking
+  is hard today and how a sampling-time code could make it easy going forward.
 - **[Community tester](community.qmd)** — submit a bloom report from the CyanoSafe app, no login
   needed.
 

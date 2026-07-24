@@ -22,6 +22,8 @@ website:
         href: index.qmd
       - text: "★ Ingesting lab data"
         href: lab-ingest.qmd
+      - text: "Linking lab data by design"
+        href: sampling-provenance.qmd
       - community.qmd
       - staff.qmd
       - feedback.qmd

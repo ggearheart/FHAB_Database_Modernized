@@ -1,0 +1,166 @@
+---
+title: "Linking lab data by design"
+subtitle: "A sampling-provenance proposal for future incidents"
+---
+
+The companion to **[★ Ingesting lab data](lab-ingest.qmd)** is this: *why* linking lab data to the
+right event/case is hard today, and a concrete idea for making it easy going forward. The
+how-to page covers what you do now; this page is about where we're headed.
+
+::: {.callout-note title="This is a proposal, not a current feature"}
+The **Sampling Event Code** described here isn't built yet — it's a design direction for
+discussion. Everything you actually test today is on the [Ingesting lab data](lab-ingest.qmd)
+page. Feedback on this idea is very welcome — see [Giving feedback](feedback.qmd).
+:::
+
+## The problem: a moving timeline
+
+HAB response isn't a tidy pipeline. A typical incident plays out like this:
+
+- An incident is **opened on partial information** — a report, a photo, a call. Whether anyone
+  samples, and who, is often undecided.
+- One or more parties — Water Board staff, a tribe, a lake association, a partner agency —
+  **decide independently to sample**, each on their own schedule.
+- Samples are collected, split, and shipped to **different laboratories**, each with its own
+  forms, sample IDs, and turnaround.
+- Results **trickle back about a week later**, under the lab's naming — not the program's.
+- For a high-concern case, **more sampling events follow**, multiplying the artifacts.
+
+Everything gets tucked into folders. Months or years later someone opens those folders and tries
+to reconstruct which result belongs to which sampling event, which event to which case, and which
+case to which response. That reconstruction is slow, ambiguous, and lossy — and it delays the
+moment the data can become authoritative public information.
+
+## Why it's hard now: we assign identity too late
+
+The root cause, in database terms: **the key that ties a result to its incident doesn't exist at
+the time the sample is taken.** It has to be rebuilt afterward from weak signals.
+
+- **Fuzzy matching after the fact.** Identity is inferred from station code, date, coordinates,
+  and water-body name. That's exactly what the **Lab data workboard** reconciler does today
+  ("within ~2 km and ±14 days") — but it's a *backstop*, not ground truth. Two blooms on the same
+  lake in the same fortnight are genuinely hard to tell apart from coordinates alone.
+- **The CoC carries the only authoritative location and date** — and it arrives as paper or a
+  rotated PDF someone has to read and retype, often long after the fact.
+- **Every party uses its own IDs.** Field crew, each lab, and the case file name the same sample
+  three different ways, with no key in common.
+- **One sampling event is fragmented** — grab samples to Lab A, SPATT to Lab B, genetic assays to
+  Lab C — with nothing declaring they belong together.
+
+No amount of downstream cleverness fully recovers information that was never captured. The fix is
+to move identity *upstream*, to the one moment every party passes through: the act of sampling.
+
+## The proposal: one code, issued at sampling time
+
+Issue a **Sampling Event Code (SEC)** the moment a sampling effort is first anticipated —
+*before* you know the party, the sample count, or the analyses. It's a short, human-readable,
+collision-free token that goes on **everything**: the sampling order, the CoC, the sample labels,
+the lab submission, the returned results file, the folder and file names, and the case record.
+
+``` text
+FHAB-R5-20260731-7QK2
+ │    │      │      └ random + check character (catches a mistype at entry)
+ │    │      └ date the sampling event was opened
+ │    └ regional board
+ └ program
+```
+
+The format is **self-describing** so a person can sanity-check it at a glance, and **scope-free at
+issue**: the responsible party, the number of samples, the analytes, and the destination labs all
+attach to the code *as they materialize*. You never have to know the shape of the sampling effort
+in advance — you only have to name it.
+
+::: {.callout-tip title="It fits the model we already have"}
+The SEC is just the human-facing face of the **Sampling Event** the system already creates for
+each ingest (its `Sampling_Event_ID`, drawn from a reserved id range that can't collide with the
+ids published on data.ca.gov). The SEC simply **pre-registers** that sampling event and pushes its
+id upstream, so the batch exists *before* its data arrives instead of being created at ingest.
+:::
+
+One high-concern case naturally holds **many** sampling events over time — each new field effort
+mints a new SEC under the same case:
+
+```{mermaid}
+flowchart LR
+  C[Case] --> R[Report / Event]
+  R --> S1[Sampling Event · SEC #1]
+  R --> S2[Sampling Event · SEC #2]
+  S1 --> A[Sample] --> AR[Result]
+  S2 --> B[Sample] --> BR[Result]
+```
+
+## The workflow: pre-register, then reconcile on arrival
+
+The SEC flips today's order of operations. Instead of "collect data, then reconstruct identity,"
+it becomes "declare identity, then collect data against it."
+
+| When | What happens |
+|---|---|
+| **T0 — sampling anticipated** | A staffer clicks *Start a sampling event*. The system mints the SEC and produces a pre-stamped field packet — CoC header, labels, QR — carrying the SEC, region, and water body if known. Party and analyses left blank. |
+| **Field** | Samples are labeled with the SEC; the CoC is pre-filled with it. Splits to different labs carry the same SEC plus a short sample suffix, so the fragments stay a family. |
+| **Laboratory** | The SEC rides the submission and is **required back** on the deliverable — a field, or a filename convention. A one-line ask in a lab contract or SOP. |
+| **≈ 1 week later** | Ingest matches on the SEC and auto-links every sample and result to the pre-registered event — and thus the case. Anything without a code falls to the workboard reconciler as the **exception**, not the default. |
+
+> Move the identifier to the front of the timeline, and the reconciliation work that consumes
+> staff months mostly disappears — because it never has to happen.
+
+## Most of the machinery already exists
+
+This is an increment on what's built, not a rebuild:
+
+| Capability | Status | Role in the SEC workflow |
+|---|---|---|
+| Sampling Event batch + `Sampling_Event_ID` | **In place** | Becomes the record the SEC pre-registers |
+| Reserved id range (≥ 1e9) | **In place** | Mints SECs that never collide with published ids |
+| Station registry (shared codes) | **In place** | Common location vocabulary for field & labs |
+| Workboard reconciler (2 km / ±14 d) | **In place** | Fallback for uncoded / legacy data |
+| Duplicate detect & merge | **In place** | Trivial once an SEC is present |
+| Provenance & row-level audit | **In place** | Every SEC-linked ingest is attributable |
+| Pre-issued SEC + printable field packet | *To add* | The front door of the workflow |
+| Lab deliverable template + "return the code" clause | *To add* | Guarantees the code comes home |
+| SEC auto-match on ingest | *To add* | Turns linking into a lookup |
+| QR labels / mobile CoC capture | *Later* | Removes hand-transcription entirely |
+
+## Habits that make the code stick
+
+- **One code, every communication** — CoC, sample order, lab deliverable, folder and file names,
+  plus a scannable QR for one-tap linking.
+- **Standardize the deliverable** — ask labs for a CEDEN-aligned electronic file carrying the SEC
+  and station code, instead of a PDF to transcribe. Provide a template; make it the default in
+  agreements.
+- **Capture the CoC as data at T0** — a mobile CoC form stamped with the SEC makes the
+  authoritative location and date digital from minute one, ending the rotated-PDF-and-retype
+  problem.
+- **Share the station registry** — when field crews and labs draw codes from the same list,
+  locations line up by construction.
+- **Keep the reconciler forever** — legacy folders and the occasional un-coded submission always
+  exist; the heuristic matcher stays the safety net beneath the code.
+
+## Getting there — a phased rollout
+
+1. **Mint & match (now).** Generate the SEC in the app, print it on a CoC cover sheet and sample
+   labels, ask labs to return it, and auto-link on a match at ingest. Uses the sampling-event
+   batch and reconciler that already exist — no field hardware.
+2. **Scan & standardize.** QR labels and a mobile CoC form for digital capture at T0, plus a
+   CEDEN-aligned deliverable template so results arrive machine-ready.
+3. **Direct submission.** A portal or API for partners and labs to submit deliverables keyed by
+   SEC — field to public data with no manual hop.
+
+## Honest limits
+
+- **Adoption depends on people using the code.** Make it the path of least resistance —
+  pre-printed packets, a one-click issue button, a "return the code" clause in lab agreements —
+  with the reconciler catching whatever slips through.
+- **Parties who don't coordinate.** Whoever opens the incident issues and shares the SEC; where
+  several parties sample independently, each event gets its own SEC and all reconcile cleanly
+  under one case.
+- **Legacy data.** Everything already in folders keeps flowing through the existing matcher; the
+  SEC changes the future, not the past.
+
+::: {.callout-important title="Recommendation"}
+Adopt the **Sampling Event Code** as the linking spine: pre-register every sampling event and push
+its code upstream to the field and the labs; standardize the electronic deliverable so the code
+comes home; keep heuristic reconciliation as the exception path. The database is already built for
+it — the SEC just captures, at the one moment every party shares, the small piece of information
+we currently spend months trying to recover.
+:::

@@ -19,6 +19,7 @@ title: "Glossary"
 | **Station** | A sampling location (often a CEDEN station code); geocoded to a point. |
 | **Geocode** | Give a sample a map location (from the station registry or coordinates off the CoC). |
 | **Reconcile / link** | Connect a lab sample to the event/report/case it belongs to. |
+| **Sampling Event Code (SEC)** | *Proposed.* A short code issued at sampling time and put on every communication (CoC, order, lab results) so data links to the right event by design — see [Linking lab data by design](sampling-provenance.qmd). |
 | **Routine sampling** | Monitoring not tied to a bloom report/case; tagged so it leaves the unfinished queue. |
 | **Non-detect (ND)** | Analyte tested for but not detected above the method limit. |
 | **HUC-12 / GeoConnex** | Watershed coding / persistent identifiers for locations. |
