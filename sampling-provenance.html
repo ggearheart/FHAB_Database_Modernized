@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.38">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -41,10 +44,10 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-1a89dfc187a26ae7882a0c373dece39f.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-502bea0607b7f8e3fc38bba08d9a0dc5.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -187,6 +190,13 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#habits-that-make-the-code-stick" id="toc-habits-that-make-the-code-stick" class="nav-link" data-scroll-target="#habits-that-make-the-code-stick">Habits that make the code stick</a></li>
   <li><a href="#getting-there-a-phased-rollout" id="toc-getting-there-a-phased-rollout" class="nav-link" data-scroll-target="#getting-there-a-phased-rollout">Getting there — a phased rollout</a></li>
   <li><a href="#honest-limits" id="toc-honest-limits" class="nav-link" data-scroll-target="#honest-limits">Honest limits</a></li>
+  <li><a href="#further-reading" id="toc-further-reading" class="nav-link" data-scroll-target="#further-reading">Further reading</a>
+  <ul class="collapse">
+  <li><a href="#california-program-data-standards" id="toc-california-program-data-standards" class="nav-link" data-scroll-target="#california-program-data-standards">California program &amp; data standards</a></li>
+  <li><a href="#national-water-data-exchange-align-the-sec-with-these" id="toc-national-water-data-exchange-align-the-sec-with-these" class="nav-link" data-scroll-target="#national-water-data-exchange-align-the-sec-with-these">National water-data exchange — align the SEC with these</a></li>
+  <li><a href="#persistent-identifiers-the-precedent-for-issuing-an-id-at-sampling-time" id="toc-persistent-identifiers-the-precedent-for-issuing-an-id-at-sampling-time" class="nav-link" data-scroll-target="#persistent-identifiers-the-precedent-for-issuing-an-id-at-sampling-time">Persistent identifiers — the precedent for issuing an ID at sampling time</a></li>
+  <li><a href="#data-management-principle" id="toc-data-management-principle" class="nav-link" data-scroll-target="#data-management-principle">Data-management principle</a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
@@ -424,8 +434,44 @@ ul.task-list li input[type="checkbox"] {
 <p>Adopt the <strong>Sampling Event Code</strong> as the linking spine: pre-register every sampling event and push its code upstream to the field and the labs; standardize the electronic deliverable so the code comes home; keep heuristic reconciliation as the exception path. The database is already built for it — the SEC just captures, at the one moment every party shares, the small piece of information we currently spend months trying to recover.</p>
 </div>
 </div>
+</section>
+<section id="further-reading" class="level2">
+<h2 class="anchored" data-anchor-id="further-reading">Further reading</h2>
+<p>Resources for the team to dive deeper. Each note says <em>why it’s relevant to linking lab data</em>.</p>
+<section id="california-program-data-standards" class="level3">
+<h3 class="anchored" data-anchor-id="california-program-data-standards">California program &amp; data standards</h3>
+<ul>
+<li><a href="https://mywaterquality.ca.gov/habs/">California Harmful Algal Blooms (HABs) Portal</a> — the statewide program hub this system supports.</li>
+<li><a href="https://mywaterquality.ca.gov/cyanohab/">CCHAB Network &amp; Voluntary Guidance</a> — the recreational HAB response framework and the <strong>cyanotoxin trigger levels</strong> used to colour the Lab data map (Microcystins 0.8 / 6 / 20 µg/L, etc.).</li>
+<li><a href="https://www.waterboards.ca.gov/water_issues/programs/swamp/freshwater_cyanobacteria.html">SWAMP Freshwater CyanoHABs Program</a> — the Water Boards monitoring program context.</li>
+<li><a href="https://ceden.waterboards.ca.gov/">CEDEN — California Environmental Data Exchange Network</a> — the state exchange our lab chemistry is shaped to; the natural home for a standardized deliverable.</li>
+<li><a href="https://ceden.waterboards.ca.gov/data-templates.html">CEDEN data templates &amp; business rules</a> — the electronic data deliverable (EDD) a <em>“return the SEC”</em> field would extend. Its <strong>Chemistry template</strong> is exactly the format the ingest workflow expects.</li>
+</ul>
+</section>
+<section id="national-water-data-exchange-align-the-sec-with-these" class="level3">
+<h3 class="anchored" data-anchor-id="national-water-data-exchange-align-the-sec-with-these">National water-data exchange — align the SEC with these</h3>
+<ul>
+<li><a href="https://www.epa.gov/waterdata/water-quality-data">EPA Water Quality Exchange (WQX) / Water Quality Data</a> — the national submission standard. Note its <strong>Activity ID</strong>, <strong>Project ID</strong>, and <strong>Monitoring Location ID</strong>: the SEC essentially plays the role of a program-issued <em>Project/Activity</em> identifier, so aligning with WQX keeps us interoperable.</li>
+<li><a href="https://www.epa.gov/waterdata/water-quality-exchange-web-template-files">WQX Web template files</a> — concrete templates that show how those identifiers travel with results.</li>
+<li><a href="https://www.waterqualitydata.us/">Water Quality Portal (USGS + EPA)</a> — the national discovery portal our published open data ultimately feeds.</li>
+</ul>
+</section>
+<section id="persistent-identifiers-the-precedent-for-issuing-an-id-at-sampling-time" class="level3">
+<h3 class="anchored" data-anchor-id="persistent-identifiers-the-precedent-for-issuing-an-id-at-sampling-time">Persistent identifiers — the precedent for issuing an ID at sampling time</h3>
+<ul>
+<li><a href="https://www.geosamples.org/">IGSN / SESAR — persistent identifiers for physical samples</a> — the closest real-world analog to the Sampling Event Code: a <strong>globally unique ID registered when a physical sample is collected</strong> (now issued via <a href="https://datacite.org/">DataCite</a>). The same idea, applied to a bloom incident’s sampling effort.</li>
+<li><a href="https://geoconnex.us/">GeoConnex (Internet of Water)</a> (<a href="https://docs.geoconnex.us/">docs</a>) — persistent identifiers for hydrologic features (rivers, watersheds, monitoring sites); already used in FHAB for station and watershed URIs.</li>
+<li><a href="https://www.usgs.gov/national-hydrography/watershed-boundary-dataset">USGS Watershed Boundary Dataset (HUC-12)</a> — the authoritative watershed layer behind the crosswalk’s HUC12 assignment.</li>
+</ul>
+</section>
+<section id="data-management-principle" class="level3">
+<h3 class="anchored" data-anchor-id="data-management-principle">Data-management principle</h3>
+<ul>
+<li><a href="https://www.go-fair.org/fair-principles/">FAIR data principles</a> — Findable, Accessible, Interoperable, Reusable. The SEC is, in effect, the tactic that makes a result <strong>Findable</strong> and <strong>Interoperable</strong> by construction instead of by reconciliation.</li>
+</ul>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->

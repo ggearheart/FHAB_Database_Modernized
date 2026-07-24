@@ -140,6 +140,16 @@
     ]
   },
   {
+    "objectID": "sampling-provenance.html#further-reading",
+    "href": "sampling-provenance.html#further-reading",
+    "title": "Linking lab data by design",
+    "section": "Further reading",
+    "text": "Further reading\nResources for the team to dive deeper. Each note says why it’s relevant to linking lab data.\n\nCalifornia program & data standards\n\nCalifornia Harmful Algal Blooms (HABs) Portal — the statewide program hub this system supports.\nCCHAB Network & Voluntary Guidance — the recreational HAB response framework and the cyanotoxin trigger levels used to colour the Lab data map (Microcystins 0.8 / 6 / 20 µg/L, etc.).\nSWAMP Freshwater CyanoHABs Program — the Water Boards monitoring program context.\nCEDEN — California Environmental Data Exchange Network — the state exchange our lab chemistry is shaped to; the natural home for a standardized deliverable.\nCEDEN data templates & business rules — the electronic data deliverable (EDD) a “return the SEC” field would extend. Its Chemistry template is exactly the format the ingest workflow expects.\n\n\n\nNational water-data exchange — align the SEC with these\n\nEPA Water Quality Exchange (WQX) / Water Quality Data — the national submission standard. Note its Activity ID, Project ID, and Monitoring Location ID: the SEC essentially plays the role of a program-issued Project/Activity identifier, so aligning with WQX keeps us interoperable.\nWQX Web template files — concrete templates that show how those identifiers travel with results.\nWater Quality Portal (USGS + EPA) — the national discovery portal our published open data ultimately feeds.\n\n\n\nPersistent identifiers — the precedent for issuing an ID at sampling time\n\nIGSN / SESAR — persistent identifiers for physical samples — the closest real-world analog to the Sampling Event Code: a globally unique ID registered when a physical sample is collected (now issued via DataCite). The same idea, applied to a bloom incident’s sampling effort.\nGeoConnex (Internet of Water) (docs) — persistent identifiers for hydrologic features (rivers, watersheds, monitoring sites); already used in FHAB for station and watershed URIs.\nUSGS Watershed Boundary Dataset (HUC-12) — the authoritative watershed layer behind the crosswalk’s HUC12 assignment.\n\n\n\nData-management principle\n\nFAIR data principles — Findable, Accessible, Interoperable, Reusable. The SEC is, in effect, the tactic that makes a result Findable and Interoperable by construction instead of by reconciliation.",
+    "crumbs": [
+      "Linking lab data by design"
+    ]
+  },
+  {
     "objectID": "feedback.html",
     "href": "feedback.html",
     "title": "Feedback & limitations",
