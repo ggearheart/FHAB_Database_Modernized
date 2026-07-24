@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>FHAB Database Modernized — Tester Guide – FHAB Tester Guide</title>
+<title>Linking lab data by design – FHAB Tester Guide</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -33,7 +33,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./lab-ingest.html" rel="next">
+<link href="./community.html" rel="next">
+<link href="./lab-ingest.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -72,6 +73,9 @@ ul.task-list li input[type="checkbox"] {
   }
 }</script>
 <style>html{ scroll-behavior: smooth; }</style>
+<script src="site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
 
 
 </head>
@@ -114,7 +118,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Overview</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./sampling-provenance.html">Linking lab data by design</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -128,7 +132,7 @@ ul.task-list li input[type="checkbox"] {
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link active">
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Overview</span></a>
   </div>
 </li>
@@ -140,7 +144,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./sampling-provenance.html" class="sidebar-item-text sidebar-link">
+  <a href="./sampling-provenance.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Linking lab data by design</span></a>
   </div>
 </li>
@@ -178,9 +182,14 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#pick-your-track" id="toc-pick-your-track" class="nav-link active" data-scroll-target="#pick-your-track">Pick your track</a></li>
-  <li><a href="#systems-and-links" id="toc-systems-and-links" class="nav-link" data-scroll-target="#systems-and-links">Systems and links</a></li>
-  <li><a href="#source-code-this-manual" id="toc-source-code-this-manual" class="nav-link" data-scroll-target="#source-code-this-manual">Source code &amp; this manual</a></li>
+  <li><a href="#the-problem-a-moving-timeline" id="toc-the-problem-a-moving-timeline" class="nav-link active" data-scroll-target="#the-problem-a-moving-timeline">The problem: a moving timeline</a></li>
+  <li><a href="#why-its-hard-now-we-assign-identity-too-late" id="toc-why-its-hard-now-we-assign-identity-too-late" class="nav-link" data-scroll-target="#why-its-hard-now-we-assign-identity-too-late">Why it’s hard now: we assign identity too late</a></li>
+  <li><a href="#the-proposal-one-code-issued-at-sampling-time" id="toc-the-proposal-one-code-issued-at-sampling-time" class="nav-link" data-scroll-target="#the-proposal-one-code-issued-at-sampling-time">The proposal: one code, issued at sampling time</a></li>
+  <li><a href="#the-workflow-pre-register-then-reconcile-on-arrival" id="toc-the-workflow-pre-register-then-reconcile-on-arrival" class="nav-link" data-scroll-target="#the-workflow-pre-register-then-reconcile-on-arrival">The workflow: pre-register, then reconcile on arrival</a></li>
+  <li><a href="#most-of-the-machinery-already-exists" id="toc-most-of-the-machinery-already-exists" class="nav-link" data-scroll-target="#most-of-the-machinery-already-exists">Most of the machinery already exists</a></li>
+  <li><a href="#habits-that-make-the-code-stick" id="toc-habits-that-make-the-code-stick" class="nav-link" data-scroll-target="#habits-that-make-the-code-stick">Habits that make the code stick</a></li>
+  <li><a href="#getting-there-a-phased-rollout" id="toc-getting-there-a-phased-rollout" class="nav-link" data-scroll-target="#getting-there-a-phased-rollout">Getting there — a phased rollout</a></li>
+  <li><a href="#honest-limits" id="toc-honest-limits" class="nav-link" data-scroll-target="#honest-limits">Honest limits</a></li>
   </ul>
 </nav>
     </div>
@@ -189,8 +198,8 @@ ul.task-list li input[type="checkbox"] {
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">FHAB Database Modernized — Tester Guide</h1>
-<p class="subtitle lead">Pilot / Testing</p>
+<h1 class="title">Linking lab data by design</h1>
+<p class="subtitle lead">A sampling-provenance proposal for future incidents</p>
 </div>
 
 
@@ -207,132 +216,229 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<p>Welcome, and thank you for helping test the new FHAB system. This guide is for <strong>program staff</strong> and <strong>community volunteers</strong>. Please report anything confusing or broken — see <a href="./feedback.html">Giving feedback</a>.</p>
-<div class="callout callout-style-default callout-tip callout-titled" title="The focus of this round: ingesting lab data">
+<p>The companion to <strong><a href="./lab-ingest.html">★ Ingesting lab data</a></strong> is this: <em>why</em> linking lab data to the right event/case is hard today, and a concrete idea for making it easy going forward. The how-to page covers what you do now; this page is about where we’re headed.</p>
+<div class="callout callout-style-default callout-note callout-titled" title="This is a proposal, not a current feature">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Tip</span>The focus of this round: ingesting lab data
+<span class="screen-reader-only">Note</span>This is a proposal, not a current feature
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>The main thing we need tested right now is <strong>getting cyanotoxin lab chemistry into FHAB and connected to the right event/report/case</strong> — from lab <strong>email folders</strong>, <strong>CEDEN</strong> exports, and one-off spreadsheets. Staff testers: start with <strong><a href="./lab-ingest.html">★ Ingesting lab data</a></strong>.</p>
+<p>The <strong>Sampling Event Code</strong> described here isn’t built yet — it’s a design direction for discussion. Everything you actually test today is on the <a href="./lab-ingest.html">Ingesting lab data</a> page. Feedback on this idea is very welcome — see <a href="./feedback.html">Giving feedback</a>.</p>
 </div>
 </div>
-<div class="callout callout-style-default callout-important callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Important
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>This is a <strong>test system</strong>. Do not treat anything here as an official advisory or an official report of record. Test data may be wiped at any time. For a real suspected bloom, still use the official channels.</p>
-</div>
-</div>
-<div class="callout callout-style-default callout-warning callout-titled" title="Data &amp; privacy disclaimer">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Warning</span>Data &amp; privacy disclaimer
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>All data in this demonstration and proof of concept is either <strong>open data</strong> (public, CISO-governed) or <strong>fake / demo</strong> report data.</p>
-<p><strong>Please do not enter any personally identifiable information (PII)</strong> — or anything you suspect <em>could</em> be PII — that could be compromised if disclosed. Treat everything you enter as potentially visible to others.</p>
-<p>When a form asks for an <strong>email address</strong>, use a <strong>work or otherwise publicly available</strong> address, or one that would <strong>not be a problem if it were leaked to a third party</strong>. Do not use a private or sensitive personal email.</p>
-</div>
-</div>
-<section id="pick-your-track" class="level2">
-<h2 class="anchored" data-anchor-id="pick-your-track">Pick your track</h2>
+<section id="the-problem-a-moving-timeline" class="level2">
+<h2 class="anchored" data-anchor-id="the-problem-a-moving-timeline">The problem: a moving timeline</h2>
+<p>HAB response isn’t a tidy pipeline. A typical incident plays out like this:</p>
 <ul>
-<li><strong><a href="./lab-ingest.html">★ Ingesting lab data</a></strong> — the priority for this round: bring lab chemistry in (email folders, CEDEN, spreadsheets) and reconcile it to events/reports/cases.</li>
-<li><strong><a href="./staff.html">Program staff</a></strong> — the rest of the staff workspace: submissions, reports, cases, map, open data, admin.</li>
-<li><strong><a href="./sampling-provenance.html">Linking lab data by design</a></strong> — a proposal for why lab-data linking is hard today and how a sampling-time code could make it easy going forward.</li>
-<li><strong><a href="./community.html">Community tester</a></strong> — submit a bloom report from the CyanoSafe app, no login needed.</li>
+<li>An incident is <strong>opened on partial information</strong> — a report, a photo, a call. Whether anyone samples, and who, is often undecided.</li>
+<li>One or more parties — Water Board staff, a tribe, a lake association, a partner agency — <strong>decide independently to sample</strong>, each on their own schedule.</li>
+<li>Samples are collected, split, and shipped to <strong>different laboratories</strong>, each with its own forms, sample IDs, and turnaround.</li>
+<li>Results <strong>trickle back about a week later</strong>, under the lab’s naming — not the program’s.</li>
+<li>For a high-concern case, <strong>more sampling events follow</strong>, multiplying the artifacts.</li>
+</ul>
+<p>Everything gets tucked into folders. Months or years later someone opens those folders and tries to reconstruct which result belongs to which sampling event, which event to which case, and which case to which response. That reconstruction is slow, ambiguous, and lossy — and it delays the moment the data can become authoritative public information.</p>
+</section>
+<section id="why-its-hard-now-we-assign-identity-too-late" class="level2">
+<h2 class="anchored" data-anchor-id="why-its-hard-now-we-assign-identity-too-late">Why it’s hard now: we assign identity too late</h2>
+<p>The root cause, in database terms: <strong>the key that ties a result to its incident doesn’t exist at the time the sample is taken.</strong> It has to be rebuilt afterward from weak signals.</p>
+<ul>
+<li><strong>Fuzzy matching after the fact.</strong> Identity is inferred from station code, date, coordinates, and water-body name. That’s exactly what the <strong>Lab data workboard</strong> reconciler does today (“within ~2 km and ±14 days”) — but it’s a <em>backstop</em>, not ground truth. Two blooms on the same lake in the same fortnight are genuinely hard to tell apart from coordinates alone.</li>
+<li><strong>The CoC carries the only authoritative location and date</strong> — and it arrives as paper or a rotated PDF someone has to read and retype, often long after the fact.</li>
+<li><strong>Every party uses its own IDs.</strong> Field crew, each lab, and the case file name the same sample three different ways, with no key in common.</li>
+<li><strong>One sampling event is fragmented</strong> — grab samples to Lab A, SPATT to Lab B, genetic assays to Lab C — with nothing declaring they belong together.</li>
+</ul>
+<p>No amount of downstream cleverness fully recovers information that was never captured. The fix is to move identity <em>upstream</em>, to the one moment every party passes through: the act of sampling.</p>
+</section>
+<section id="the-proposal-one-code-issued-at-sampling-time" class="level2">
+<h2 class="anchored" data-anchor-id="the-proposal-one-code-issued-at-sampling-time">The proposal: one code, issued at sampling time</h2>
+<p>Issue a <strong>Sampling Event Code (SEC)</strong> the moment a sampling effort is first anticipated — <em>before</em> you know the party, the sample count, or the analyses. It’s a short, human-readable, collision-free token that goes on <strong>everything</strong>: the sampling order, the CoC, the sample labels, the lab submission, the returned results file, the folder and file names, and the case record.</p>
+<pre class="text"><code>FHAB-R5-20260731-7QK2
+ │    │      │      └ random + check character (catches a mistype at entry)
+ │    │      └ date the sampling event was opened
+ │    └ regional board
+ └ program</code></pre>
+<p>The format is <strong>self-describing</strong> so a person can sanity-check it at a glance, and <strong>scope-free at issue</strong>: the responsible party, the number of samples, the analytes, and the destination labs all attach to the code <em>as they materialize</em>. You never have to know the shape of the sampling effort in advance — you only have to name it.</p>
+<div class="callout callout-style-default callout-tip callout-titled" title="It fits the model we already have">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>It fits the model we already have
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The SEC is just the human-facing face of the <strong>Sampling Event</strong> the system already creates for each ingest (its <code>Sampling_Event_ID</code>, drawn from a reserved id range that can’t collide with the ids published on data.ca.gov). The SEC simply <strong>pre-registers</strong> that sampling event and pushes its id upstream, so the batch exists <em>before</em> its data arrives instead of being created at ingest.</p>
+</div>
+</div>
+<p>One high-concern case naturally holds <strong>many</strong> sampling events over time — each new field effort mints a new SEC under the same case:</p>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">flowchart LR
+  C[Case] --&gt; R[Report / Event]
+  R --&gt; S1[Sampling Event · SEC #1]
+  R --&gt; S2[Sampling Event · SEC #2]
+  S1 --&gt; A[Sample] --&gt; AR[Result]
+  S2 --&gt; B[Sample] --&gt; BR[Result]
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+</section>
+<section id="the-workflow-pre-register-then-reconcile-on-arrival" class="level2">
+<h2 class="anchored" data-anchor-id="the-workflow-pre-register-then-reconcile-on-arrival">The workflow: pre-register, then reconcile on arrival</h2>
+<p>The SEC flips today’s order of operations. Instead of “collect data, then reconstruct identity,” it becomes “declare identity, then collect data against it.”</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>When</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>T0 — sampling anticipated</strong></td>
+<td>A staffer clicks <em>Start a sampling event</em>. The system mints the SEC and produces a pre-stamped field packet — CoC header, labels, QR — carrying the SEC, region, and water body if known. Party and analyses left blank.</td>
+</tr>
+<tr class="even">
+<td><strong>Field</strong></td>
+<td>Samples are labeled with the SEC; the CoC is pre-filled with it. Splits to different labs carry the same SEC plus a short sample suffix, so the fragments stay a family.</td>
+</tr>
+<tr class="odd">
+<td><strong>Laboratory</strong></td>
+<td>The SEC rides the submission and is <strong>required back</strong> on the deliverable — a field, or a filename convention. A one-line ask in a lab contract or SOP.</td>
+</tr>
+<tr class="even">
+<td><strong>≈ 1 week later</strong></td>
+<td>Ingest matches on the SEC and auto-links every sample and result to the pre-registered event — and thus the case. Anything without a code falls to the workboard reconciler as the <strong>exception</strong>, not the default.</td>
+</tr>
+</tbody>
+</table>
+<blockquote class="blockquote">
+<p>Move the identifier to the front of the timeline, and the reconciliation work that consumes staff months mostly disappears — because it never has to happen.</p>
+</blockquote>
+</section>
+<section id="most-of-the-machinery-already-exists" class="level2">
+<h2 class="anchored" data-anchor-id="most-of-the-machinery-already-exists">Most of the machinery already exists</h2>
+<p>This is an increment on what’s built, not a rebuild:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Capability</th>
+<th>Status</th>
+<th>Role in the SEC workflow</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Sampling Event batch + <code>Sampling_Event_ID</code></td>
+<td><strong>In place</strong></td>
+<td>Becomes the record the SEC pre-registers</td>
+</tr>
+<tr class="even">
+<td>Reserved id range (≥ 1e9)</td>
+<td><strong>In place</strong></td>
+<td>Mints SECs that never collide with published ids</td>
+</tr>
+<tr class="odd">
+<td>Station registry (shared codes)</td>
+<td><strong>In place</strong></td>
+<td>Common location vocabulary for field &amp; labs</td>
+</tr>
+<tr class="even">
+<td>Workboard reconciler (2 km / ±14 d)</td>
+<td><strong>In place</strong></td>
+<td>Fallback for uncoded / legacy data</td>
+</tr>
+<tr class="odd">
+<td>Duplicate detect &amp; merge</td>
+<td><strong>In place</strong></td>
+<td>Trivial once an SEC is present</td>
+</tr>
+<tr class="even">
+<td>Provenance &amp; row-level audit</td>
+<td><strong>In place</strong></td>
+<td>Every SEC-linked ingest is attributable</td>
+</tr>
+<tr class="odd">
+<td>Pre-issued SEC + printable field packet</td>
+<td><em>To add</em></td>
+<td>The front door of the workflow</td>
+</tr>
+<tr class="even">
+<td>Lab deliverable template + “return the code” clause</td>
+<td><em>To add</em></td>
+<td>Guarantees the code comes home</td>
+</tr>
+<tr class="odd">
+<td>SEC auto-match on ingest</td>
+<td><em>To add</em></td>
+<td>Turns linking into a lookup</td>
+</tr>
+<tr class="even">
+<td>QR labels / mobile CoC capture</td>
+<td><em>Later</em></td>
+<td>Removes hand-transcription entirely</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="habits-that-make-the-code-stick" class="level2">
+<h2 class="anchored" data-anchor-id="habits-that-make-the-code-stick">Habits that make the code stick</h2>
+<ul>
+<li><strong>One code, every communication</strong> — CoC, sample order, lab deliverable, folder and file names, plus a scannable QR for one-tap linking.</li>
+<li><strong>Standardize the deliverable</strong> — ask labs for a CEDEN-aligned electronic file carrying the SEC and station code, instead of a PDF to transcribe. Provide a template; make it the default in agreements.</li>
+<li><strong>Capture the CoC as data at T0</strong> — a mobile CoC form stamped with the SEC makes the authoritative location and date digital from minute one, ending the rotated-PDF-and-retype problem.</li>
+<li><strong>Share the station registry</strong> — when field crews and labs draw codes from the same list, locations line up by construction.</li>
+<li><strong>Keep the reconciler forever</strong> — legacy folders and the occasional un-coded submission always exist; the heuristic matcher stays the safety net beneath the code.</li>
 </ul>
 </section>
-<section id="systems-and-links" class="level2">
-<h2 class="anchored" data-anchor-id="systems-and-links">Systems and links</h2>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>System</th>
-<th>What it is</th>
-<th>Link</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><strong>CyanoSafe map (desktop)</strong></td>
-<td>Public HAB map + “Report a Bloom” form</td>
-<td><a href="https://ggearheart.github.io/CyanoSafe_demo/">Open</a></td>
-</tr>
-<tr class="even">
-<td><strong>CyanoSafe app (phone / PWA)</strong></td>
-<td>The mobile app most community users will use</td>
-<td><a href="https://ggearheart.github.io/CyanoSafe_phone_demo/">Open</a></td>
-</tr>
-<tr class="odd">
-<td><strong>FHAB Staff app</strong></td>
-<td>Staff workspace (login required)</td>
-<td><a href="https://fhab-web.onrender.com">Open</a></td>
-</tr>
-</tbody>
-</table>
-<div class="callout callout-style-default callout-note callout-titled">
+<section id="getting-there-a-phased-rollout" class="level2">
+<h2 class="anchored" data-anchor-id="getting-there-a-phased-rollout">Getting there — a phased rollout</h2>
+<ol type="1">
+<li><strong>Mint &amp; match (now).</strong> Generate the SEC in the app, print it on a CoC cover sheet and sample labels, ask labs to return it, and auto-link on a match at ingest. Uses the sampling-event batch and reconciler that already exist — no field hardware.</li>
+<li><strong>Scan &amp; standardize.</strong> QR labels and a mobile CoC form for digital capture at T0, plus a CEDEN-aligned deliverable template so results arrive machine-ready.</li>
+<li><strong>Direct submission.</strong> A portal or API for partners and labs to submit deliverables keyed by SEC — field to public data with no manual hop.</li>
+</ol>
+</section>
+<section id="honest-limits" class="level2">
+<h2 class="anchored" data-anchor-id="honest-limits">Honest limits</h2>
+<ul>
+<li><strong>Adoption depends on people using the code.</strong> Make it the path of least resistance — pre-printed packets, a one-click issue button, a “return the code” clause in lab agreements — with the reconciler catching whatever slips through.</li>
+<li><strong>Parties who don’t coordinate.</strong> Whoever opens the incident issues and shares the SEC; where several parties sample independently, each event gets its own SEC and all reconcile cleanly under one case.</li>
+<li><strong>Legacy data.</strong> Everything already in folders keeps flowing through the existing matcher; the SEC changes the future, not the past.</li>
+</ul>
+<div class="callout callout-style-default callout-important callout-titled" title="Recommendation">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
-Note
+<span class="screen-reader-only">Important</span>Recommendation
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Your staff login and any community-group API key are provided <strong>separately</strong> — they are not in this guide.</p>
+<p>Adopt the <strong>Sampling Event Code</strong> as the linking spine: pre-register every sampling event and push its code upstream to the field and the labs; standardize the electronic deliverable so the code comes home; keep heuristic reconciliation as the exception path. The database is already built for it — the SEC just captures, at the one moment every party shares, the small piece of information we currently spend months trying to recover.</p>
 </div>
 </div>
-</section>
-<section id="source-code-this-manual" class="level2">
-<h2 class="anchored" data-anchor-id="source-code-this-manual">Source code &amp; this manual</h2>
-<p>Open-source on GitHub. The <strong>FHAB app and this manual live in the same repository</strong> — the Flask app is in <code>src/</code>, the manual in <code>manual/</code> — and the manual republishes to GitHub Pages automatically whenever it changes.</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Resource</th>
-<th>Link</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><strong>FHAB app + manual — source repository</strong></td>
-<td><a href="https://github.com/ggearheart/FHAB_Database_Modernized" class="uri">https://github.com/ggearheart/FHAB_Database_Modernized</a></td>
-</tr>
-<tr class="even">
-<td><strong>This manual — source folder</strong></td>
-<td><a href="https://github.com/ggearheart/FHAB_Database_Modernized/tree/main/manual" class="uri">https://github.com/ggearheart/FHAB_Database_Modernized/tree/main/manual</a></td>
-</tr>
-<tr class="odd">
-<td><strong>This manual — published site</strong></td>
-<td><a href="https://ggearheart.github.io/FHAB_Database_Modernized/" class="uri">https://ggearheart.github.io/FHAB_Database_Modernized/</a></td>
-</tr>
-<tr class="even">
-<td><strong>CyanoSafe map (desktop) — source</strong></td>
-<td><a href="https://github.com/ggearheart/CyanoSafe_demo" class="uri">https://github.com/ggearheart/CyanoSafe_demo</a></td>
-</tr>
-<tr class="odd">
-<td><strong>CyanoSafe app (phone / PWA) — source</strong></td>
-<td><a href="https://github.com/ggearheart/CyanoSafe_phone_demo" class="uri">https://github.com/ggearheart/CyanoSafe_phone_demo</a></td>
-</tr>
-</tbody>
-</table>
 
 
 </section>
@@ -740,10 +846,13 @@ Note
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
+      <a href="./lab-ingest.html" class="pagination-link" aria-label="★ Ingesting lab data">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">★ Ingesting lab data</span>
+      </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./lab-ingest.html" class="pagination-link" aria-label="★ Ingesting lab data">
-        <span class="nav-page-text">★ Ingesting lab data</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./community.html" class="pagination-link" aria-label="Community tester">
+        <span class="nav-page-text">Community tester</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

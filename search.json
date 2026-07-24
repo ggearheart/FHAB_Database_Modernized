@@ -1,12 +1,172 @@
 [
   {
+    "objectID": "community.html",
+    "href": "community.html",
+    "title": "Community tester",
+    "section": "",
+    "text": "You don’t need an account. You’re testing the “Report a Bloom” flow and confirming a submission reaches staff.",
+    "crumbs": [
+      "Community tester"
+    ]
+  },
+  {
+    "objectID": "community.html#submit-a-test-bloom-report-phone-pwa",
+    "href": "community.html#submit-a-test-bloom-report-phone-pwa",
+    "title": "Community tester",
+    "section": "Submit a test bloom report (phone / PWA)",
+    "text": "Submit a test bloom report (phone / PWA)\n\nOn your phone, open the CyanoSafe phone app. (Optional: use your browser’s “Add to Home Screen” to install it like an app.)\nTap Bloom List (bottom), then expand 📋 Report a Bloom.\n(Optional) Tap 📷 Take / Choose Photo — this also captures your GPS location.\nFill in at least the Water body name (required) and a location (your GPS, or pick a County). Add date, bloom size, and a short description if you can.\nTap Submit report. You should see “Thank you — your report was received for review.”\n\n\n\n\n\n\n\nTip\n\n\n\nPlease put TEST in the description (e.g. “TEST – ignore”) so staff know it’s a drill.\n\n\n\n\n\n\n\n\nWarningUse a safe email\n\n\n\nThis is a test system holding only open or demo data. If you provide an email, use a work or publicly available address — not a private/sensitive one — and don’t enter any PII you wouldn’t want disclosed. See the data & privacy disclaimer.",
+    "crumbs": [
+      "Community tester"
+    ]
+  },
+  {
+    "objectID": "community.html#what-happens-next",
+    "href": "community.html#what-happens-next",
+    "title": "Community tester",
+    "section": "What happens next",
+    "text": "What happens next\n\nYour report does not appear on the public map immediately. It goes into a staff review queue, where a staffer promotes it to a tracked report or rejects it.\nIf you reported a suspected illness (you or an animal got sick), that automatically alerts the program’s illness team.",
+    "crumbs": [
+      "Community tester"
+    ]
+  },
+  {
+    "objectID": "community.html#what-to-test-look-for",
+    "href": "community.html#what-to-test-look-for",
+    "title": "Community tester",
+    "section": "What to test / look for",
+    "text": "What to test / look for\n\nDoes the form submit successfully? Does the thank-you message appear?\nDoes 📷 + location work on your phone? Is the GPS roughly right?\nTry submitting with only a water body name + county (no GPS). Does it still work?\nTry an obviously bad entry (no water body name). Do you get a clear error?\nIs anything confusing, mislabeled, or hard to tap?",
+    "crumbs": [
+      "Community tester"
+    ]
+  },
+  {
     "objectID": "glossary.html",
     "href": "glossary.html",
     "title": "Glossary",
     "section": "",
-    "text": "Term\nMeaning\n\n\n\n\nReport\nOne observed/suspected bloom event.\n\n\nEvent\nThe first-class record a report becomes; some events become cases.\n\n\nCase\nA grouping of related reports for a waterbody (one region, one year).\n\n\nResponse / Advisory\nA staff action; an advisory is the public-facing caution/warning/danger.\n\n\nDetermination / outcome\nWhat a report turned out to be.\n\n\nSubmission\nA public/community report awaiting staff review (not yet a tracked report).\n\n\nPromote\nTurn a pending submission into a tracked report.\n\n\nProvisional data\nLive data from this system, not the official data.ca.gov release.\n\n\nCEDEN\nThe state environmental data exchange (lab results format).\n\n\nBatch\nOne ingest of lab data (an email folder, a CEDEN file, or a template) that samples are grouped under.\n\n\nCoC (chain of custody)\nThe form tracking a sample from field to lab; often where a sample’s coordinates are recorded.\n\n\nSample / result\nA sample is one collected specimen; a result is one analyte value measured on it.\n\n\nStation\nA sampling location (often a CEDEN station code); geocoded to a point.\n\n\nGeocode\nGive a sample a map location (from the station registry or coordinates off the CoC).\n\n\nReconcile / link\nConnect a lab sample to the event/report/case it belongs to.\n\n\nRoutine sampling\nMonitoring not tied to a bloom report/case; tagged so it leaves the unfinished queue.\n\n\nNon-detect (ND)\nAnalyte tested for but not detected above the method limit.\n\n\nHUC-12 / GeoConnex\nWatershed coding / persistent identifiers for locations.",
+    "text": "Term\nMeaning\n\n\n\n\nReport\nOne observed/suspected bloom event.\n\n\nEvent\nThe first-class record a report becomes; some events become cases.\n\n\nCase\nA grouping of related reports for a waterbody (one region, one year).\n\n\nResponse / Advisory\nA staff action; an advisory is the public-facing caution/warning/danger.\n\n\nDetermination / outcome\nWhat a report turned out to be.\n\n\nSubmission\nA public/community report awaiting staff review (not yet a tracked report).\n\n\nPromote\nTurn a pending submission into a tracked report.\n\n\nProvisional data\nLive data from this system, not the official data.ca.gov release.\n\n\nCEDEN\nThe state environmental data exchange (lab results format).\n\n\nBatch\nOne ingest of lab data (an email folder, a CEDEN file, or a template) that samples are grouped under.\n\n\nCoC (chain of custody)\nThe form tracking a sample from field to lab; often where a sample’s coordinates are recorded.\n\n\nSample / result\nA sample is one collected specimen; a result is one analyte value measured on it.\n\n\nStation\nA sampling location (often a CEDEN station code); geocoded to a point.\n\n\nGeocode\nGive a sample a map location (from the station registry or coordinates off the CoC).\n\n\nReconcile / link\nConnect a lab sample to the event/report/case it belongs to.\n\n\nSampling Event Code (SEC)\nProposed. A short code issued at sampling time and put on every communication (CoC, order, lab results) so data links to the right event by design — see Linking lab data by design.\n\n\nRoutine sampling\nMonitoring not tied to a bloom report/case; tagged so it leaves the unfinished queue.\n\n\nNon-detect (ND)\nAnalyte tested for but not detected above the method limit.\n\n\nHUC-12 / GeoConnex\nWatershed coding / persistent identifiers for locations.",
     "crumbs": [
       "Glossary"
+    ]
+  },
+  {
+    "objectID": "sampling-provenance.html",
+    "href": "sampling-provenance.html",
+    "title": "Linking lab data by design",
+    "section": "",
+    "text": "The companion to ★ Ingesting lab data is this: why linking lab data to the right event/case is hard today, and a concrete idea for making it easy going forward. The how-to page covers what you do now; this page is about where we’re headed.",
+    "crumbs": [
+      "Linking lab data by design"
+    ]
+  },
+  {
+    "objectID": "sampling-provenance.html#the-problem-a-moving-timeline",
+    "href": "sampling-provenance.html#the-problem-a-moving-timeline",
+    "title": "Linking lab data by design",
+    "section": "The problem: a moving timeline",
+    "text": "The problem: a moving timeline\nHAB response isn’t a tidy pipeline. A typical incident plays out like this:\n\nAn incident is opened on partial information — a report, a photo, a call. Whether anyone samples, and who, is often undecided.\nOne or more parties — Water Board staff, a tribe, a lake association, a partner agency — decide independently to sample, each on their own schedule.\nSamples are collected, split, and shipped to different laboratories, each with its own forms, sample IDs, and turnaround.\nResults trickle back about a week later, under the lab’s naming — not the program’s.\nFor a high-concern case, more sampling events follow, multiplying the artifacts.\n\nEverything gets tucked into folders. Months or years later someone opens those folders and tries to reconstruct which result belongs to which sampling event, which event to which case, and which case to which response. That reconstruction is slow, ambiguous, and lossy — and it delays the moment the data can become authoritative public information.",
+    "crumbs": [
+      "Linking lab data by design"
+    ]
+  },
+  {
+    "objectID": "sampling-provenance.html#why-its-hard-now-we-assign-identity-too-late",
+    "href": "sampling-provenance.html#why-its-hard-now-we-assign-identity-too-late",
+    "title": "Linking lab data by design",
+    "section": "Why it’s hard now: we assign identity too late",
+    "text": "Why it’s hard now: we assign identity too late\nThe root cause, in database terms: the key that ties a result to its incident doesn’t exist at the time the sample is taken. It has to be rebuilt afterward from weak signals.\n\nFuzzy matching after the fact. Identity is inferred from station code, date, coordinates, and water-body name. That’s exactly what the Lab data workboard reconciler does today (“within ~2 km and ±14 days”) — but it’s a backstop, not ground truth. Two blooms on the same lake in the same fortnight are genuinely hard to tell apart from coordinates alone.\nThe CoC carries the only authoritative location and date — and it arrives as paper or a rotated PDF someone has to read and retype, often long after the fact.\nEvery party uses its own IDs. Field crew, each lab, and the case file name the same sample three different ways, with no key in common.\nOne sampling event is fragmented — grab samples to Lab A, SPATT to Lab B, genetic assays to Lab C — with nothing declaring they belong together.\n\nNo amount of downstream cleverness fully recovers information that was never captured. The fix is to move identity upstream, to the one moment every party passes through: the act of sampling.",
+    "crumbs": [
+      "Linking lab data by design"
+    ]
+  },
+  {
+    "objectID": "sampling-provenance.html#the-proposal-one-code-issued-at-sampling-time",
+    "href": "sampling-provenance.html#the-proposal-one-code-issued-at-sampling-time",
+    "title": "Linking lab data by design",
+    "section": "The proposal: one code, issued at sampling time",
+    "text": "The proposal: one code, issued at sampling time\nIssue a Sampling Event Code (SEC) the moment a sampling effort is first anticipated — before you know the party, the sample count, or the analyses. It’s a short, human-readable, collision-free token that goes on everything: the sampling order, the CoC, the sample labels, the lab submission, the returned results file, the folder and file names, and the case record.\nFHAB-R5-20260731-7QK2\n │    │      │      └ random + check character (catches a mistype at entry)\n │    │      └ date the sampling event was opened\n │    └ regional board\n └ program\nThe format is self-describing so a person can sanity-check it at a glance, and scope-free at issue: the responsible party, the number of samples, the analytes, and the destination labs all attach to the code as they materialize. You never have to know the shape of the sampling effort in advance — you only have to name it.\n\n\n\n\n\n\nTipIt fits the model we already have\n\n\n\nThe SEC is just the human-facing face of the Sampling Event the system already creates for each ingest (its Sampling_Event_ID, drawn from a reserved id range that can’t collide with the ids published on data.ca.gov). The SEC simply pre-registers that sampling event and pushes its id upstream, so the batch exists before its data arrives instead of being created at ingest.\n\n\nOne high-concern case naturally holds many sampling events over time — each new field effort mints a new SEC under the same case:\n\n\n\n\n\nflowchart LR\n  C[Case] --&gt; R[Report / Event]\n  R --&gt; S1[Sampling Event · SEC #1]\n  R --&gt; S2[Sampling Event · SEC #2]\n  S1 --&gt; A[Sample] --&gt; AR[Result]\n  S2 --&gt; B[Sample] --&gt; BR[Result]",
+    "crumbs": [
+      "Linking lab data by design"
+    ]
+  },
+  {
+    "objectID": "sampling-provenance.html#the-workflow-pre-register-then-reconcile-on-arrival",
+    "href": "sampling-provenance.html#the-workflow-pre-register-then-reconcile-on-arrival",
+    "title": "Linking lab data by design",
+    "section": "The workflow: pre-register, then reconcile on arrival",
+    "text": "The workflow: pre-register, then reconcile on arrival\nThe SEC flips today’s order of operations. Instead of “collect data, then reconstruct identity,” it becomes “declare identity, then collect data against it.”\n\n\n\n\n\n\n\nWhen\nWhat happens\n\n\n\n\nT0 — sampling anticipated\nA staffer clicks Start a sampling event. The system mints the SEC and produces a pre-stamped field packet — CoC header, labels, QR — carrying the SEC, region, and water body if known. Party and analyses left blank.\n\n\nField\nSamples are labeled with the SEC; the CoC is pre-filled with it. Splits to different labs carry the same SEC plus a short sample suffix, so the fragments stay a family.\n\n\nLaboratory\nThe SEC rides the submission and is required back on the deliverable — a field, or a filename convention. A one-line ask in a lab contract or SOP.\n\n\n≈ 1 week later\nIngest matches on the SEC and auto-links every sample and result to the pre-registered event — and thus the case. Anything without a code falls to the workboard reconciler as the exception, not the default.\n\n\n\n\nMove the identifier to the front of the timeline, and the reconciliation work that consumes staff months mostly disappears — because it never has to happen.",
+    "crumbs": [
+      "Linking lab data by design"
+    ]
+  },
+  {
+    "objectID": "sampling-provenance.html#most-of-the-machinery-already-exists",
+    "href": "sampling-provenance.html#most-of-the-machinery-already-exists",
+    "title": "Linking lab data by design",
+    "section": "Most of the machinery already exists",
+    "text": "Most of the machinery already exists\nThis is an increment on what’s built, not a rebuild:\n\n\n\n\n\n\n\n\nCapability\nStatus\nRole in the SEC workflow\n\n\n\n\nSampling Event batch + Sampling_Event_ID\nIn place\nBecomes the record the SEC pre-registers\n\n\nReserved id range (≥ 1e9)\nIn place\nMints SECs that never collide with published ids\n\n\nStation registry (shared codes)\nIn place\nCommon location vocabulary for field & labs\n\n\nWorkboard reconciler (2 km / ±14 d)\nIn place\nFallback for uncoded / legacy data\n\n\nDuplicate detect & merge\nIn place\nTrivial once an SEC is present\n\n\nProvenance & row-level audit\nIn place\nEvery SEC-linked ingest is attributable\n\n\nPre-issued SEC + printable field packet\nTo add\nThe front door of the workflow\n\n\nLab deliverable template + “return the code” clause\nTo add\nGuarantees the code comes home\n\n\nSEC auto-match on ingest\nTo add\nTurns linking into a lookup\n\n\nQR labels / mobile CoC capture\nLater\nRemoves hand-transcription entirely",
+    "crumbs": [
+      "Linking lab data by design"
+    ]
+  },
+  {
+    "objectID": "sampling-provenance.html#habits-that-make-the-code-stick",
+    "href": "sampling-provenance.html#habits-that-make-the-code-stick",
+    "title": "Linking lab data by design",
+    "section": "Habits that make the code stick",
+    "text": "Habits that make the code stick\n\nOne code, every communication — CoC, sample order, lab deliverable, folder and file names, plus a scannable QR for one-tap linking.\nStandardize the deliverable — ask labs for a CEDEN-aligned electronic file carrying the SEC and station code, instead of a PDF to transcribe. Provide a template; make it the default in agreements.\nCapture the CoC as data at T0 — a mobile CoC form stamped with the SEC makes the authoritative location and date digital from minute one, ending the rotated-PDF-and-retype problem.\nShare the station registry — when field crews and labs draw codes from the same list, locations line up by construction.\nKeep the reconciler forever — legacy folders and the occasional un-coded submission always exist; the heuristic matcher stays the safety net beneath the code.",
+    "crumbs": [
+      "Linking lab data by design"
+    ]
+  },
+  {
+    "objectID": "sampling-provenance.html#getting-there-a-phased-rollout",
+    "href": "sampling-provenance.html#getting-there-a-phased-rollout",
+    "title": "Linking lab data by design",
+    "section": "Getting there — a phased rollout",
+    "text": "Getting there — a phased rollout\n\nMint & match (now). Generate the SEC in the app, print it on a CoC cover sheet and sample labels, ask labs to return it, and auto-link on a match at ingest. Uses the sampling-event batch and reconciler that already exist — no field hardware.\nScan & standardize. QR labels and a mobile CoC form for digital capture at T0, plus a CEDEN-aligned deliverable template so results arrive machine-ready.\nDirect submission. A portal or API for partners and labs to submit deliverables keyed by SEC — field to public data with no manual hop.",
+    "crumbs": [
+      "Linking lab data by design"
+    ]
+  },
+  {
+    "objectID": "sampling-provenance.html#honest-limits",
+    "href": "sampling-provenance.html#honest-limits",
+    "title": "Linking lab data by design",
+    "section": "Honest limits",
+    "text": "Honest limits\n\nAdoption depends on people using the code. Make it the path of least resistance — pre-printed packets, a one-click issue button, a “return the code” clause in lab agreements — with the reconciler catching whatever slips through.\nParties who don’t coordinate. Whoever opens the incident issues and shares the SEC; where several parties sample independently, each event gets its own SEC and all reconcile cleanly under one case.\nLegacy data. Everything already in folders keeps flowing through the existing matcher; the SEC changes the future, not the past.\n\n\n\n\n\n\n\nImportantRecommendation\n\n\n\nAdopt the Sampling Event Code as the linking spine: pre-register every sampling event and push its code upstream to the field and the labs; standardize the electronic deliverable so the code comes home; keep heuristic reconciliation as the exception path. The database is already built for it — the SEC just captures, at the one moment every party shares, the small piece of information we currently spend months trying to recover.",
+    "crumbs": [
+      "Linking lab data by design"
+    ]
+  },
+  {
+    "objectID": "feedback.html",
+    "href": "feedback.html",
+    "title": "Feedback & limitations",
+    "section": "",
+    "text": "For each issue, please tell us:\n\nWhich app (CyanoSafe phone / desktop / FHAB Staff) and which page.\nWhat you did, what you expected, and what happened.\nA screenshot if you can, and the date/time and your browser/device.\nSeverity: blocker / annoying / cosmetic / suggestion.\n\nSend feedback to [contact provided separately]. There’s no in-app bug button yet.",
+    "crumbs": [
+      "Feedback & limitations"
+    ]
+  },
+  {
+    "objectID": "feedback.html#giving-feedback",
+    "href": "feedback.html#giving-feedback",
+    "title": "Feedback & limitations",
+    "section": "",
+    "text": "For each issue, please tell us:\n\nWhich app (CyanoSafe phone / desktop / FHAB Staff) and which page.\nWhat you did, what you expected, and what happened.\nA screenshot if you can, and the date/time and your browser/device.\nSeverity: blocker / annoying / cosmetic / suggestion.\n\nSend feedback to [contact provided separately]. There’s no in-app bug button yet.",
+    "crumbs": [
+      "Feedback & limitations"
+    ]
+  },
+  {
+    "objectID": "feedback.html#known-limitations-no-need-to-report-these",
+    "href": "feedback.html#known-limitations-no-need-to-report-these",
+    "title": "Feedback & limitations",
+    "section": "Known limitations (no need to report these)",
+    "text": "Known limitations (no need to report these)\nThese are known and on the roadmap — please don’t file them as bugs:\n\nNo email yet by default — notifications are in-app (the 🔔 bell). Email escalation is only active if the program configures SMTP.\nNo password reset / SSO yet — if you’re locked out, an admin resets your login.\nNo full audit history yet (only a light “recent activity” log).\nPublishing to data.ca.gov is manual — the app generates the files; uploading them is a manual/scheduled step.\nGeoConnex IDs are shown but not yet publicly resolvable.\nThe free hosting tier can be slow on the first request after idle (it “wakes up”); give it a few seconds.",
+    "crumbs": [
+      "Feedback & limitations"
     ]
   },
   {
@@ -90,36 +250,6 @@
     ]
   },
   {
-    "objectID": "feedback.html",
-    "href": "feedback.html",
-    "title": "Feedback & limitations",
-    "section": "",
-    "text": "For each issue, please tell us:\n\nWhich app (CyanoSafe phone / desktop / FHAB Staff) and which page.\nWhat you did, what you expected, and what happened.\nA screenshot if you can, and the date/time and your browser/device.\nSeverity: blocker / annoying / cosmetic / suggestion.\n\nSend feedback to [contact provided separately]. There’s no in-app bug button yet.",
-    "crumbs": [
-      "Feedback & limitations"
-    ]
-  },
-  {
-    "objectID": "feedback.html#giving-feedback",
-    "href": "feedback.html#giving-feedback",
-    "title": "Feedback & limitations",
-    "section": "",
-    "text": "For each issue, please tell us:\n\nWhich app (CyanoSafe phone / desktop / FHAB Staff) and which page.\nWhat you did, what you expected, and what happened.\nA screenshot if you can, and the date/time and your browser/device.\nSeverity: blocker / annoying / cosmetic / suggestion.\n\nSend feedback to [contact provided separately]. There’s no in-app bug button yet.",
-    "crumbs": [
-      "Feedback & limitations"
-    ]
-  },
-  {
-    "objectID": "feedback.html#known-limitations-no-need-to-report-these",
-    "href": "feedback.html#known-limitations-no-need-to-report-these",
-    "title": "Feedback & limitations",
-    "section": "Known limitations (no need to report these)",
-    "text": "Known limitations (no need to report these)\nThese are known and on the roadmap — please don’t file them as bugs:\n\nNo email yet by default — notifications are in-app (the 🔔 bell). Email escalation is only active if the program configures SMTP.\nNo password reset / SSO yet — if you’re locked out, an admin resets your login.\nNo full audit history yet (only a light “recent activity” log).\nPublishing to data.ca.gov is manual — the app generates the files; uploading them is a manual/scheduled step.\nGeoConnex IDs are shown but not yet publicly resolvable.\nThe free hosting tier can be slow on the first request after idle (it “wakes up”); give it a few seconds.",
-    "crumbs": [
-      "Feedback & limitations"
-    ]
-  },
-  {
     "objectID": "staff.html",
     "href": "staff.html",
     "title": "Program staff",
@@ -170,46 +300,6 @@
     ]
   },
   {
-    "objectID": "community.html",
-    "href": "community.html",
-    "title": "Community tester",
-    "section": "",
-    "text": "You don’t need an account. You’re testing the “Report a Bloom” flow and confirming a submission reaches staff.",
-    "crumbs": [
-      "Community tester"
-    ]
-  },
-  {
-    "objectID": "community.html#submit-a-test-bloom-report-phone-pwa",
-    "href": "community.html#submit-a-test-bloom-report-phone-pwa",
-    "title": "Community tester",
-    "section": "Submit a test bloom report (phone / PWA)",
-    "text": "Submit a test bloom report (phone / PWA)\n\nOn your phone, open the CyanoSafe phone app. (Optional: use your browser’s “Add to Home Screen” to install it like an app.)\nTap Bloom List (bottom), then expand 📋 Report a Bloom.\n(Optional) Tap 📷 Take / Choose Photo — this also captures your GPS location.\nFill in at least the Water body name (required) and a location (your GPS, or pick a County). Add date, bloom size, and a short description if you can.\nTap Submit report. You should see “Thank you — your report was received for review.”\n\n\n\n\n\n\n\nTip\n\n\n\nPlease put TEST in the description (e.g. “TEST – ignore”) so staff know it’s a drill.\n\n\n\n\n\n\n\n\nWarningUse a safe email\n\n\n\nThis is a test system holding only open or demo data. If you provide an email, use a work or publicly available address — not a private/sensitive one — and don’t enter any PII you wouldn’t want disclosed. See the data & privacy disclaimer.",
-    "crumbs": [
-      "Community tester"
-    ]
-  },
-  {
-    "objectID": "community.html#what-happens-next",
-    "href": "community.html#what-happens-next",
-    "title": "Community tester",
-    "section": "What happens next",
-    "text": "What happens next\n\nYour report does not appear on the public map immediately. It goes into a staff review queue, where a staffer promotes it to a tracked report or rejects it.\nIf you reported a suspected illness (you or an animal got sick), that automatically alerts the program’s illness team.",
-    "crumbs": [
-      "Community tester"
-    ]
-  },
-  {
-    "objectID": "community.html#what-to-test-look-for",
-    "href": "community.html#what-to-test-look-for",
-    "title": "Community tester",
-    "section": "What to test / look for",
-    "text": "What to test / look for\n\nDoes the form submit successfully? Does the thank-you message appear?\nDoes 📷 + location work on your phone? Is the GPS roughly right?\nTry submitting with only a water body name + county (no GPS). Does it still work?\nTry an obviously bad entry (no water body name). Do you get a clear error?\nIs anything confusing, mislabeled, or hard to tap?",
-    "crumbs": [
-      "Community tester"
-    ]
-  },
-  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "FHAB Database Modernized — Tester Guide",
@@ -224,7 +314,7 @@
     "href": "index.html#pick-your-track",
     "title": "FHAB Database Modernized — Tester Guide",
     "section": "Pick your track",
-    "text": "Pick your track\n\n★ Ingesting lab data — the priority for this round: bring lab chemistry in (email folders, CEDEN, spreadsheets) and reconcile it to events/reports/cases.\nProgram staff — the rest of the staff workspace: submissions, reports, cases, map, open data, admin.\nCommunity tester — submit a bloom report from the CyanoSafe app, no login needed.",
+    "text": "Pick your track\n\n★ Ingesting lab data — the priority for this round: bring lab chemistry in (email folders, CEDEN, spreadsheets) and reconcile it to events/reports/cases.\nProgram staff — the rest of the staff workspace: submissions, reports, cases, map, open data, admin.\nLinking lab data by design — a proposal for why lab-data linking is hard today and how a sampling-time code could make it easy going forward.\nCommunity tester — submit a bloom report from the CyanoSafe app, no login needed.",
     "crumbs": [
       "Overview"
     ]

@@ -43,7 +43,7 @@ ul.task-list li input[type="checkbox"] {
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-5fb448b00732dd88136e241bb51351ee.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-1a89dfc187a26ae7882a0c373dece39f.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -140,6 +140,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./sampling-provenance.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Linking lab data by design</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./community.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Community tester</span></a>
   </div>
@@ -193,10 +199,6 @@ ul.task-list li input[type="checkbox"] {
 
 
 <table class="caption-top table">
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Term</th>
@@ -265,14 +267,18 @@ ul.task-list li input[type="checkbox"] {
 <td>Connect a lab sample to the event/report/case it belongs to.</td>
 </tr>
 <tr class="even">
+<td><strong>Sampling Event Code (SEC)</strong></td>
+<td><em>Proposed.</em> A short code issued at sampling time and put on every communication (CoC, order, lab results) so data links to the right event by design — see <a href="./sampling-provenance.html">Linking lab data by design</a>.</td>
+</tr>
+<tr class="odd">
 <td><strong>Routine sampling</strong></td>
 <td>Monitoring not tied to a bloom report/case; tagged so it leaves the unfinished queue.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><strong>Non-detect (ND)</strong></td>
 <td>Analyte tested for but not detected above the method limit.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><strong>HUC-12 / GeoConnex</strong></td>
 <td>Watershed coding / persistent identifiers for locations.</td>
 </tr>
