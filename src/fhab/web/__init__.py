@@ -39,7 +39,7 @@ from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, c
                         set_sample_location, set_sample_point, status_tallies, tag_routine,
                         team_members, unlink_sample, unlink_sample_station, workboard)
 from ..ocr import OcrUnavailable, ocr_pdf_coords
-from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov
+from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov, reset_local_edit_flags
 from ..samples import count_samples, create_sample, get_sample, list_samples, update_sample
 from ..settings import EMAIL_NEW_REPORT, FORWARD_TO, get_setting, set_setting
 from ..dedup import candidate_duplicate_samples, duplicate_count, merge_samples
@@ -1600,7 +1600,16 @@ def create_app(dsn: str | None = None) -> Flask:
     @admin_required
     def admin_refresh():
         report = mode = None
-        if request.method == "POST":
+        if request.method == "POST" and request.form.get("reset_flags") == "1":
+            try:
+                res = reset_local_edit_flags(db())
+                flash("Cleared local-edit protection — events {event}, cases {hab_case}, "
+                      "responses {response}, advisories {advisory}. The refresh will update "
+                      "published fields again.".format(**res), "ok")
+            except Exception as exc:  # noqa: BLE001
+                db().rollback()
+                flash("Could not clear flags: " + str(exc).splitlines()[0], "error")
+        elif request.method == "POST":
             apply = request.form.get("apply") == "1"
             if apply and request.form.get("confirm") != "UPDATE":
                 flash('Type UPDATE to confirm applying the refresh.', "error")
