@@ -134,7 +134,11 @@ _REGION_RE = re.compile(r"\bRB\s*([1-9])\b", re.I)
 _CATEGORY = [(re.compile(r"results.*\.csv$", re.I), "data"),
              (re.compile(r"^coc", re.I), "coc"),
              (re.compile(r"testing_results.*\.pdf$", re.I), "transmittal"),
-             (re.compile(r"receipt", re.I), "receipt")]
+             (re.compile(r"receipt", re.I), "receipt"),
+             (re.compile(r"-email\.txt$", re.I), "email"),
+             (re.compile(r"\.(msg|eml)$", re.I), "email")]
+
+_EMAIL_EXTS = {".eml", ".msg"}
 
 
 def _categorize(name: str) -> str:
@@ -157,6 +161,112 @@ def _in_registry(conn, code: str | None) -> bool:
         (code.strip(),)).fetchone())
 
 
+def _write_unique(folder: Path, prefix: str, name: str, data) -> Path | None:
+    """Write bytes into `folder` under a collision-safe basename. Returns the path (or None)."""
+    base = Path((name or "").replace("\\", "/")).name.strip()
+    if not base or data is None:
+        return None
+    dest = folder / base
+    if dest.exists():
+        dest = folder / f"{prefix}__{base}"
+    dest.write_bytes(data if isinstance(data, (bytes, bytearray)) else str(data).encode("utf-8"))
+    return dest
+
+
+def _extract_eml(path: Path):
+    """Attachments + body text from a .eml (RFC 822) via the standard library.
+
+    Skips inline images (signature logos) so only real attachments — the results spreadsheet,
+    the CoC/transmittal/receipt PDFs — are unpacked. Returns (attachments, body, subject).
+    """
+    import email
+    from email import policy
+    with open(path, "rb") as fh:
+        msg = email.message_from_binary_file(fh, policy=policy.default)
+    atts = []
+    for part in msg.iter_attachments():
+        fn = part.get_filename()
+        if not fn:
+            continue
+        ctype = (part.get_content_type() or "").lower()
+        inline = part.get("Content-ID") or part.get_content_disposition() == "inline"
+        if ctype.startswith("image/") and inline:
+            continue
+        data = part.get_payload(decode=True)
+        if data:
+            atts.append((fn, data))
+    body = None
+    try:
+        b = msg.get_body(preferencelist=("plain", "html"))
+        if b is not None:
+            body = b.get_content()
+    except Exception:  # noqa: BLE001
+        pass
+    return atts, body, (msg.get("Subject") or "").strip() or None
+
+
+def _extract_msg(path: Path):
+    """Attachments + body/subject from an Outlook .msg (OLE compound file) via olefile.
+
+    Reads the MAPI attachment storages (`__attach_version1.0_*`): long/short filename streams
+    (0x3707 / 0x3704) and the binary data stream (0x37010102). Embedded-message attachments are
+    skipped. Returns (attachments, body, subject).
+    """
+    import olefile
+
+    def _stream(ole, parts):
+        for tag, enc in parts:
+            if ole.exists(tag):
+                raw = ole.openstream(tag).read()
+                try:
+                    return raw.decode(enc, "ignore").replace("\x00", "").strip() if enc else raw
+                except Exception:  # noqa: BLE001
+                    return raw
+        return None
+
+    atts, body, subject = [], None, None
+    with olefile.OleFileIO(str(path)) as ole:
+        entries = ole.listdir(streams=True, storages=True)
+        storages = sorted({e[0] for e in entries if e and e[0].startswith("__attach_version1.0")})
+        for d in storages:
+            fn = _stream(ole, [([d, "__substg1.0_3707001F"], "utf-16-le"),
+                               ([d, "__substg1.0_3707001E"], "latin-1"),
+                               ([d, "__substg1.0_3704001F"], "utf-16-le"),
+                               ([d, "__substg1.0_3704001E"], "latin-1")])
+            data = _stream(ole, [([d, "__substg1.0_37010102"], None)])
+            if fn and isinstance(data, (bytes, bytearray)):
+                atts.append((fn, bytes(data)))
+        body = _stream(ole, [(["__substg1.0_1000001F"], "utf-16-le"),
+                             (["__substg1.0_1000001E"], "latin-1")])
+        subject = _stream(ole, [(["__substg1.0_0037001F"], "utf-16-le"),
+                                (["__substg1.0_0037001E"], "latin-1")])
+    return atts, body, (subject or None)
+
+
+def expand_email_files(folder) -> dict:
+    """Unpack any .eml/.msg in `folder` into their attachments (results CSV, CoC/transmittal PDFs)
+    so the normal folder ingest picks them up. The email body is saved as `<stem>-email.txt` and
+    the original message is left in place — both stored on the batch for provenance. The first
+    email's subject is returned as a suggested batch label. Best-effort: a message that can't be
+    parsed is left as-is and simply attached whole."""
+    folder = Path(folder)
+    emails = sorted(p for p in folder.iterdir()
+                    if p.is_file() and p.suffix.lower() in _EMAIL_EXTS)
+    extracted, subject = 0, None
+    for p in emails:
+        try:
+            atts, body, subj = _extract_eml(p) if p.suffix.lower() == ".eml" else _extract_msg(p)
+        except Exception:  # noqa: BLE001 — unparseable email: keep the raw file, skip extraction
+            continue
+        subject = subject or subj
+        for name, data in atts:
+            if _write_unique(folder, p.stem, name, data):
+                extracted += 1
+        if body:
+            _write_unique(folder, p.stem, f"{p.stem}-email.txt", body)
+    return {"emails": len(emails), "attachments": extracted, "subject": subject}
+
+
 def attach_batch_file(conn, batch_id: int, path: Path, category: str) -> int:
     """Store one source file's bytes on the batch. Returns lab_batch_file.id."""
     data = Path(path).read_bytes()
@@ -174,7 +284,10 @@ def ingest_bend_folder(conn: psycopg.Connection, folder, *, source: str | None =
     Returns a stats dict. Uses the owner connection (bypasses RLS) like the CEDEN batch loader.
     """
     folder = Path(folder)
-    source = source or folder.name
+    # Unpack any raw lab emails (.eml/.msg) into their attachments first, so a staffer can drop the
+    # whole email in and the results spreadsheet + CoC PDFs get ingested like any other folder.
+    unpacked = expand_email_files(folder)
+    source = source or unpacked.get("subject") or folder.name
     region = region or region_from(source)
     files = sorted(p for p in folder.iterdir() if p.is_file() and not p.name.startswith("."))
     data_csv = next((p for p in files if _categorize(p.name) == "data"), None)

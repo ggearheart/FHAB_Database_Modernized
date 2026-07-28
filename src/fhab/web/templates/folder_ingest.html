@@ -8,10 +8,14 @@
     sample-receipt PDFs. The chemistry is converted to CEDEN long form and materialized as
     <em>unlinked</em> samples (geocoded from the CEDEN station registry where the station code is
     known), ready to reconcile on the workboard. The original files are kept on the batch.</p>
+  <p class="muted">Or just drop in the <strong>raw email itself</strong> — a
+    <code>.eml</code> or Outlook <code>.msg</code> — and its attachments (results spreadsheet, CoC
+    PDFs) are unpacked and ingested automatically. The email body and the original message are kept
+    on the batch, and its subject line pre-fills the batch label.</p>
   <form method="post" enctype="multipart/form-data">
     <div class="row">
-      <div><label>Folder files * (select all)</label><input type="file" name="files" multiple required></div>
-      <div><label>Source label</label><input name="source" placeholder="e.g. Clear Lake (RB5)"></div>
+      <div><label>Folder files or lab email * (select all)</label><input type="file" name="files" accept=".csv,.xlsx,.pdf,.eml,.msg,.txt" multiple required></div>
+      <div><label>Source label</label><input name="source" placeholder="e.g. Clear Lake (RB5) — or leave blank to use the email subject"></div>
     </div>
     <p></p>
     <button>Ingest folder</button>

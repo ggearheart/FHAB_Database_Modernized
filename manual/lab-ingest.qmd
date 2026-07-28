@@ -17,7 +17,7 @@ results to a single report/case, which is on the report/case page itself.
 
 | The lab data arrived as… | Use | Menu |
 |---|---|---|
-| A **folder of email attachments** from Bend/partner (a results spreadsheet + chain-of-custody / transmittal / receipt PDFs) | **Ingest lab email folders** | Ingest Data → *Ingest lab email folders* |
+| A **folder of email attachments** from Bend/partner (a results spreadsheet + chain-of-custody / transmittal / receipt PDFs) — **or the raw `.eml` / `.msg` email** | **Ingest lab email folders** | Ingest Data → *Ingest lab email folders* |
 | A **CEDEN WaterChemistry CSV** (the Bend→CEDEN workflow output) | **Upload CEDEN lab data** | Ingest Data → *Upload CEDEN lab data* |
 | A **full CEDEN chemistry template** where StationCode + date is the only link to an event | **Lab batch reconciliation** | Ingest Data → *Lab batch reconciliation* |
 | Results for **one already-known report or case** | **Attach on the report/case** | Reports / Cases → *Lab upload* |
@@ -42,6 +42,15 @@ files on the batch** for provenance.
    **and** the PDFs). Add a **Source label** like `Clear Lake (RB5)` (optional but helpful).
 3. **Ingest folder.** You'll get a summary — *"Ingested N samples (M geocoded), K results; stored
    J files"* — and land on the workboard filtered to that batch.
+
+::: {.callout-tip title="Drop in the raw email (.eml / .msg)"}
+You don't have to pull the attachments out first. You can select the **whole lab email** — a saved
+`.eml` or an Outlook `.msg` — and its attachments (the **results spreadsheet** and the
+**CoC / transmittal / receipt PDFs**) are unpacked and ingested automatically. Inline signature
+logos are skipped; the email **body** and the **original message** are kept on the batch for
+provenance; and if you leave *Source label* blank, the email's **subject line** becomes the batch
+label. You can mix a `.msg`/`.eml` with loose files in the same selection.
+:::
 
 ::: {.callout-tip title="Many folders at once"}
 Have a **parent folder that holds many lab folders** (one per email)? Use the **Many folders at

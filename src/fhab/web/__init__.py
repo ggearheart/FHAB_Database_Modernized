@@ -336,7 +336,7 @@ def create_app(dsn: str | None = None) -> Flask:
             {"title": "Upload CEDEN lab data", "href": url_for("batch_ceden"),
              "desc": "Ingest a CEDEN WaterChemistry CSV, or pull from a URL."},
             {"title": "Ingest lab email folders", "href": url_for("folder_ingest"),
-             "desc": "Load a Bend/partner results folder (CSV + CoC/transmittal PDFs); files kept on the batch."},
+             "desc": "Load a Bend/partner results folder — or the raw .eml/.msg email; attachments are unpacked and ingested."},
             {"title": "Import prepared CSV", "href": url_for("import_consolidated_csv"),
              "desc": "Load a consolidated, pre-geocoded & classified CSV (many sampling events at once)."},
             {"title": "Lab batch reconciliation", "href": url_for("lab_reconcile"),
