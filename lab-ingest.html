@@ -251,7 +251,7 @@ ul.task-list li input[type="checkbox"] {
 </thead>
 <tbody>
 <tr class="odd">
-<td>A <strong>folder of email attachments</strong> from Bend/partner (a results spreadsheet + chain-of-custody / transmittal / receipt PDFs)</td>
+<td>A <strong>folder of email attachments</strong> from Bend/partner (a results spreadsheet + chain-of-custody / transmittal / receipt PDFs) — <strong>or the raw <code>.eml</code> / <code>.msg</code> email</strong></td>
 <td><strong>Ingest lab email folders</strong></td>
 <td>Ingest Data → <em>Ingest lab email folders</em></td>
 </tr>
@@ -284,6 +284,19 @@ ul.task-list li input[type="checkbox"] {
 <li>Under <em>Folder files</em>, select <strong>all</strong> the files from the one email folder (the results CSV/XLSX <strong>and</strong> the PDFs). Add a <strong>Source label</strong> like <code>Clear Lake (RB5)</code> (optional but helpful).</li>
 <li><strong>Ingest folder.</strong> You’ll get a summary — <em>“Ingested N samples (M geocoded), K results; stored J files”</em> — and land on the workboard filtered to that batch.</li>
 </ol>
+<div class="callout callout-style-default callout-tip callout-titled" title="Drop in the raw email (.eml / .msg)">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Drop in the raw email (.eml / .msg)
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>You don’t have to pull the attachments out first. You can select the <strong>whole lab email</strong> — a saved <code>.eml</code> or an Outlook <code>.msg</code> — and its attachments (the <strong>results spreadsheet</strong> and the <strong>CoC / transmittal / receipt PDFs</strong>) are unpacked and ingested automatically. Inline signature logos are skipped; the email <strong>body</strong> and the <strong>original message</strong> are kept on the batch for provenance; and if you leave <em>Source label</em> blank, the email’s <strong>subject line</strong> becomes the batch label. You can mix a <code>.msg</code>/<code>.eml</code> with loose files in the same selection.</p>
+</div>
+</div>
 <div class="callout callout-style-default callout-tip callout-titled" title="Many folders at once">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
