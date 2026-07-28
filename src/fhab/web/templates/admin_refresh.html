@@ -20,6 +20,17 @@
   </form>
 </div>
 
+<div class="card">
+  <h2 style="font-size:1.05rem; margin-top:0">Refresh not updating anything?</h2>
+  <p class="muted">If the refresh reports everything as <strong>preserved</strong> and updates nothing,
+    records may be stuck marked <em>locally edited</em>. Clearing the flags lets the refresh update
+    published fields again; genuine staff edits will re-protect themselves the next time they're changed.</p>
+  <form method="post" onsubmit="return confirm('Clear the locally-edited protection on all published records?')">
+    <input type="hidden" name="reset_flags" value="1">
+    <button class="secondary">Clear local-edit flags</button>
+  </form>
+</div>
+
 {% if report %}
 <div class="card">
   <h1 style="font-size:1.05rem">{{ 'Applied' if mode == 'apply' else 'Preview' }} — what

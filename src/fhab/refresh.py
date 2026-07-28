@@ -290,6 +290,12 @@ def refresh_from_dir(conn: psycopg.Connection, data_dir, *, dry_run: bool = True
     """
     loader = RefreshLoader(conn, data_dir)
     try:
+        # The refresh is a SYSTEM sync, not a human edit. Run it actor-less (transaction-local)
+        # so the flag_local_edit trigger (governance #3) doesn't mark every touched row as
+        # locally edited — which would make the *next* refresh preserve everything and no-op —
+        # and so the audit log attributes these writes to the system (NULL actor). The web layer
+        # sets fhab.user_id per request (for audit); this override lasts only this transaction.
+        conn.execute("SELECT set_config('fhab.user_id', '', true)")
         loader.load_cases()
         loader.load_events()
         loader.load_responses()
@@ -302,6 +308,19 @@ def refresh_from_dir(conn: psycopg.Connection, data_dir, *, dry_run: bool = True
         conn.rollback()
         raise
     return loader.report
+
+
+def reset_local_edit_flags(conn: psycopg.Connection) -> dict:
+    """Clear locally_edited on the published tables. Recovery for a DB where an earlier refresh
+    (run before the actor-less fix) wrongly flagged every row, which then made the refresh
+    preserve everything. Runs actor-less so flag_local_edit doesn't immediately re-set the flag."""
+    conn.execute("SELECT set_config('fhab.user_id', '', true)")
+    out = {}
+    for t in ("event", "hab_case", "response", "advisory"):
+        out[t] = len(conn.execute(
+            f"UPDATE {t} SET locally_edited = false WHERE locally_edited RETURNING 1").fetchall())
+    conn.commit()
+    return out
 
 
 def refresh_from_ca_gov(conn: psycopg.Connection, *, dry_run: bool = True, workdir=None) -> LoadReport:

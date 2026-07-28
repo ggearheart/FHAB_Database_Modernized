@@ -62,6 +62,34 @@ def test_locally_edited_record_is_preserved(loaded_conn):
     assert rep.preserved.get("events", 0) >= 1
 
 
+def test_refresh_runs_actorless_even_inside_a_web_request(loaded_conn):
+    """Regression: the web layer stamps fhab.user_id per request (for the audit log). The refresh
+    must still run actor-less so its own writes don't trip flag_local_edit and mark every row
+    locally edited — which would make the *next* refresh preserve everything and update nothing."""
+    conn = loaded_conn
+    conn.execute("SELECT set_config('fhab.user_id', '1', false)")   # a logged-in admin request
+    refresh_from_dir(conn, FIXTURES, dry_run=False)                 # updates rows (sets last_synced_at)
+    flagged = conn.execute("SELECT count(*) c FROM event WHERE locally_edited").fetchone()["c"]
+    assert flagged == 0                                             # refresh did NOT self-flag
+
+    conn.execute("SELECT set_config('fhab.user_id', '1', false)")
+    rep2 = refresh_from_dir(conn, FIXTURES, dry_run=False)          # still works second time
+    assert sum(rep2.updated.values()) > 0 and sum(rep2.preserved.values()) == 0
+
+
+def test_reset_local_edit_flags(loaded_conn):
+    """Recovery clears stale flags even when a human actor is set (or the flag trigger would
+    immediately re-set them)."""
+    from fhab.refresh import reset_local_edit_flags
+    conn = loaded_conn
+    conn.execute("SELECT set_config('fhab.user_id', '7', false)")
+    conn.execute("UPDATE event SET bloom_size = 'EDITED'")           # human edit -> flags rows
+    conn.commit()
+    assert conn.execute("SELECT count(*) c FROM event WHERE locally_edited").fetchone()["c"] > 0
+    reset_local_edit_flags(conn)
+    assert conn.execute("SELECT count(*) c FROM event WHERE locally_edited").fetchone()["c"] == 0
+
+
 def test_apply_inserts_missing_records(loaded_conn):
     conn = loaded_conn
     eid = conn.execute("SELECT bloom_report_id FROM event ORDER BY bloom_report_id DESC "
