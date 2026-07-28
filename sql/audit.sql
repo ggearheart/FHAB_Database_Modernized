@@ -29,11 +29,19 @@ CREATE INDEX IF NOT EXISTS audit_log_actor_idx     ON audit_log (actor_id);
 CREATE OR REPLACE FUNCTION audit_row_change() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-    uid text  := current_setting('fhab.user_id', true);
-    b   jsonb := to_jsonb(OLD);
-    a   jsonb := CASE WHEN TG_OP <> 'DELETE' THEN to_jsonb(NEW) END;
+    uid text := current_setting('fhab.user_id', true);
+    b   jsonb;
+    a   jsonb;
     ch  text[];
 BEGIN
+    -- Bulk system syncs (e.g. the data.ca.gov refresh, which touches ~20k rows) set fhab.bulk_op
+    -- and are NOT row-audited — per-row auditing there is pure noise and would blow the request
+    -- timeout. Checked before any to_jsonb work so those writes carry zero trigger cost.
+    IF current_setting('fhab.bulk_op', true) = '1' THEN
+        RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+    END IF;
+    b := to_jsonb(OLD);
+    a := CASE WHEN TG_OP <> 'DELETE' THEN to_jsonb(NEW) END;
     IF TG_OP = 'UPDATE' THEN
         IF b IS NOT DISTINCT FROM a THEN
             RETURN NEW;                 -- no-op update (e.g. a refresh writing identical values)
@@ -76,6 +84,9 @@ END $$;
 CREATE OR REPLACE FUNCTION flag_local_edit() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+    IF current_setting('fhab.bulk_op', true) = '1' THEN     -- system sync: don't flag or pay to_jsonb
+        RETURN NEW;
+    END IF;
     IF nullif(current_setting('fhab.user_id', true), '') IS NOT NULL
        AND to_jsonb(NEW) IS DISTINCT FROM to_jsonb(OLD) THEN
         NEW.locally_edited := true;

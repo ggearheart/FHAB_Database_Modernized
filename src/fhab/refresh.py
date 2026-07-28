@@ -290,11 +290,12 @@ def refresh_from_dir(conn: psycopg.Connection, data_dir, *, dry_run: bool = True
     """
     loader = RefreshLoader(conn, data_dir)
     try:
-        # The refresh is a SYSTEM sync, not a human edit. Run it actor-less (transaction-local)
-        # so the flag_local_edit trigger (governance #3) doesn't mark every touched row as
-        # locally edited — which would make the *next* refresh preserve everything and no-op —
-        # and so the audit log attributes these writes to the system (NULL actor). The web layer
-        # sets fhab.user_id per request (for audit); this override lasts only this transaction.
+        # The refresh is a bulk SYSTEM sync (~20k upserts), not a human edit. Mark it so the audit
+        # + flag triggers skip it entirely (transaction-local): per-row auditing here would be pure
+        # noise and — because every row's last_synced_at changes — an audit insert PER ROW, which
+        # blows the request timeout. Skipping also prevents flag_local_edit from marking every row
+        # locally_edited (which would make the next refresh preserve everything and no-op).
+        conn.execute("SELECT set_config('fhab.bulk_op', '1', true)")
         conn.execute("SELECT set_config('fhab.user_id', '', true)")
         loader.load_cases()
         loader.load_events()
@@ -313,7 +314,9 @@ def refresh_from_dir(conn: psycopg.Connection, data_dir, *, dry_run: bool = True
 def reset_local_edit_flags(conn: psycopg.Connection) -> dict:
     """Clear locally_edited on the published tables. Recovery for a DB where an earlier refresh
     (run before the actor-less fix) wrongly flagged every row, which then made the refresh
-    preserve everything. Runs actor-less so flag_local_edit doesn't immediately re-set the flag."""
+    preserve everything. Runs as a bulk op so flag_local_edit doesn't immediately re-set the flag
+    and the reset isn't row-audited."""
+    conn.execute("SELECT set_config('fhab.bulk_op', '1', true)")
     conn.execute("SELECT set_config('fhab.user_id', '', true)")
     out = {}
     for t in ("event", "hab_case", "response", "advisory"):
