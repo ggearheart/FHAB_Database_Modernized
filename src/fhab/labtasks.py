@@ -66,6 +66,14 @@ def _where(f: dict, me: int | None):
         cond.append("st.geom IS NOT NULL")
     elif geo == "no":
         cond.append("st.geom IS NULL")
+    # Attached files (CoC / transmittal / receipt / data) live on the sample's ingest batch, so
+    # "has files" = the sample's lab_batch has at least one stored file. This surfaces the samples
+    # that carry a CoC to read coordinates off, vs. those ingested with no source documents.
+    files = f.get("files")
+    if files == "yes":
+        cond.append("EXISTS (SELECT 1 FROM lab_batch_file bf WHERE bf.batch_id = s.lab_batch_id)")
+    elif files == "no":
+        cond.append("NOT EXISTS (SELECT 1 FROM lab_batch_file bf WHERE bf.batch_id = s.lab_batch_id)")
     if f.get("q"):
         cond.append("(st.station_code ILIKE %(q)s OR w.water_body_name ILIKE %(q)s)")
         p["q"] = "%" + f["q"] + "%"
@@ -81,7 +89,9 @@ def workboard(conn, f: dict, *, me=None, sort="date", desc=True, limit=100, offs
                    s.bloom_report_id, s.case_id, w.water_body_name, w.regional_water_board,
                    au.email AS assignee, s.qa_status, s.qa_note, ({_STATUS}) AS status,
                    s.lab_batch_id AS event_id, b.source AS event_name,
+                   b.uploaded_at AS ingested_at, b.kind AS batch_kind,
                    (SELECT count(*) FROM result r WHERE r.sample_id = s.id) AS n_results,
+                   (SELECT count(*) FROM lab_batch_file bf WHERE bf.batch_id = s.lab_batch_id) AS n_files,
                    COALESCE(ST_Y(st.geom), ST_Y(l.geom)) AS lat,
                    COALESCE(ST_X(st.geom), ST_X(l.geom)) AS lon
             {_FROM}{extra}
@@ -109,6 +119,13 @@ def status_tallies(conn) -> dict:
         if r["status"] == "unlinked":
             t["unlinked_geocoded"] = r["geo"]
             t["unlinked_nogeo"] = r["c"] - r["geo"]
+    # Of the samples that still need coordinates, how many carry source files (a CoC to read
+    # coordinates off) — the actionable subset a reviewer can make progress on right now.
+    t["unlinked_nogeo_files"] = conn.execute(
+        f"""SELECT count(*) AS c {_FROM}
+            AND ({_STATUS}) = 'unlinked' AND st.geom IS NULL
+            AND EXISTS (SELECT 1 FROM lab_batch_file bf WHERE bf.batch_id = s.lab_batch_id)"""
+    ).fetchone()["c"]
     return t
 
 
@@ -291,10 +308,12 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8, at=None) -> dict:
                   s.site, s.lab_batch_id, st.station_code, st.station_name,
                   ST_Y(st.geom) AS st_lat, ST_X(st.geom) AS st_lon,
                   b.kind AS batch_kind, b.source AS batch_source, b.filename AS batch_filename,
+                  b.uploaded_at AS ingested_at, ub.email AS ingested_by,
                   (SELECT count(*) FROM result r WHERE r.sample_id = s.id) AS n_results
            FROM sample s
            LEFT JOIN station st ON st.id = s.station_id
            LEFT JOIN lab_batch b ON b.id = s.lab_batch_id
+           LEFT JOIN app_user ub ON ub.id = b.uploaded_by
            WHERE s.id = %s""",
         (sample_id,)).fetchone()
     out = {"label": None, "sample_date": None, "station": None, "linked": None,
@@ -317,6 +336,9 @@ def sample_geo(conn, sample_id, *, radius_m=8000, limit=8, at=None) -> dict:
         "station_code": s["station_code"], "sample_type": s["sample_type"],
         "bg_id": s["bg_id"], "lab_sample_id": s["lab_sample_id"],
         "lab_batch": s["lab_batch"], "project_code": s["project_code"],
+        "sampling_event_id": s["lab_batch_id"], "batch_kind": s["batch_kind"],
+        "ingested_at": str(s["ingested_at"])[:16] if s["ingested_at"] else None,
+        "ingested_by": s["ingested_by"],
     }
     out["label"] = f"{s['station_code'] or 'sample'} · {s['sample_date'] or '—'}"
     out["sample_date"] = str(s["sample_date"]) if s["sample_date"] else None

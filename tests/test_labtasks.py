@@ -228,6 +228,56 @@ def test_set_location_geocodes_and_probe_finds_reports(conn):
     assert g2["station"] and abs(g2["station"]["lat"] - 38.5) < 1e-6
 
 
+def test_files_filter_and_tally(conn):
+    """The Files filter surfaces samples whose ingest batch has stored files (a CoC to read
+    coords off), and the 'needs geocoding · has files' tally counts the actionable subset."""
+    from fhab.labtasks import count_workboard, status_tallies, workboard
+    # a batch WITH a stored CoC file, holding one ungeocoded sample
+    bid = conn.execute("INSERT INTO lab_batch (kind, source) VALUES ('ingested','With CoC') "
+                       "RETURNING id").fetchone()["id"]
+    conn.execute("INSERT INTO lab_batch_file (batch_id, category, filename, data) "
+                 "VALUES (%s,'coc','COC_x.pdf', %s)", (bid, b"%PDF"))
+    stf = conn.execute("INSERT INTO station (station_code) VALUES ('HASFILE') RETURNING id").fetchone()["id"]
+    s_files = conn.execute("INSERT INTO sample (station_id, lab_batch_id, sample_date) "
+                           "VALUES (%s,%s,'2026-06-15') RETURNING id", (stf, bid)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('hf1',%s,'Laboratory')",
+                 (s_files,))
+    # a batch with NO files (e.g. the prepared-CSV import), also ungeocoded
+    bid2 = conn.execute("INSERT INTO lab_batch (kind, source) VALUES ('ingested','No files') "
+                        "RETURNING id").fetchone()["id"]
+    stn = conn.execute("INSERT INTO station (station_code) VALUES ('NOFILE') RETURNING id").fetchone()["id"]
+    s_none = conn.execute("INSERT INTO sample (station_id, lab_batch_id, sample_date) "
+                          "VALUES (%s,%s,'2026-06-15') RETURNING id", (stn, bid2)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('nf1',%s,'Laboratory')",
+                 (s_none,))
+    conn.commit()
+
+    has = {r["id"] for r in workboard(conn, {"files": "yes"})}
+    none = {r["id"] for r in workboard(conn, {"files": "no"})}
+    assert s_files in has and s_none not in has
+    assert s_none in none and s_files not in none
+    # the row carries the file count + ingestion metadata
+    row = next(r for r in workboard(conn, {"files": "yes"}) if r["id"] == s_files)
+    assert row["n_files"] == 1 and row["ingested_at"] is not None and row["batch_kind"] == "ingested"
+    # tally: needs-geocoding-with-files counts s_files (ungeocoded + has CoC), not s_none
+    assert status_tallies(conn)["unlinked_nogeo_files"] >= 1
+    assert count_workboard(conn, {"status": "unlinked", "geocoded": "no", "files": "yes"}) >= 1
+
+
+def test_sample_geo_summary_has_ingestion_metadata(conn):
+    from fhab.labtasks import sample_geo
+    bid = conn.execute("INSERT INTO lab_batch (kind, source) VALUES ('ingested','Clear Lake (RB5)') "
+                       "RETURNING id").fetchone()["id"]
+    st = conn.execute("INSERT INTO station (station_code) VALUES ('PROVEN') RETURNING id").fetchone()["id"]
+    sid = conn.execute("INSERT INTO sample (station_id, lab_batch_id, sample_date) "
+                       "VALUES (%s,%s,'2026-06-15') RETURNING id", (st, bid)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('pv1',%s,'Laboratory')",
+                 (sid,)); conn.commit()
+    sm = sample_geo(conn, sid)["summary"]
+    assert sm["sampling_event_id"] == bid and sm["batch_kind"] == "ingested"
+    assert sm["ingested_at"] is not None
+
+
 def test_set_location_validates_range(conn):
     from fhab.labtasks import set_sample_location
     sid = _orphan_sample(conn, "RNG1")

@@ -1173,7 +1173,7 @@ def create_app(dsn: str | None = None) -> Flask:
     def lab_workboard():
         a = request.args
         f = {k: (a.get(k) or "").strip() or None
-             for k in ("status", "assignee", "region", "q", "batch", "geocoded", "event")}
+             for k in ("status", "assignee", "region", "q", "batch", "geocoded", "event", "files")}
         sort = a.get("sort") if a.get("sort") in ("date", "station", "status") else "date"
         try:
             page = max(0, int(a.get("page", 0)))

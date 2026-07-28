@@ -37,7 +37,15 @@
   <a class="pill" style="background:#fbe8d8; padding:.25rem .7rem; margin-right:.4rem; text-decoration:none"
      href="{{ url_for('lab_workboard', status='unlinked', geocoded='no') }}"
      title="Unlinked samples that still need coordinates"><strong>{{ tallies.get('unlinked_nogeo', 0) }}</strong> Needs geocoding</a>
+  <a class="pill" style="background:#d8f0e0; padding:.25rem .7rem; margin-right:.4rem; text-decoration:none"
+     href="{{ url_for('lab_workboard', status='unlinked', geocoded='no', files='yes') }}"
+     title="Needs geocoding AND has an attached CoC / file to read coordinates off — start here">📎 <strong>{{ tallies.get('unlinked_nogeo_files', 0) }}</strong> Needs geocoding · has files</a>
   <a class="pill" style="padding:.25rem .7rem" href="{{ url_for('lab_workboard') }}">All</a>
+  <p class="muted" style="font-size:.82rem; margin:.5rem 0 0">Files (chain-of-custody, transmittal,
+    receipt) are stored on a sample's <strong>ingest batch</strong>. Samples brought in by the
+    <em>folder / email</em> path carry their files; samples from the <em>prepared-CSV</em> import
+    have none in the system — their CoC is still in the original email. Use the <strong>Files</strong>
+    filter to tell them apart.</p>
 </div>
 
 <div class="card">
@@ -61,6 +69,11 @@
         <option value="yes" {% if f.geocoded=='yes' %}selected{% endif %}>Geocoded</option>
         <option value="no" {% if f.geocoded=='no' %}selected{% endif %}>Not geocoded</option>
       </select></div>
+    <div><label>Files</label>
+      <select name="files" onchange="this.form.submit()"><option value="">Any</option>
+        <option value="yes" {% if f.files=='yes' %}selected{% endif %}>Has files (CoC…)</option>
+        <option value="no" {% if f.files=='no' %}selected{% endif %}>No files</option>
+      </select></div>
     <div><label>Sampling event (ID or name)</label><input name="event" value="{{ f.event or '' }}" placeholder="e.g. 10 or Clear Lake"></div>
     <div><label>Search station / water body</label><input name="q" value="{{ f.q or '' }}"></div>
     <button>Apply</button>
@@ -81,7 +94,7 @@
         onsubmit="return confirm('Auto-link every unlinked sample in the current filter to its nearest report? Confident matches only; the rest stay for manual review.')">
     <span class="muted">Batch reconcile the whole filtered view — auto-link unlinked samples within ±</span>
     <input name="days" value="14" style="width:48px; padding:.2rem" inputmode="numeric"> days
-    {% for k in ['assignee','region','q','event','geocoded','status'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+    {% for k in ['assignee','region','q','event','geocoded','status','files'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
     <button class="secondary">Reconcile all unlinked in this view</button>
   </form>
 </div>
@@ -99,7 +112,10 @@
           <button type="button" class="secondary" style="padding:0 .4rem; font-size:.85rem"
                   onclick="openSampleMap({{ r.id }})" title="Show this sample &amp; nearby reports on a map">🗺</button>
           <br><span class="muted">{{ r.sample_date or '—' }}{% if r.water_body_name %} · {{ r.water_body_name }}{% endif %}</span></td>
-      <td>{% if r.event_id %}<a href="{{ url_for('lab_workboard', event=r.event_id) }}" title="{{ r.event_name or '' }}">SE {{ r.event_id }}</a>{% if r.event_name %}<br><span class="muted">{{ r.event_name }}</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if r.event_id %}<a href="{{ url_for('lab_workboard', event=r.event_id) }}" title="{{ r.event_name or '' }}">SE {{ r.event_id }}</a>{% if r.event_name %}<br><span class="muted">{{ r.event_name }}</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}
+          <br><span class="muted" style="font-size:.78rem">
+            {% if r.n_files %}<a href="{{ url_for('lab_workboard', batch=r.event_id) }}" title="View the batch's stored files (CoC, transmittal, receipt)">📎 {{ r.n_files }} file{{ 's' if r.n_files != 1 }}</a>{% else %}no files{% endif %}
+            {% if r.ingested_at %} · ingested {{ r.ingested_at.strftime('%Y-%m-%d') }}{% endif %}</span></td>
       <td>{{ r.n_results }}</td>
       <td>{% if r.bloom_report_id %}<a href="{{ url_for('report_detail', brid=r.bloom_report_id) }}">R{{ r.bloom_report_id }}</a>{% endif %}
           {% if r.case_id %} · C{{ r.case_id }}{% endif %}{% if not r.bloom_report_id and not r.case_id %}—{% endif %}</td>
@@ -239,8 +255,14 @@ function renderSampleMap(probe) {
       const batchLink = g.batch_id
         ? ' · <a href="/lab/batch/' + g.batch_id + '/coordinates">enter lat/long for every sample in this batch →</a>'
         : '';
+      const prov = [];
+      if (sm.sampling_event_id) prov.push('SE ' + sm.sampling_event_id
+        + (sm.batch_kind ? ' (' + sm.batch_kind + ')' : ''));
+      if (sm.ingested_at) prov.push('ingested ' + sm.ingested_at);
+      if (sm.ingested_by) prov.push('by ' + sm.ingested_by);
       sEl.innerHTML = '<div style="background:#f4f6f8;border-radius:6px;padding:.4rem .55rem">'
         + '<div><span class="muted">Ingested via</span> <b>' + sm.source + '</b></div>'
+        + (prov.length ? '<div class="muted" style="font-size:.85rem">' + prov.join(' · ') + '</div>' : '')
         + (bits.length ? '<div class="muted" style="font-size:.85rem">' + bits.join(' · ') + '</div>' : '')
         + '<div style="margin-top:.15rem">' + sm.n_results + ' result(s) · ' + files + batchLink + '</div></div>';
     } else { sEl.innerHTML = ''; }
