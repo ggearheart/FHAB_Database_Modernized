@@ -68,6 +68,59 @@ def _write_folder(tmp_path, name, csv_rows, pdfs=("COC_x.pdf", "Cyanobacteria_te
     return d
 
 
+def _bend_csv_bytes(rows):
+    import csv
+    import io
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=HEADER)
+    w.writeheader()
+    for r in rows:
+        w.writerow(r)
+    return buf.getvalue().encode()
+
+
+def test_ingest_eml_unpacks_attachments_and_ingests(conn, tmp_path):
+    """A staffer drops the raw lab email (.eml): its results CSV + CoC PDF are unpacked and
+    ingested, the body + original email are kept for provenance, and the subject labels the batch."""
+    from email.message import EmailMessage
+    conn.execute("INSERT INTO station_registry (station_code, latitude, longitude) "
+                 "VALUES ('630BPRD01', 38.2, -119.2)")
+    conn.commit()
+    m = EmailMessage()
+    m["Subject"] = "Bridgeport Reservoir (RB6) cyanotoxin results"
+    m["From"] = "lab@example.org"; m["To"] = "staff@waterboards.ca.gov"
+    m.set_content("Results + chain of custody attached.")
+    m.add_attachment(_bend_csv_bytes([
+        _row(**{"Location": "630BPRD01", "Collected": "6/16/2025", "BG_ID": "WB5903",
+                "Microcystin/Nod. (ug/L)": "4.13"})]),
+        maintype="text", subtype="csv", filename="results_bridgeport.csv")
+    m.add_attachment(b"%PDF-1.4 fake coc", maintype="application", subtype="pdf",
+                     filename="COC_bridgeport.pdf")
+    m.add_attachment(b"\x89PNGlogo", maintype="image", subtype="png", filename="sig.png",
+                     cid="<sig>", disposition="inline")           # inline logo -> skipped
+    d = tmp_path / "eml_drop"; d.mkdir()
+    (d / "lab.eml").write_bytes(bytes(m))
+
+    r = ingest_bend_folder(conn, d)
+    assert r["source"] == "Bridgeport Reservoir (RB6) cyanotoxin results"   # subject -> label
+    assert r["region"] == "Region 6"                                         # parsed from subject
+    assert r["samples"] == 1 and r["geocoded"] == 1 and r["results"] >= 1
+    cats = {f["category"] for f in batch_files(conn, r["batch_id"])}
+    assert "data" in cats and "coc" in cats and "email" in cats             # results, CoC, + email kept
+    names = {f["filename"] for f in batch_files(conn, r["batch_id"])}
+    assert "lab.eml" in names and "sig.png" not in names                    # original kept, logo skipped
+
+
+def test_expand_email_ignores_unparseable_msg(tmp_path):
+    """A .msg that isn't a valid OLE file is left in place (attached whole), not fatal."""
+    from fhab.bendlab import expand_email_files
+    d = tmp_path / "bad"; d.mkdir()
+    (d / "note.msg").write_bytes(b"not really an outlook message")
+    out = expand_email_files(d)
+    assert out["emails"] == 1 and out["attachments"] == 0
+    assert (d / "note.msg").exists()
+
+
 def test_ingest_folder_materializes_and_stores_files(conn, tmp_path):
     # A station the registry knows -> the sample should geocode.
     conn.execute("INSERT INTO station_registry (station_code, latitude, longitude) "
