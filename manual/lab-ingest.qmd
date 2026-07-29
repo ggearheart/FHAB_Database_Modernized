@@ -124,12 +124,17 @@ and quality-reviewed. It's built as a **task board**: the lead **assigns** work,
 **link**, a reviewer **QA-approves** or **flags**.
 
 - **Status chips:** *Unlinked*, *Linked · awaiting QA*, *Flagged for rework*, *QA approved*, and
-  *Routine sampling*, plus **Geocoded · not linked** and **Needs geocoding** — click one to filter.
-  The last two split the unlinked pile into samples that are ready to research (they have a
-  location) versus those still waiting on coordinates.
+  *Routine sampling*, plus **Geocoded · not linked**, **Needs geocoding**, and **📎 Needs geocoding ·
+  has files** — click one to filter. The first two split the unlinked pile into samples that are
+  ready to research (they have a location) versus those still waiting on coordinates; the last one
+  is the **actionable subset** — samples that need coordinates *and* have a CoC on file to read them
+  off. Start there.
 - **Filters:** status, assignee (incl. **Me** / Unassigned), region, a **Geocoding** filter
-  (Geocoded / Not geocoded), and a station / water-body search. A batch link filters the board to
-  just that ingest.
+  (Geocoded / Not geocoded), a **Files** filter (**Has files** / **No files**), and a station /
+  water-body search. A batch link filters the board to just that ingest.
+- **Each row shows its provenance:** the sampling event, a **📎 file count** (linking to the batch's
+  stored files) or *"no files"*, and the **ingestion date** — so you can tell at a glance which
+  items have a CoC to work from.
 - **Assign:** check rows, pick a team member under *"With checked rows →"*, **Assign**.
 - **Per sample:** **Link / Re-link** by report (R#) or case (C#); **+Report** (create one from the
   station); **✓ QA** approve; **⚑** flag with a reason; **Unlink**; **Routine** (see below).
@@ -143,10 +148,12 @@ Click a sample's **🗺** to open its context map. This is where the tedious res
 happens, so it gathers everything in one place:
 
 - A **provenance summary**: how the sample was ingested (*Email folder ingest — <folder>*, *CEDEN
-  chemistry upload*, *Lab batch reconciliation*, *data.ca.gov / legacy import*), its lab identity
-  (station, type, BG_ID, lab sample id, lab batch, project), result count, and its **source
-  files** (`coc · data · transmittal …`, opening in a new tab) — or *"no source files stored for
-  this ingest"* when there aren't any.
+  chemistry upload*, *Lab batch reconciliation*, *data.ca.gov / legacy import*), the **sampling
+  event (SE) id, batch kind, ingestion date, and who ingested it**, its lab identity (station, type,
+  BG_ID, lab sample id, lab batch, project), result count, and its **source files**
+  (`coc · data · transmittal …`, opening in a new tab) — or *"no source files stored for this
+  ingest"* when there aren't any. This is where you look when a sample is confusing and you need to
+  trace exactly where it came from.
 - The **map**: the sample as a **★**, and nearby reports colored by how close in **time** they are
   to the sample (blue ≤14 d, yellow 14–30 d, pink 30–60 d, gray >60 d). Click a marker to link to
   that report or its case, or open the report in a new tab.
@@ -157,7 +164,20 @@ happens, so it gathers everything in one place:
 ### Geocoding ungeocoded samples {#geocoding-ungeocoded-samples}
 
 Samples whose station isn't in the registry come in **without a location** — their coordinates
-are usually on the **CoC**. On the sample map you can:
+are usually on the **CoC**. Use the **📎 Needs geocoding · has files** chip to jump straight to the
+ones you can act on.
+
+::: {.callout-note title="Needs geocoding but has no files — what happened?"}
+Attached files live on a sample's **ingest batch**, and only some paths bring them in: the
+**folder / email** path stores the CoC, transmittal, and receipt; the **prepared-CSV import** and
+**CEDEN uploads** bring **no PDFs**. So an item that needs geocoding *and* has no files came in one
+of those ways — its CoC is still in the **original lab email**, not in the system. To fix it, find
+that email and **re-ingest it as a folder / `.eml` / `.msg`** — that attaches the CoC (and can OCR
+coordinates off it), turning a no-file item into a workable one. The row's **ingestion date** and
+**SE** in the provenance summary help you find the original.
+:::
+
+On the sample map you can:
 
 1. Open the batch's **CoC** (new tab) and read the latitude/longitude.
 2. Type them into the **lat / long** boxes → **Search nearby** to preview reports/cases around
