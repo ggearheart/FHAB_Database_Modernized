@@ -352,8 +352,9 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="after-ingest-reconcile-on-the-lab-data-workboard">After ingest: reconcile on the Lab data workboard</h2>
 <p><strong>Ingest Data → Lab data workboard</strong> is where lab samples get connected to events/reports/cases and quality-reviewed. It’s built as a <strong>task board</strong>: the lead <strong>assigns</strong> work, team members <strong>link</strong>, a reviewer <strong>QA-approves</strong> or <strong>flags</strong>.</p>
 <ul>
-<li><strong>Status chips:</strong> <em>Unlinked</em>, <em>Linked · awaiting QA</em>, <em>Flagged for rework</em>, <em>QA approved</em>, and <em>Routine sampling</em>, plus <strong>Geocoded · not linked</strong> and <strong>Needs geocoding</strong> — click one to filter. The last two split the unlinked pile into samples that are ready to research (they have a location) versus those still waiting on coordinates.</li>
-<li><strong>Filters:</strong> status, assignee (incl.&nbsp;<strong>Me</strong> / Unassigned), region, a <strong>Geocoding</strong> filter (Geocoded / Not geocoded), and a station / water-body search. A batch link filters the board to just that ingest.</li>
+<li><strong>Status chips:</strong> <em>Unlinked</em>, <em>Linked · awaiting QA</em>, <em>Flagged for rework</em>, <em>QA approved</em>, and <em>Routine sampling</em>, plus <strong>Geocoded · not linked</strong>, <strong>Needs geocoding</strong>, and <strong>📎 Needs geocoding · has files</strong> — click one to filter. The first two split the unlinked pile into samples that are ready to research (they have a location) versus those still waiting on coordinates; the last one is the <strong>actionable subset</strong> — samples that need coordinates <em>and</em> have a CoC on file to read them off. Start there.</li>
+<li><strong>Filters:</strong> status, assignee (incl.&nbsp;<strong>Me</strong> / Unassigned), region, a <strong>Geocoding</strong> filter (Geocoded / Not geocoded), a <strong>Files</strong> filter (<strong>Has files</strong> / <strong>No files</strong>), and a station / water-body search. A batch link filters the board to just that ingest.</li>
+<li><strong>Each row shows its provenance:</strong> the sampling event, a <strong>📎 file count</strong> (linking to the batch’s stored files) or <em>“no files”</em>, and the <strong>ingestion date</strong> — so you can tell at a glance which items have a CoC to work from.</li>
 <li><strong>Assign:</strong> check rows, pick a team member under <em>“With checked rows →”</em>, <strong>Assign</strong>.</li>
 <li><strong>Per sample:</strong> <strong>Link / Re-link</strong> by report (R#) or case (C#); <strong>+Report</strong> (create one from the station); <strong>✓ QA</strong> approve; <strong>⚑</strong> flag with a reason; <strong>Unlink</strong>; <strong>Routine</strong> (see below). <em>Re-linking clears QA so the sample returns to the review queue.</em></li>
 <li><strong>Batch reconcile:</strong> <em>Reconcile checked</em> or <em>Reconcile all unlinked in this view</em> auto-links the confident, unambiguous matches in one pass.</li>
@@ -362,14 +363,28 @@ ul.task-list li input[type="checkbox"] {
 <h3 class="anchored" data-anchor-id="the-sample-map-the-research-popup">The sample map (🗺) — the research popup</h3>
 <p>Click a sample’s <strong>🗺</strong> to open its context map. This is where the tedious research/linking happens, so it gathers everything in one place:</p>
 <ul>
-<li>A <strong>provenance summary</strong>: how the sample was ingested (<em>Email folder ingest — <folder></folder></em>, <em>CEDEN chemistry upload</em>, <em>Lab batch reconciliation</em>, <em>data.ca.gov / legacy import</em>), its lab identity (station, type, BG_ID, lab sample id, lab batch, project), result count, and its <strong>source files</strong> (<code>coc · data · transmittal …</code>, opening in a new tab) — or <em>“no source files stored for this ingest”</em> when there aren’t any.</li>
+<li>A <strong>provenance summary</strong>: how the sample was ingested (<em>Email folder ingest — <folder></folder></em>, <em>CEDEN chemistry upload</em>, <em>Lab batch reconciliation</em>, <em>data.ca.gov / legacy import</em>), the <strong>sampling event (SE) id, batch kind, ingestion date, and who ingested it</strong>, its lab identity (station, type, BG_ID, lab sample id, lab batch, project), result count, and its <strong>source files</strong> (<code>coc · data · transmittal …</code>, opening in a new tab) — or <em>“no source files stored for this ingest”</em> when there aren’t any. This is where you look when a sample is confusing and you need to trace exactly where it came from.</li>
 <li>The <strong>map</strong>: the sample as a <strong>★</strong>, and nearby reports colored by how close in <strong>time</strong> they are to the sample (blue ≤14 d, yellow 14–30 d, pink 30–60 d, gray &gt;60 d). Click a marker to link to that report or its case, or open the report in a new tab.</li>
 <li>A <strong>list of the nearby reports</strong> below the map (same reports as the markers) — handy when markers overlap and are hard to click. Check <strong>one</strong> to link the sample to that report, or check <strong>several that share a case</strong> and <strong>Link selected</strong> to link the sample to that case at once.</li>
 </ul>
 </section>
 <section id="geocoding-ungeocoded-samples" class="level3">
 <h3 class="anchored" data-anchor-id="geocoding-ungeocoded-samples">Geocoding ungeocoded samples</h3>
-<p>Samples whose station isn’t in the registry come in <strong>without a location</strong> — their coordinates are usually on the <strong>CoC</strong>. On the sample map you can:</p>
+<p>Samples whose station isn’t in the registry come in <strong>without a location</strong> — their coordinates are usually on the <strong>CoC</strong>. Use the <strong>📎 Needs geocoding · has files</strong> chip to jump straight to the ones you can act on.</p>
+<div class="callout callout-style-default callout-note callout-titled" title="Needs geocoding but has no files — what happened?">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Needs geocoding but has no files — what happened?
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Attached files live on a sample’s <strong>ingest batch</strong>, and only some paths bring them in: the <strong>folder / email</strong> path stores the CoC, transmittal, and receipt; the <strong>prepared-CSV import</strong> and <strong>CEDEN uploads</strong> bring <strong>no PDFs</strong>. So an item that needs geocoding <em>and</em> has no files came in one of those ways — its CoC is still in the <strong>original lab email</strong>, not in the system. To fix it, find that email and <strong>re-ingest it as a folder / <code>.eml</code> / <code>.msg</code></strong> — that attaches the CoC (and can OCR coordinates off it), turning a no-file item into a workable one. The row’s <strong>ingestion date</strong> and <strong>SE</strong> in the provenance summary help you find the original.</p>
+</div>
+</div>
+<p>On the sample map you can:</p>
 <ol type="1">
 <li>Open the batch’s <strong>CoC</strong> (new tab) and read the latitude/longitude.</li>
 <li>Type them into the <strong>lat / long</strong> boxes → <strong>Search nearby</strong> to preview reports/cases around that point (shown as a ◆).</li>
