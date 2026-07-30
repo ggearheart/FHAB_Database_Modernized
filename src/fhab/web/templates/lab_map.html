@@ -47,6 +47,9 @@
       <div><label>Tier (chemistry)</label>
         <select name="tier"><option value="">All tiers</option>
           {% for k in tier_order %}<option value="{{ k }}">{{ tier_meta[k].label }}</option>{% endfor %}</select></div>
+      <div><label>Look up result / sample ID</label>
+        <input name="q" type="search" placeholder="Result ID (F-code), result_id, or Sample_ID"
+               style="min-width:16rem" autocomplete="off"></div>
     </div>
     <input type="hidden" name="days"><input type="hidden" name="kind"><input type="hidden" name="method">
     <div style="margin-top:.8rem; display:flex; flex-wrap:wrap; gap:1.4rem; align-items:center">
@@ -294,6 +297,7 @@ document.querySelectorAll('.btn-group').forEach(group => {
   });
 });
 form.addEventListener('change', load);
+form.querySelector('[name=q]').addEventListener('search', load);   // native clear (×) reloads
 document.getElementById('clear').addEventListener('click', () => {
   form.reset();
   ['days','kind','method'].forEach(f => form.querySelector(`[name=${f}]`).value = '');

@@ -1068,8 +1068,9 @@ def create_app(dsn: str | None = None) -> Flask:
         tier = a.get("tier") if a.get("tier") in TIER_META else None
         kind = a.get("kind") if a.get("kind") in ("routine", "linked", "unlinked") else None
         method = a.get("method") if a.get("method") in METHOD_META else None
+        q = (a.get("q") or "").strip() or None
         feats = lab_map_features(db(), session["uid"], region=region, days=days,
-                                 tier=tier, kind=kind, method=method)
+                                 tier=tier, kind=kind, method=method, q=q)
         return jsonify({"type": "FeatureCollection", "features": feats,
                         "counts": tier_counts(feats), "method_counts": method_counts(feats)})
 
