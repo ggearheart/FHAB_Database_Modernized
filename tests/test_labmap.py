@@ -58,6 +58,28 @@ def test_features_worst_tier_and_metadata(conn):
     assert tier_counts(feats)["danger"] == 1
 
 
+def test_result_id_lookup(conn):
+    from fhab.auth import create_user, grant_role
+    uid = create_user(conn, "look@wb.ca.gov"); grant_role(conn, uid, "wb_staff", region="Region 5")
+    import_consolidated(conn, [
+        _row(Analyte="Microcystins", Result="10", StationCode="AAA", BG_ID="A1"),
+        _row(Analyte="Microcystins", Result="2", StationCode="BBB", BG_ID="B1",
+             Latitude="38.9", Longitude="-122.7"),
+    ])
+    # grab a real result_id_unique + its station
+    row = conn.execute("""SELECT r.result_id_unique, st.station_code
+                          FROM result r JOIN sample s ON s.id=r.sample_id
+                          JOIN station st ON st.id=s.station_id WHERE st.station_code='AAA'""").fetchone()
+    hits = lab_map_features(conn, uid, q=row["result_id_unique"])
+    assert [f["properties"]["station_code"] for f in hits] == ["AAA"]     # only the holder station
+    # a partial (F-code prefix) match still finds it; an unrelated id finds nothing
+    assert lab_map_features(conn, uid, q=row["result_id_unique"][:6])
+    assert lab_map_features(conn, uid, q="no-such-result-zzz") == []
+    # Sample_ID lookup also works
+    sid = conn.execute("SELECT id FROM sample WHERE station_id=(SELECT id FROM station WHERE station_code='BBB')").fetchone()["id"]
+    assert [f["properties"]["station_code"] for f in lab_map_features(conn, uid, q=str(sid))] == ["BBB"]
+
+
 def test_method_of_and_shapes():
     assert method_of("Cyanotoxin") == "chemistry"
     assert method_of("Pigment") == "chemistry"

@@ -114,15 +114,24 @@ def _is_detected(value, rqc: str) -> bool:
     return value is not None and float(value) > 0
 
 
-def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None, method=None) -> list[dict]:
+def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None, method=None,
+                     q=None) -> list[dict]:
     """One feature per geocoded station.
 
     Filters: region (lab_batch.region), days (recent samples only), tier (chemistry advisory
-    tier), kind ('routine' | 'linked' | 'unlinked'), method ('chemistry' | 'genetic' | 'microscopy').
+    tier), kind ('routine' | 'linked' | 'unlinked'), method ('chemistry' | 'genetic' | 'microscopy'),
+    q (look up a result or sample: result_id_unique partial, result_id, or Sample_ID).
     Marker shape follows the displayed method; colour follows its status.
     """
     cond = ["st.geom IS NOT NULL"]
     p: dict = {}
+    if q:
+        # Narrow to the station(s) holding a matching result — result_id_unique (the F-code,
+        # partial), the integer result_id, or the crosswalk Sample_ID (sample.id).
+        cond.append("(EXISTS (SELECT 1 FROM result r2 WHERE r2.sample_id = s.id "
+                    "AND (r2.result_id_unique ILIKE %(q)s OR r2.result_id::text = %(qx)s)) "
+                    "OR s.id::text = %(qx)s)")
+        p["q"] = f"%{q}%"; p["qx"] = q
     if region:
         cond.append("b.region = %(region)s"); p["region"] = region
     if days:
