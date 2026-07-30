@@ -37,6 +37,20 @@ def test_filter_by_region_and_text(conn):
     assert len(rows) == 1 and rows[0]["water_body_name"] == "Clear Lake"
 
 
+def test_result_id_exposed_and_searchable(conn):
+    """QC: each row carries its stable Result ID + Sample ID, and search matches on them."""
+    _seed(conn)
+    rows = query_results(conn, {})
+    r = rows[0]
+    assert r["result_id_unique"] and r["sample_id"]                 # ids exposed for QC
+    # search by the exact Result ID returns just that row
+    hit = query_results(conn, {"q": r["result_id_unique"]})
+    assert len(hit) == 1 and hit[0]["result_id_unique"] == r["result_id_unique"]
+    # search by Sample ID works too
+    by_sid = query_results(conn, {"q": str(r["sample_id"])})
+    assert any(x["sample_id"] == r["sample_id"] for x in by_sid)
+
+
 def test_non_detect_filter(conn):
     _seed(conn)
     assert len(query_results(conn, {"nd": "only"})) == 1

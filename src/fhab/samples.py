@@ -71,7 +71,7 @@ def get_sample(conn, sid: int) -> dict | None:
     if not s:
         return None
     results = conn.execute(
-        """SELECT a.analyte, r.method, r.measurement_value, r.measurement_text,
+        """SELECT r.result_id_unique, a.analyte, r.method, r.measurement_value, r.measurement_text,
                   r.res_qual_code, r.measurement_unit, r.fraction_name
            FROM result r LEFT JOIN analyte a ON a.id = r.analyte_id
            WHERE r.sample_id = %s ORDER BY a.analyte""", (sid,)).fetchall()

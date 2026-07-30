@@ -532,8 +532,8 @@ def create_app(dsn: str | None = None) -> Flask:
             # Reporter PII shows only to internal staff (illness/photos are already RLS-gated).
             can_see_pii = conn.execute("SELECT fhab_is_internal() AS x").fetchone()["x"]
             results = conn.execute(
-                """SELECT r.data_type, r.measurement_value, r.measurement_unit, r.method,
-                          r.res_qual_code, r.taxa, s.sample_date, s.sample_id, s.site,
+                """SELECT r.result_id_unique, r.data_type, r.measurement_value, r.measurement_unit,
+                          r.method, r.res_qual_code, r.taxa, s.sample_date, s.sample_id, s.site,
                           s.collected_by, an.analyte, an.analysis_type
                    FROM result r JOIN sample s ON s.id = r.sample_id
                    LEFT JOIN analyte an ON an.id = r.analyte_id
@@ -1088,11 +1088,14 @@ def create_app(dsn: str | None = None) -> Flask:
         from flask import Response
         f, sort, desc = _lab_filters(request.args)
         rows = query_results(db(), f, sort=sort, desc=desc, limit=50000, offset=0)
-        cols = ["sample_date", "water_body_name", "regional_water_board", "county",
-                "bloom_report_id", "analysis_type", "analyte_class", "analyte", "data_type",
-                "measurement_value", "measurement_text", "measurement_unit", "res_qual_code",
-                "method", "mdl", "rl", "site"]
-        out = _csv_text([c.title() for c in cols], [{c.title(): r[c] for c in cols} for r in rows])
+        cols = ["result_id_unique", "sample_id", "sample_date", "water_body_name",
+                "regional_water_board", "county", "bloom_report_id", "analysis_type",
+                "analyte_class", "analyte", "data_type", "measurement_value", "measurement_text",
+                "measurement_unit", "res_qual_code", "method", "mdl", "rl", "site"]
+        # Match the crosswalk's names for the ids so QC can join across exports.
+        head = {"result_id_unique": "ResultRowID", "sample_id": "Sample_ID"}
+        hdr = [head.get(c, c.title()) for c in cols]
+        out = _csv_text(hdr, [dict(zip(hdr, (r[c] for c in cols))) for r in rows])
         stamp = __import__("datetime").date.today().isoformat()
         resp = Response(out, mimetype="text/csv")
         resp.headers["Content-Disposition"] = f'attachment; filename="fhab_results_{stamp}.csv"'
