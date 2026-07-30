@@ -38,8 +38,9 @@ def _where(f: dict):
         cond.append("r.data_type::text = %(data_type)s"); p["data_type"] = f["data_type"]
     if f.get("q"):
         cond.append("(w.water_body_name ILIKE %(q)s OR an.analyte ILIKE %(q)s "
-                    "OR an.analyte_class ILIKE %(q)s)")
-        p["q"] = "%" + f["q"] + "%"
+                    "OR an.analyte_class ILIKE %(q)s OR r.result_id_unique ILIKE %(q)s "
+                    "OR s.id::text = %(qx)s)")
+        p["q"] = "%" + f["q"] + "%"; p["qx"] = f["q"].strip()
     if f.get("date_from"):
         cond.append("s.sample_date >= %(date_from)s"); p["date_from"] = f["date_from"]
     if f.get("date_to"):
@@ -53,7 +54,8 @@ def _where(f: dict):
     return where, p
 
 
-_SELECT = """SELECT s.sample_date, w.water_body_name, w.regional_water_board, w.county,
+_SELECT = """SELECT r.result_id_unique, s.id AS sample_id,
+              s.sample_date, w.water_body_name, w.regional_water_board, w.county,
               e.bloom_report_id, an.analysis_type, an.analyte_class, an.analyte,
               r.data_type::text AS data_type, r.measurement_value, r.measurement_text,
               r.measurement_unit, r.res_qual_code, r.method, r.mdl, r.rl, s.site"""

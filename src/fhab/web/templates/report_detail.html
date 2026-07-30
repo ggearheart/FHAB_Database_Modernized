@@ -165,9 +165,10 @@
 <div class="card">
   <h1 style="font-size:1.05rem">Field &amp; lab results <span class="muted">({{ results|length }})</span></h1>
   <table>
-    <tr><th>Type</th><th>Analyte</th><th>Result</th><th>Qual</th><th>Method</th><th>Sample date</th><th>Sample ID</th></tr>
+    <tr><th>Result ID</th><th>Type</th><th>Analyte</th><th>Result</th><th>Qual</th><th>Method</th><th>Sample date</th><th>Sample ID</th></tr>
     {% for r in results %}
     <tr>
+      <td><code style="font-size:.82rem">{{ r.result_id_unique }}</code></td>
       <td>{{ r.data_type or '—' }}</td>
       <td>{{ r.analyte or (r.taxa or '—') }}</td>
       <td>{% if r.measurement_value is not none %}{{ r.measurement_value }} {{ r.measurement_unit or '' }}{% else %}—{% endif %}</td>
@@ -177,7 +178,7 @@
       <td>{{ r.sample_id or '—' }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="7" class="muted">No samples or results recorded yet.</td></tr>
+    <tr><td colspan="8" class="muted">No samples or results recorded yet.</td></tr>
     {% endfor %}
   </table>
 </div>

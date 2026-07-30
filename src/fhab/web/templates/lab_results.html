@@ -13,7 +13,7 @@
 <div class="card">
   <form method="get" action="{{ url_for('lab_results') }}">
     <div class="row">
-      <div><label>Search (water body / analyte)</label><input name="q" value="{{ f.q or '' }}"></div>
+      <div><label>Search (water body / analyte / Result ID / Sample ID)</label><input name="q" value="{{ f.q or '' }}" placeholder="e.g. a Result ID (F-code) or Sample ID"></div>
       <div><label>Analysis type</label>
         <select name="analysis_type"><option value="">— any —</option>
           {% for a in options.analysis_types %}<option value="{{ a }}" {% if f.analysis_type==a %}selected{% endif %}>{{ a }}</option>{% endfor %}
@@ -51,6 +51,7 @@
   <h1 style="font-size:1.05rem">Results <span class="muted">({{ '{:,}'.format(total) }} match{{ '' if total==1 else 'es' }})</span></h1>
   <table>
     <tr>
+      <th>Result ID</th>
       <th>{{ sortlink('date', 'Sample date') }}</th>
       <th>{{ sortlink('waterbody', 'Water body') }}</th>
       <th>Region</th><th>Report</th>
@@ -61,6 +62,8 @@
     </tr>
     {% for r in rows %}
     <tr>
+      <td><code style="font-size:.82rem">{{ r.result_id_unique }}</code>
+          <br><span class="muted" style="font-size:.78rem">Sample {{ r.sample_id }}</span></td>
       <td>{{ r.sample_date or '—' }}</td>
       <td>{{ r.water_body_name or '—' }}{% if r.county %}<br><span class="muted">{{ r.county }}</span>{% endif %}</td>
       <td class="muted">{{ r.regional_water_board or '—' }}</td>
@@ -73,7 +76,7 @@
       <td class="muted">{{ r.mdl if r.mdl is not none else '' }}{% if r.rl is not none %} / {{ r.rl }}{% endif %}</td>
     </tr>
     {% else %}
-    <tr><td colspan="10" class="muted">No results match these filters.</td></tr>
+    <tr><td colspan="11" class="muted">No results match these filters.</td></tr>
     {% endfor %}
   </table>
 

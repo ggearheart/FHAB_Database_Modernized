@@ -52,15 +52,16 @@
 <div class="card">
   <h1 style="font-size:1.05rem">Results ({{ results|length }})</h1>
   <table>
-    <tr><th>Analyte</th><th>Method</th><th>Value</th><th>Unit</th><th>Fraction</th></tr>
+    <tr><th>Result ID</th><th>Analyte</th><th>Method</th><th>Value</th><th>Unit</th><th>Fraction</th></tr>
     {% for r in results %}
     <tr>
+      <td><code style="font-size:.82rem">{{ r.result_id_unique }}</code></td>
       <td>{{ r.analyte or '—' }}</td><td class="muted">{{ r.method or '—' }}</td>
       <td>{% if r.res_qual_code %}{{ r.res_qual_code }}{% endif %} {{ r.measurement_value if r.measurement_value is not none else (r.measurement_text or '') }}</td>
       <td class="muted">{{ r.measurement_unit or '' }}</td><td class="muted">{{ r.fraction_name or '' }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="5" class="muted">No results on this sample.</td></tr>
+    <tr><td colspan="6" class="muted">No results on this sample.</td></tr>
     {% endfor %}
   </table>
 </div>
