@@ -17,9 +17,10 @@ from flask import (Flask, Response, abort, flash, g, jsonify, redirect, render_t
 
 import tempfile
 
-from ..auth import (acting_as, approve_signup, authenticate, create_user, grant_role,
-                    is_pending_signup, list_roles_for, reject_signup, request_signup,
-                    revoke_role, set_password, user_regions)
+from ..auth import (acting_as, approve_signup, authenticate, change_own_password, create_user,
+                    delete_user, gen_password, grant_role, is_pending_signup, list_roles_for,
+                    reject_signup, request_signup, reset_password, revoke_role, set_active,
+                    set_password, update_user, user_references, user_regions)
 from ..cases import (CASE_STATUSES, assign_report_to_case, create_case, update_case)
 from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_for_event)
 from ..bendlab import (batch_file, batch_files, ingest_bend_folder, ingested_batches)
@@ -297,6 +298,14 @@ def create_app(dsn: str | None = None) -> Flask:
                  texture_options=TEXTURE_OPTIONS, illness_subjects=ILLNESS_SUBJECTS,
                  counties=COUNTIES)
 
+    @app.before_request
+    def _force_password_change():
+        """A user whose password was reset by an admin must set a new one before doing anything
+        else. Allow only the change-password page, logout, and static assets."""
+        if session.get("must_change_password") and request.endpoint not in (
+                "account_password", "logout", "static"):
+            return redirect(url_for("account_password"))
+
     @app.context_processor
     def _inject_nav():
         """Expose the nav's unread count + the user's staff/admin flags to every template."""
@@ -410,6 +419,10 @@ def create_app(dsn: str | None = None) -> Flask:
                 session["email"] = user["email"]
                 session["name"] = user["full_name"] or user["email"]
                 session["roles"] = list_roles_for(db(), user["id"])
+                if user.get("must_change_password"):
+                    session["must_change_password"] = True
+                    flash("Please set a new password to finish signing in.", "ok")
+                    return redirect(url_for("account_password"))
                 return redirect(request.args.get("next") or url_for("dashboard"))
             if is_pending_signup(db(), request.form.get("email", "")):
                 flash("Your account request is awaiting an administrator's approval.", "error")
@@ -2217,7 +2230,8 @@ def create_app(dsn: str | None = None) -> Flask:
     def admin_users():
         conn = db()
         users = conn.execute(
-            """SELECT u.id, u.email, u.full_name, u.is_active,
+            """SELECT u.id, u.email, u.full_name, u.is_active, u.must_change_password,
+                      u.last_login_at, u.password_hash IS NOT NULL AS has_password,
                       coalesce(json_agg(json_build_object('code', ur.role_code, 'region', ur.scope_region,
                                         'org', ur.scope_org)) FILTER (WHERE ur.role_code IS NOT NULL), '[]') AS roles
                FROM app_user u LEFT JOIN user_role ur ON ur.user_id = u.id
@@ -2281,5 +2295,72 @@ def create_app(dsn: str | None = None) -> Flask:
         revoke_role(db(), uid, request.form["role"])
         flash("Role revoked.", "ok")
         return redirect(url_for("admin_users"))
+
+    @app.route("/admin/users/<int:uid>/reset-password", methods=["POST"])
+    @admin_required
+    def admin_reset_password(uid):
+        pw = (request.form.get("password") or "").strip() or gen_password()
+        require = request.form.get("require_change") != "0"
+        reset_password(db(), uid, pw, require_change=require)
+        # Show the temp password once so the admin can pass it to the user out of band.
+        flash(f"Password reset. Temporary password: {pw}"
+              + (" — the user must change it at next sign-in." if require else ""), "ok")
+        return redirect(url_for("admin_users"))
+
+    @app.route("/admin/users/<int:uid>/active", methods=["POST"])
+    @admin_required
+    def admin_set_active(uid):
+        if uid == session["uid"] and request.form.get("active") != "1":
+            flash("You can't deactivate your own account.", "error")
+            return redirect(url_for("admin_users"))
+        active = request.form.get("active") == "1"
+        set_active(db(), uid, active)
+        flash("Account " + ("reactivated." if active else "deactivated — sign-in disabled."), "ok")
+        return redirect(url_for("admin_users"))
+
+    @app.route("/admin/users/<int:uid>/edit", methods=["POST"])
+    @admin_required
+    def admin_edit_user(uid):
+        f = request.form
+        try:
+            update_user(db(), uid, email=f.get("email"), full_name=f.get("full_name"))
+            flash("Account updated.", "ok")
+        except ValueError as exc:
+            flash(str(exc), "error")
+        return redirect(url_for("admin_users"))
+
+    @app.route("/admin/users/<int:uid>/delete", methods=["POST"])
+    @admin_required
+    def admin_delete_user(uid):
+        conn = db()
+        if uid == session["uid"]:
+            flash("You can't delete your own account.", "error")
+        elif user_references(conn, uid) > 0:
+            flash("This account has work history (assignments, audit, ingests). Deactivate it "
+                  "instead of deleting, to preserve provenance.", "error")
+        else:
+            delete_user(conn, uid)
+            flash("Account deleted.", "ok")
+        return redirect(url_for("admin_users"))
+
+    # ---------- self-service: change your own password ----------
+    @app.route("/account/password", methods=["GET", "POST"])
+    @login_required
+    def account_password():
+        must = bool(session.get("must_change_password"))
+        if request.method == "POST":
+            f = request.form
+            new = f.get("new") or ""
+            if len(new) < 8:
+                flash("New password must be at least 8 characters.", "error")
+            elif new != f.get("confirm"):
+                flash("The new passwords don't match.", "error")
+            elif not change_own_password(db(), session["uid"], f.get("current") or "", new):
+                flash("Your current password is incorrect.", "error")
+            else:
+                session.pop("must_change_password", None)
+                flash("Password changed.", "ok")
+                return redirect(url_for("dashboard"))
+        return render_template("account_password.html", must=must)
 
     return app

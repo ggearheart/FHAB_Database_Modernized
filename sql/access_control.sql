@@ -27,6 +27,9 @@ ALTER TABLE app_user ADD COLUMN IF NOT EXISTS password_hash text;
 -- Self-service signup: a request awaiting admin review (inactive until approved).
 ALTER TABLE app_user ADD COLUMN IF NOT EXISTS signup_pending boolean NOT NULL DEFAULT false;
 ALTER TABLE app_user ADD COLUMN IF NOT EXISTS signup_note text;
+-- Account management: force a password change after an admin reset; last successful sign-in.
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT false;
+ALTER TABLE app_user ADD COLUMN IF NOT EXISTS last_login_at timestamptz;
 
 CREATE TABLE IF NOT EXISTS role (
     code        text PRIMARY KEY,
