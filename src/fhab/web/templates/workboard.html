@@ -100,9 +100,19 @@
 </div>
 
 <div class="card">
-  <h1 style="font-size:1.05rem">Samples <span class="muted">({{ '{:,}'.format(total) }})</span></h1>
+  <div style="display:flex; align-items:center; gap:.8rem; flex-wrap:wrap">
+    <button type="button" id="toggleWbMap" class="secondary" style="padding:.3rem .7rem">🗺 Show map of geocoded results</button>
+    <span class="muted" id="wbMapNote" style="font-size:.85rem">Plots the geocoded samples matching the current filter. Click a marker to open or select it.</span>
+  </div>
+  <div id="wbResultsMap" style="height:0; margin-top:.6rem; border-radius:6px; transition:height .15s"></div>
+</div>
+
+<div class="card">
+  <h1 style="font-size:1.05rem">Samples <span class="muted">({{ '{:,}'.format(total) }})</span>
+    <span id="selCount" class="muted" style="font-size:.85rem"></span></h1>
   <table>
-    <tr><th></th><th>Status</th><th>Station / sample</th><th>Sampling event</th><th>Results</th>
+    <tr><th><input type="checkbox" id="selAll" title="Select all rows on this page"></th>
+        <th>Status</th><th>Station / sample</th><th>Sampling event</th><th>Results</th>
         <th>Linked to</th><th>Assignee</th><th>QA</th><th>Actions</th></tr>
     {% for r in rows %}
     <tr>
@@ -483,5 +493,88 @@ function wbScanCoC() {
 document.getElementById('mapModal').addEventListener('click', e => {
   if (e.target.id === 'mapModal') e.target.style.display = 'none';   // click backdrop to close
 });
+
+// ── multi-select: select-all + live count ──────────────────────────────────────
+const PILL = {{ PILL|tojson }};
+function rowBoxes() { return [...document.querySelectorAll('input[name=sample_ids]')]; }
+function updateSelCount() {
+  const n = rowBoxes().filter(b => b.checked).length;
+  document.getElementById('selCount').textContent = n ? `· ${n} selected` : '';
+  const all = rowBoxes();
+  const sel = document.getElementById('selAll');
+  sel.checked = all.length && all.every(b => b.checked);
+  sel.indeterminate = !sel.checked && all.some(b => b.checked);
+}
+document.getElementById('selAll').addEventListener('change', e => {
+  rowBoxes().forEach(b => { b.checked = e.target.checked; });
+  syncMapSelection(); updateSelCount();
+});
+document.addEventListener('change', e => {
+  if (e.target.name === 'sample_ids') { syncMapSelection(); updateSelCount(); }
+});
+
+// ── map of geocoded results in the current filter ───────────────────────────────
+let _rmap = null, _rlayer = null, _rmarkers = {};
+function setBox(id, checked) {
+  const b = document.querySelector(`input[name=sample_ids][value="${id}"]`);
+  if (b) { b.checked = checked; }
+}
+function syncMapSelection() {
+  Object.entries(_rmarkers).forEach(([id, m]) => {
+    const b = document.querySelector(`input[name=sample_ids][value="${id}"]`);
+    m.setStyle({ weight: b && b.checked ? 4 : 1.5, color: b && b.checked ? '#111' : '#fff' });
+  });
+}
+function loadResultsMap() {
+  const note = document.getElementById('wbMapNote');
+  note.textContent = 'Loading…';
+  const qs = window.location.search;   // reuse the page's current filter
+  fetch('{{ url_for("lab_workboard_geojson") }}' + qs)
+    .then(r => r.json()).then(fc => {
+      if (_rlayer) _rlayer.remove();
+      _rmarkers = {};
+      _rlayer = L.geoJSON(fc, {
+        pointToLayer: (feat, ll) => {
+          const p = feat.properties;
+          const m = L.circleMarker(ll, { radius: 6, weight: 1.5, color: '#fff',
+            fillColor: PILL[p.status] || '#888', fillOpacity: .9 });
+          _rmarkers[p.id] = m;
+          const files = p.n_files ? ` · 📎${p.n_files}` : '';
+          m.bindPopup(
+            `<b>${p.station_code || 'sample'}</b> <span style="color:#667">${p.status}</span><br>`
+            + `${p.sample_date || '—'}${p.water_body ? ' · ' + p.water_body : ''}${files}<br>`
+            + (p.event_id ? `SE ${p.event_id}<br>` : '')
+            + `<a href="#" onclick="openSampleMap(${p.id});return false;">Open research popup →</a>`
+            + ` · <a href="#" onclick="toggleFromMap(${p.id});return false;">Select / deselect</a>`);
+          return m;
+        }
+      }).addTo(_rmap);
+      const n = fc.features.length;
+      note.textContent = `${n} geocoded sample${n === 1 ? '' : 's'} in this filter`
+        + (n >= 3000 ? ' (capped at 3000 — narrow the filter)' : '') + '.';
+      if (n) { _rmap.fitBounds(_rlayer.getBounds().pad(0.15)); }
+      syncMapSelection();
+    })
+    .catch(() => { note.textContent = 'Could not load the map.'; });
+}
+function toggleFromMap(id) {
+  const b = document.querySelector(`input[name=sample_ids][value="${id}"]`);
+  if (!b) { alert('That sample is on another page of the table — go to its page to select it.'); return; }
+  b.checked = !b.checked; syncMapSelection(); updateSelCount();
+}
+document.getElementById('toggleWbMap').addEventListener('click', function () {
+  const box = document.getElementById('wbResultsMap');
+  const open = box.style.height !== '0px' && box.style.height !== '';
+  if (open) { box.style.height = '0px'; this.textContent = '🗺 Show map of geocoded results'; return; }
+  box.style.height = '420px'; this.textContent = '🗺 Hide map';
+  if (typeof L === 'undefined') { document.getElementById('wbMapNote').textContent = 'Map library failed to load.'; return; }
+  if (!_rmap) {
+    _rmap = L.map('wbResultsMap').setView([37.5, -120], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(_rmap);
+  }
+  setTimeout(() => { _rmap.invalidateSize(); loadResultsMap(); }, 60);
+});
+updateSelCount();
 </script>
 {% endblock %}

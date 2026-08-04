@@ -38,7 +38,8 @@ from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, c
                         count_workboard, create_report_from_sample, link_sample,
                         link_sample_stations, link_sample_to_reports, qa_review, sample_geo,
                         set_sample_location, set_sample_point, status_tallies, tag_routine,
-                        team_members, unlink_sample, unlink_sample_station, workboard)
+                        team_members, unlink_sample, unlink_sample_station, workboard,
+                        workboard_points)
 from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov, reset_local_edit_flags
 from ..samples import count_samples, create_sample, get_sample, list_samples, update_sample
@@ -1208,6 +1209,22 @@ def create_app(dsn: str | None = None) -> Flask:
         return render_template("workboard.html", rows=rows, total=total, page=page, per=per, f=f,
                                sort=sort, tallies=status_tallies(conn), team=team_members(conn),
                                regions=_regions(), base_args=base_args, batch=batch, batch_files=files)
+
+    @app.route("/lab/workboard.geojson")
+    @staff_required
+    def lab_workboard_geojson():
+        a = request.args
+        f = {k: (a.get(k) or "").strip() or None
+             for k in ("status", "assignee", "region", "q", "batch", "geocoded", "event", "files")}
+        rows = workboard_points(db(), f, me=session["uid"])
+        feats = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]},
+                  "properties": {"id": r["id"], "station_code": r["station_code"], "status": r["status"],
+                                 "sample_date": str(r["sample_date"]) if r["sample_date"] else None,
+                                 "water_body": r["water_body_name"], "n_files": r["n_files"],
+                                 "event_id": r["event_id"],
+                                 "linked": bool(r["bloom_report_id"] or r["case_id"])}}
+                 for r in rows if r["lat"] is not None]
+        return jsonify({"type": "FeatureCollection", "features": feats})
 
     @app.route("/lab/workboard/reconcile", methods=["POST"])
     @staff_required
