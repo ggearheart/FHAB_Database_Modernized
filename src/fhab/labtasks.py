@@ -104,6 +104,22 @@ def count_workboard(conn, f: dict, *, me=None) -> int:
     return conn.execute(f"SELECT count(*) AS c{_FROM}{extra}", p).fetchone()["c"]
 
 
+def workboard_points(conn, f: dict, *, me=None, limit=3000) -> list:
+    """Geocoded samples matching the current workboard filter, as map points. Same filter as the
+    table; only rows with a plottable location (station or linked-event geom)."""
+    extra, p = _where(f, me)
+    p["limit"] = limit
+    return conn.execute(
+        f"""SELECT s.id, st.station_code, s.sample_date, ({_STATUS}) AS status,
+                   w.water_body_name, s.bloom_report_id, s.case_id, s.lab_batch_id AS event_id,
+                   (SELECT count(*) FROM lab_batch_file bf WHERE bf.batch_id = s.lab_batch_id) AS n_files,
+                   COALESCE(ST_Y(st.geom), ST_Y(l.geom)) AS lat,
+                   COALESCE(ST_X(st.geom), ST_X(l.geom)) AS lon
+            {_FROM}{extra}
+              AND COALESCE(st.geom, l.geom) IS NOT NULL
+            ORDER BY s.id DESC LIMIT %(limit)s""", p).fetchall()
+
+
 def status_tallies(conn) -> dict:
     """Counts per status across all samples with results (for the board's summary chips).
 

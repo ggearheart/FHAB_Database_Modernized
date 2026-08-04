@@ -264,6 +264,30 @@ def test_files_filter_and_tally(conn):
     assert count_workboard(conn, {"status": "unlinked", "geocoded": "no", "files": "yes"}) >= 1
 
 
+def test_workboard_points_only_geocoded(conn):
+    """The workboard map returns geocoded samples matching the filter; ungeocoded ones (no point)
+    are excluded, and filters still apply."""
+    from fhab.labtasks import workboard_points
+    geo = conn.execute("INSERT INTO station (station_code, geom) "
+                       "VALUES ('GEOM1', ST_SetSRID(ST_MakePoint(-121.4,38.5),4326)) RETURNING id").fetchone()["id"]
+    sg = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s,'2026-06-15') RETURNING id",
+                      (geo,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('gp1',%s,'Laboratory')", (sg,))
+    ng = conn.execute("INSERT INTO station (station_code) VALUES ('NOGEOM') RETURNING id").fetchone()["id"]
+    sn = conn.execute("INSERT INTO sample (station_id, sample_date) VALUES (%s,'2026-06-15') RETURNING id",
+                      (ng,)).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) VALUES ('gp2',%s,'Laboratory')", (sn,))
+    conn.commit()
+
+    pts = workboard_points(conn, {})
+    ids = {p["id"] for p in pts}
+    assert sg in ids and sn not in ids                       # only the geocoded one is a point
+    p = next(p for p in pts if p["id"] == sg)
+    assert p["lat"] == 38.5 and p["lon"] == -121.4 and p["status"] == "unlinked"
+    # station search filter still applies
+    assert {p["id"] for p in workboard_points(conn, {"q": "GEOM1"})} == {sg}
+
+
 def test_sample_geo_summary_has_ingestion_metadata(conn):
     from fhab.labtasks import sample_geo
     bid = conn.execute("INSERT INTO lab_batch (kind, source) VALUES ('ingested','Clear Lake (RB5)') "
