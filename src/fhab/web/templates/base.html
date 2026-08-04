@@ -47,7 +47,7 @@
     {% if is_admin %}<a href="{{ url_for('admin_home') }}">Admin</a>{% endif %}
     <span class="spacer"></span>
     <a href="{{ url_for('notifications') }}" title="Notifications" style="font-weight:600">🔔{% if nav_unread %} <span style="background:#e8543f;color:#fff;border-radius:999px;padding:0 .4rem;font-size:.72rem">{{ nav_unread }}</span>{% endif %}</a>
-    <span class="muted" style="color:#dff0e7">{{ session.name }}</span>
+    <a href="{{ url_for('account_password') }}" title="Change your password" style="color:#dff0e7">{{ session.name }}</a>
     <a href="{{ url_for('logout') }}">Sign out</a>
   </header>
   {% endif %}

@@ -42,13 +42,18 @@
 </div>
 {% endif %}
 
-<div class="card">
-  <table>
-    <tr><th>Email</th><th>Name</th><th>Roles (scope)</th><th>Active</th><th>Grant role</th></tr>
+<div class="card" style="overflow-x:auto">
+  <table style="font-size:.9rem">
+    <tr><th>Account (edit)</th><th>Roles (scope)</th><th>Grant role</th><th>Status</th><th>Manage</th></tr>
     {% for u in users %}
     <tr>
-      <td>{{ u.email }}</td>
-      <td>{{ u.full_name or '—' }}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin_edit_user', uid=u.id) }}" style="display:flex; flex-direction:column; gap:.25rem">
+          <input name="email" type="email" value="{{ u.email }}" style="min-width:15rem">
+          <input name="full_name" value="{{ u.full_name or '' }}" placeholder="Full name">
+          <button class="secondary" style="padding:.2rem .5rem; align-self:flex-start">Save</button>
+        </form>
+      </td>
       <td>
         {% for r in u.roles %}
           <form method="post" action="{{ url_for('admin_revoke', uid=u.id) }}" style="display:inline">
@@ -57,22 +62,46 @@
           </form>
         {% else %}<span class="muted">none</span>{% endfor %}
       </td>
-      <td>{{ 'yes' if u.is_active else 'no' }}</td>
       <td>
         <form method="post" action="{{ url_for('admin_grant', uid=u.id) }}" style="display:flex; gap:.3rem; flex-wrap:wrap">
           <select name="role" style="width:auto">
             {% for r in roles %}<option value="{{ r.code }}">{{ r.code }}</option>{% endfor %}
           </select>
           {{ region_select() }}
-          <input name="org" placeholder="org (opt)" style="width:100px">
-          <button class="secondary">Grant</button>
+          <input name="org" placeholder="org (opt)" style="width:90px">
+          <button class="secondary" style="padding:.2rem .5rem">Grant</button>
         </form>
+      </td>
+      <td style="white-space:nowrap">
+        {% if u.is_active %}<span class="pill" style="background:#d8f0e0">active</span>{% else %}<span class="pill" style="background:#f3d6d6">inactive</span>{% endif %}
+        {% if not u.has_password %}<br><span class="muted" style="font-size:.78rem">no password set</span>
+        {% elif u.must_change_password %}<br><span class="muted" style="font-size:.78rem">⚠ must change password</span>{% endif %}
+        <br><span class="muted" style="font-size:.78rem">last login: {{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else 'never' }}</span>
+      </td>
+      <td style="white-space:nowrap">
+        <form method="post" action="{{ url_for('admin_reset_password', uid=u.id) }}" style="display:flex; gap:.25rem; align-items:center; margin-bottom:.3rem">
+          <input name="password" placeholder="temp pw (blank = auto)" style="width:11rem" autocomplete="off">
+          <button class="secondary" style="padding:.2rem .5rem" title="Set a temporary password the user must change">Reset password</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_set_active', uid=u.id) }}" style="display:inline">
+          <input type="hidden" name="active" value="{{ '0' if u.is_active else '1' }}">
+          {% if u.id != session.uid %}<button class="secondary" style="padding:.2rem .5rem">{{ 'Deactivate' if u.is_active else 'Reactivate' }}</button>{% endif %}
+        </form>
+        {% if u.id != session.uid %}
+        <form method="post" action="{{ url_for('admin_delete_user', uid=u.id) }}" style="display:inline"
+              onsubmit="return confirm('Delete {{ u.email }}? Only possible if the account has no work history.')">
+          <button class="secondary" style="padding:.2rem .5rem; background:#b45309">Delete</button>
+        </form>
+        {% endif %}
       </td>
     </tr>
     {% endfor %}
   </table>
   <p class="muted" style="font-size:.85rem">For Water Board staff, choose a specific region or
-    <strong>Statewide (all regions)</strong>. Region is ignored for non-staff roles.</p>
+    <strong>Statewide (all regions)</strong>. Region is ignored for non-staff roles.
+    <strong>Reset password</strong> shows a one-time temporary password to share with the user;
+    they'll be prompted to change it at next sign-in. Accounts with work history can't be deleted
+    (to preserve provenance) — <strong>deactivate</strong> them instead.</p>
 </div>
 
 <div class="card">
