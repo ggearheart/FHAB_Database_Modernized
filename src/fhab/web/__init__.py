@@ -23,7 +23,8 @@ from ..auth import (acting_as, approve_signup, authenticate, change_own_password
                     set_password, update_user, user_references, user_regions)
 from ..cases import (CASE_STATUSES, assign_report_to_case, create_case, update_case)
 from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_for_event)
-from ..bendlab import (batch_file, batch_files, ingest_bend_folder, ingested_batches)
+from ..bendlab import (batch_file, batch_files, ingest_bend_folder, ingested_batches,
+                       ingestion_report)
 from ..labmatch import (_candidates, auto_match, create_event_from_stage, link_stage_sample,
                         skip_stage_sample, stage_batch)
 from ..places import COUNTIES, similar_waterbodies, suggest_waterbodies
@@ -357,6 +358,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Detect and merge samples that arrived more than once across ingest paths."},
             {"title": "Lab data workboard", "href": url_for("lab_workboard"),
              "desc": "Assign, link, and QA-review lab samples against reports/cases."},
+            {"title": "Ingestion report", "href": url_for("ingest_report"),
+             "desc": "Every ingestion — when, kind, source, sample/geocoded/result counts & success — filterable, with CSV."},
             {"title": "Bulk sample coordinates", "href": url_for("lab_coordinates"),
              "desc": "Paste station/lat/long rows (e.g. read off chain-of-custody forms) to geocode many samples at once."},
             {"title": "Batch update outcomes", "href": url_for("batch_determination"),
@@ -1206,9 +1209,13 @@ def create_app(dsn: str | None = None) -> Flask:
         if str(f.get("batch") or "").isdigit():
             batch = conn.execute("SELECT * FROM lab_batch WHERE id=%s", (int(f["batch"]),)).fetchone()
             files = batch_files(conn, int(f["batch"])) if batch else None
+        # Chips preserve the non-facet filters (region/search/etc.) and are scoped to that view.
+        chip_args = {k: v for k, v in f.items()
+                     if v and k in ("region", "assignee", "q", "event", "batch")}
         return render_template("workboard.html", rows=rows, total=total, page=page, per=per, f=f,
-                               sort=sort, tallies=status_tallies(conn), team=team_members(conn),
-                               regions=_regions(), base_args=base_args, batch=batch, batch_files=files)
+                               sort=sort, tallies=status_tallies(conn, f, me=session["uid"]),
+                               team=team_members(conn), regions=_regions(), base_args=base_args,
+                               batch=batch, batch_files=files, chip_args=chip_args)
 
     @app.route("/lab/workboard.geojson")
     @staff_required
@@ -1911,6 +1918,39 @@ def create_app(dsn: str | None = None) -> Flask:
         for b in batches:
             b["files"] = batch_files(conn, b["id"])
         return render_template("folder_ingest.html", batches=batches)
+
+    def _ingest_report_filters():
+        a = request.args
+        return {"kind": a.get("kind") or None, "region": (a.get("region") or "").strip() or None,
+                "q": (a.get("q") or "").strip() or None,
+                "date_from": a.get("date_from") or None, "date_to": a.get("date_to") or None}
+
+    @app.route("/ingest/report")
+    @staff_required
+    def ingest_report():
+        conn = db()
+        rep = ingestion_report(conn, **_ingest_report_filters())
+        regions = [r["region"] for r in conn.execute(
+            "SELECT DISTINCT region FROM lab_batch WHERE region IS NOT NULL ORDER BY 1").fetchall()]
+        f = {k: (request.args.get(k) or "") for k in ("kind", "region", "q", "date_from", "date_to")}
+        return render_template("ingest_report.html", batches=rep["batches"], totals=rep["totals"],
+                               regions=regions, f=f, csv_args={k: v for k, v in f.items() if v})
+
+    @app.route("/ingest/report.csv")
+    @staff_required
+    def ingest_report_csv():
+        from flask import Response
+        rows = ingestion_report(db(), **_ingest_report_filters())["batches"]
+        cols = ["id", "uploaded_at", "kind", "source", "region", "n_samples", "n_geocoded",
+                "n_results", "n_files", "status", "uploaded_by"]
+        head = {"id": "Sampling_Event_ID", "uploaded_at": "Ingested_At", "n_samples": "Samples",
+                "n_geocoded": "Geocoded", "n_results": "Results", "n_files": "Files"}
+        hdr = [head.get(c, c.title()) for c in cols]
+        out = _csv_text(hdr, [dict(zip(hdr, (r[c] for c in cols))) for r in rows])
+        stamp = __import__("datetime").date.today().isoformat()
+        resp = Response(out, mimetype="text/csv")
+        resp.headers["Content-Disposition"] = f'attachment; filename="fhab_ingestions_{stamp}.csv"'
+        return resp
 
     @app.route("/lab/batch/<int:bid>/coordinates", methods=["GET", "POST"])
     @staff_required

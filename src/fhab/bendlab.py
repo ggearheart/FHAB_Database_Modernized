@@ -366,3 +366,38 @@ def ingested_batches(conn) -> list[dict]:
                   (SELECT count(*) FROM lab_batch_file f WHERE f.batch_id=b.id) AS n_files
            FROM lab_batch b WHERE b.kind='ingested' ORDER BY b.uploaded_at DESC, b.id DESC"""
     ).fetchall()
+
+
+def ingestion_report(conn, *, kind=None, region=None, q=None, date_from=None, date_to=None) -> dict:
+    """Filterable report over every ingestion (lab_batch): when it was ingested, its kind, source,
+    region, sample / geocoded / result counts, files, status and who ran it, plus totals.
+
+    'How many folders' = the number of batches (each email folder / prepared file is one batch).
+    Geocoded % is the headline ingestion-success signal.
+    """
+    cond, p = ["TRUE"], {}
+    if kind in ("ingested", "staged"):
+        cond.append("b.kind = %(kind)s"); p["kind"] = kind
+    if region:
+        cond.append("b.region = %(region)s"); p["region"] = region
+    if q:
+        cond.append("(b.source ILIKE %(q)s OR b.filename ILIKE %(q)s OR CAST(b.id AS text) = %(qx)s)")
+        p["q"] = f"%{q}%"; p["qx"] = q.strip()
+    if date_from:
+        cond.append("b.uploaded_at >= %(df)s"); p["df"] = date_from
+    if date_to:
+        cond.append("b.uploaded_at < (%(dt)s::date + 1)"); p["dt"] = date_to
+    where = " AND ".join(cond)
+    batches = conn.execute(
+        f"""SELECT b.id, b.uploaded_at, b.kind, b.source, b.region, b.status, b.filename,
+                   b.n_samples, b.n_geocoded, b.n_results, u.email AS uploaded_by,
+                   (SELECT count(*) FROM lab_batch_file f WHERE f.batch_id = b.id) AS n_files
+            FROM lab_batch b LEFT JOIN app_user u ON u.id = b.uploaded_by
+            WHERE {where} ORDER BY b.uploaded_at DESC, b.id DESC LIMIT 2000""", p).fetchall()
+    tot = conn.execute(
+        f"""SELECT count(*) AS batches, coalesce(sum(b.n_samples),0) AS samples,
+                   coalesce(sum(b.n_geocoded),0) AS geocoded, coalesce(sum(b.n_results),0) AS results
+            FROM lab_batch b WHERE {where}""", p).fetchone()
+    totals = dict(tot)
+    totals["geocoded_pct"] = round(100 * totals["geocoded"] / totals["samples"]) if totals["samples"] else None
+    return {"batches": batches, "totals": totals}
