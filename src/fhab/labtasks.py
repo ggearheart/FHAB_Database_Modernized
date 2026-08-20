@@ -120,27 +120,32 @@ def workboard_points(conn, f: dict, *, me=None, limit=3000) -> list:
             ORDER BY s.id DESC LIMIT %(limit)s""", p).fetchall()
 
 
-def status_tallies(conn) -> dict:
-    """Counts per status across all samples with results (for the board's summary chips).
+TALLY_FACETS = ("status", "geocoded", "files")   # the facets the summary chips themselves toggle
 
-    Also splits the *unlinked* bucket by geocoding, so the board can surface samples that are
-    geocoded but still not linked ('geocoded, parked') vs. those that still need coordinates.
+
+def status_tallies(conn, f: dict | None = None, *, me=None) -> dict:
+    """Counts per status for the board's summary chips.
+
+    Scoped to the current filter *minus* the facets the chips control (status / geocoded / files),
+    so the bubbles reflect the filtered view (e.g. a region) yet still let you switch facet. Also
+    splits the *unlinked* bucket by geocoding, and counts the actionable 'needs geocoding + has a
+    CoC on file' subset.
     """
+    scoped = {k: v for k, v in (f or {}).items() if k not in TALLY_FACETS}
+    extra, p = _where(scoped, me)
     rows = conn.execute(
         f"""SELECT ({_STATUS}) AS status, count(*) AS c,
-                   count(*) FILTER (WHERE st.geom IS NOT NULL) AS geo{_FROM} GROUP BY 1"""
+                   count(*) FILTER (WHERE st.geom IS NOT NULL) AS geo{_FROM}{extra} GROUP BY 1""", p
     ).fetchall()
     t = {r["status"]: r["c"] for r in rows}
     for r in rows:
         if r["status"] == "unlinked":
             t["unlinked_geocoded"] = r["geo"]
             t["unlinked_nogeo"] = r["c"] - r["geo"]
-    # Of the samples that still need coordinates, how many carry source files (a CoC to read
-    # coordinates off) — the actionable subset a reviewer can make progress on right now.
     t["unlinked_nogeo_files"] = conn.execute(
-        f"""SELECT count(*) AS c {_FROM}
+        f"""SELECT count(*) AS c {_FROM}{extra}
             AND ({_STATUS}) = 'unlinked' AND st.geom IS NULL
-            AND EXISTS (SELECT 1 FROM lab_batch_file bf WHERE bf.batch_id = s.lab_batch_id)"""
+            AND EXISTS (SELECT 1 FROM lab_batch_file bf WHERE bf.batch_id = s.lab_batch_id)""", p
     ).fetchone()["c"]
     return t
 

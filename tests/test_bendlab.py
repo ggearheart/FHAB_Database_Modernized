@@ -213,3 +213,26 @@ def test_multifolder_ajax_upload_returns_json(client, conn):
     # empty ajax post -> JSON error, not a redirect
     bad = client.post("/ingest/folders", data={"ajax": "1"}, content_type="multipart/form-data")
     assert bad.status_code == 400 and "error" in bad.get_json()
+
+
+def test_ingestion_report_totals_and_filters(conn):
+    """The ingestion report lists every batch with counts + totals, and filters by kind/region/search."""
+    from fhab.bendlab import ingestion_report
+    conn.execute("""INSERT INTO lab_batch (kind, source, region, status, n_samples, n_geocoded, n_results)
+                    VALUES ('ingested','Clear Lake (RB5)','Region 5','open',10,8,30),
+                           ('ingested','Bridgeport (RB6)','Region 6','open',4,4,12),
+                           ('staged','A CEDEN file',NULL,'open',5,0,5)""")
+    conn.commit()
+
+    rep = ingestion_report(conn)
+    assert rep["totals"]["batches"] == 3
+    assert rep["totals"]["samples"] == 19 and rep["totals"]["geocoded"] == 12
+    assert rep["totals"]["geocoded_pct"] == round(100 * 12 / 19)
+    # filter by kind
+    assert ingestion_report(conn, kind="ingested")["totals"]["batches"] == 2
+    # filter by region
+    assert ingestion_report(conn, region="Region 6")["totals"]["samples"] == 4
+    # search by source
+    r = ingestion_report(conn, q="clear")
+    assert r["totals"]["batches"] == 1 and r["batches"][0]["source"] == "Clear Lake (RB5)"
+    assert r["batches"][0]["uploaded_at"] is not None            # ingestion date is recorded

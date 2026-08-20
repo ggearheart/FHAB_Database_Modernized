@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Ingestion report{% endblock %}
+{% block body %}
+<h1>Ingestion report</h1>
+<p class="muted" style="margin-top:-.4rem">Every batch ingested into FHAB — when, how, and how well
+  it geocoded. Each row is one <strong>ingestion</strong> (an email folder, a prepared CSV, or a
+  staged reconciliation batch).</p>
+
+<div class="card">
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px">
+    {% set tiles = [('Ingestions', '{:,}'.format(totals.batches)),
+                    ('Samples', '{:,}'.format(totals.samples)),
+                    ('Geocoded', (totals.geocoded_pct ~ '%') if totals.geocoded_pct is not none else '—'),
+                    ('Results', '{:,}'.format(totals.results))] %}
+    {% for label, val in tiles %}
+    <div style="background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px 14px">
+      <div style="font-size:1.5rem; font-weight:700; color:var(--green); line-height:1">{{ val }}</div>
+      <div class="muted" style="font-size:.8rem; margin-top:4px">{{ label }}
+        {%- if label == 'Geocoded' and totals.samples %} of {{ '{:,}'.format(totals.geocoded) }}/{{ '{:,}'.format(totals.samples) }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" style="display:flex; flex-wrap:wrap; gap:.7rem; align-items:flex-end">
+    <div><label>Kind</label>
+      <select name="kind" onchange="this.form.submit()"><option value="">All</option>
+        <option value="ingested" {% if f.kind=='ingested' %}selected{% endif %}>Email / folder ingest</option>
+        <option value="staged" {% if f.kind=='staged' %}selected{% endif %}>Lab batch reconciliation</option>
+      </select></div>
+    <div><label>Region</label>
+      <select name="region" onchange="this.form.submit()"><option value="">Any</option>
+        {% for r in regions %}<option value="{{ r }}" {% if f.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select></div>
+    <div><label>Ingested from</label><input name="date_from" type="date" value="{{ f.date_from }}"></div>
+    <div><label>to</label><input name="date_to" type="date" value="{{ f.date_to }}"></div>
+    <div><label>Search source / SE ID</label><input name="q" value="{{ f.q }}" placeholder="e.g. Clear Lake or 42"></div>
+    <button>Apply</button>
+    <a class="btn secondary" href="{{ url_for('ingest_report') }}">Clear</a>
+    <a class="btn" style="background:#6b7c76"
+       href="{{ url_for('ingest_report_csv', **csv_args) }}">⬇ Download CSV</a>
+  </form>
+</div>
+
+<div class="card" style="overflow-x:auto">
+  <table style="font-size:.9rem">
+    <tr><th>SE</th><th>Ingested</th><th>Kind</th><th>Source</th><th>Region</th>
+        <th>Samples</th><th>Geocoded</th><th>Results</th><th>Files</th><th>By</th></tr>
+    {% for b in batches %}
+    <tr>
+      <td><a href="{{ url_for('lab_workboard', batch=b.id) }}" title="Open this batch on the workboard">SE {{ b.id }}</a></td>
+      <td style="white-space:nowrap">{{ b.uploaded_at.strftime('%Y-%m-%d %H:%M') if b.uploaded_at else '—' }}</td>
+      <td class="muted">{{ 'email/folder' if b.kind == 'ingested' else ('reconcile' if b.kind == 'staged' else b.kind) }}</td>
+      <td>{{ b.source or b.filename or '—' }}</td>
+      <td class="muted">{{ b.region or '—' }}</td>
+      <td>{{ b.n_samples or 0 }}</td>
+      <td>{% set n = b.n_samples or 0 %}{% set g = b.n_geocoded or 0 %}{{ g }}{% if n %}
+          <span class="muted" style="font-size:.8rem">({{ (100*g//n) }}%)</span>{% endif %}</td>
+      <td>{{ b.n_results or 0 }}</td>
+      <td>{% if b.n_files %}📎 {{ b.n_files }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="muted">{{ b.uploaded_by or 'system' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="10" class="muted">No ingestions match these filters.</td></tr>
+    {% endfor %}
+  </table>
+  {% if batches|length >= 2000 %}<p class="muted" style="font-size:.82rem">Showing the most recent 2000 — narrow the filters to see more.</p>{% endif %}
+</div>
+{% endblock %}

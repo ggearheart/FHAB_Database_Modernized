@@ -264,6 +264,18 @@ def test_files_filter_and_tally(conn):
     assert count_workboard(conn, {"status": "unlinked", "geocoded": "no", "files": "yes"}) >= 1
 
 
+def test_status_tallies_respect_the_filter(conn):
+    """The summary bubbles are scoped to the current filter (minus the facets the chips toggle)."""
+    from fhab.labtasks import status_tallies
+    _orphan_sample(conn, "ALPHA")
+    _orphan_sample(conn, "BETA")
+    assert status_tallies(conn)["unlinked"] >= 2                 # unfiltered: both
+    scoped = status_tallies(conn, {"q": "ALPHA"})               # scoped to a station search
+    assert scoped["unlinked"] == 1
+    # the status facet itself is NOT applied to the scope, so switching status still shows counts
+    assert status_tallies(conn, {"q": "ALPHA", "status": "linked"})["unlinked"] == 1
+
+
 def test_workboard_points_only_geocoded(conn):
     """The workboard map returns geocoded samples matching the filter; ungeocoded ones (no point)
     are excluded, and filters still apply."""
