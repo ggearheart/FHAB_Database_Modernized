@@ -215,24 +215,42 @@ def test_multifolder_ajax_upload_returns_json(client, conn):
     assert bad.status_code == 400 and "error" in bad.get_json()
 
 
-def test_ingestion_report_totals_and_filters(conn):
-    """The ingestion report lists every batch with counts + totals, and filters by kind/region/search."""
+def test_ingestion_report_metadata_totals_and_filters(conn):
+    """The report lists every batch with who/when, the lab-result date range, per-batch counts +
+    totals, and filters by kind/region/search."""
+    from fhab.auth import create_user
     from fhab.bendlab import ingestion_report
-    conn.execute("""INSERT INTO lab_batch (kind, source, region, status, n_samples, n_geocoded, n_results)
-                    VALUES ('ingested','Clear Lake (RB5)','Region 5','open',10,8,30),
-                           ('ingested','Bridgeport (RB6)','Region 6','open',4,4,12),
-                           ('staged','A CEDEN file',NULL,'open',5,0,5)""")
+    uid = create_user(conn, "ingester@wb.ca.gov")
+    conn.execute("""INSERT INTO lab_batch (id, kind, source, region, status, n_samples, n_geocoded, n_results, uploaded_by)
+                    VALUES (9001,'ingested','Clear Lake (RB5)','Region 5','open',10,8,30,%s),
+                           (9002,'ingested','Bridgeport (RB6)','Region 6','open',4,4,12,NULL),
+                           (9003,'staged','A CEDEN file',NULL,'open',5,0,5,NULL)""", (uid,))
+    # two samples in the Clear Lake batch, spanning a date range
+    for d in ("2025-06-01", "2025-06-20"):
+        conn.execute("INSERT INTO sample (lab_batch_id, sample_date) VALUES (9001, %s)", (d,))
     conn.commit()
 
     rep = ingestion_report(conn)
     assert rep["totals"]["batches"] == 3
     assert rep["totals"]["samples"] == 19 and rep["totals"]["geocoded"] == 12
     assert rep["totals"]["geocoded_pct"] == round(100 * 12 / 19)
-    # filter by kind
+    cl = next(b for b in rep["batches"] if b["id"] == 9001)
+    assert str(cl["uploaded_by"]) == "ingester@wb.ca.gov"        # who ran the ingestion
+    assert cl["uploaded_at"] is not None                        # when
+    assert str(cl["first_sample"]) == "2025-06-01" and str(cl["last_sample"]) == "2025-06-20"  # result date range
+    assert cl["n_actual"] == 2                                  # samples actually materialized
+    # filters
     assert ingestion_report(conn, kind="ingested")["totals"]["batches"] == 2
-    # filter by region
     assert ingestion_report(conn, region="Region 6")["totals"]["samples"] == 4
-    # search by source
-    r = ingestion_report(conn, q="clear")
-    assert r["totals"]["batches"] == 1 and r["batches"][0]["source"] == "Clear Lake (RB5)"
-    assert r["batches"][0]["uploaded_at"] is not None            # ingestion date is recorded
+    assert ingestion_report(conn, q="clear")["batches"][0]["source"] == "Clear Lake (RB5)"
+
+
+def test_ingest_folder_records_the_user(conn, tmp_path):
+    """The ingesting user is recorded on the batch so the report can show who did it."""
+    from fhab.auth import create_user
+    uid = create_user(conn, "folder@wb.ca.gov")
+    d = tmp_path / "Ewing Reservoir (RB1)"; d.mkdir()
+    (d / "COC_x.pdf").write_bytes(b"%PDF-1.4")
+    r = ingest_bend_folder(conn, d, user_id=uid)
+    who = conn.execute("SELECT uploaded_by FROM lab_batch WHERE id=%s", (r["batch_id"],)).fetchone()["uploaded_by"]
+    assert who == uid

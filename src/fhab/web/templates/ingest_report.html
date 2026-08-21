@@ -45,21 +45,23 @@
 
 <div class="card" style="overflow-x:auto">
   <table style="font-size:.9rem">
-    <tr><th>SE</th><th>Ingested</th><th>Kind</th><th>Source</th><th>Region</th>
-        <th>Samples</th><th>Geocoded</th><th>Results</th><th>Files</th><th>By</th></tr>
+    <tr><th>SE</th><th>Ingested (when · who)</th><th>Kind</th><th>Source</th><th>Region</th>
+        <th>Lab result dates</th><th>Samples</th><th>Geocoded</th><th>Results</th><th>Files</th></tr>
     {% for b in batches %}
     <tr>
       <td><a href="{{ url_for('lab_workboard', batch=b.id) }}" title="Open this batch on the workboard">SE {{ b.id }}</a></td>
-      <td style="white-space:nowrap">{{ b.uploaded_at.strftime('%Y-%m-%d %H:%M') if b.uploaded_at else '—' }}</td>
+      <td style="white-space:nowrap">{{ b.uploaded_at.strftime('%Y-%m-%d %H:%M') if b.uploaded_at else '—' }}
+          <br><span class="muted" style="font-size:.78rem">{{ b.uploaded_by or 'system / pre-record' }}</span></td>
       <td class="muted">{{ 'email/folder' if b.kind == 'ingested' else ('reconcile' if b.kind == 'staged' else b.kind) }}</td>
       <td>{{ b.source or b.filename or '—' }}</td>
       <td class="muted">{{ b.region or '—' }}</td>
-      <td>{{ b.n_samples or 0 }}</td>
+      <td class="muted" style="white-space:nowrap">{% if b.first_sample %}{{ b.first_sample }}{% if b.last_sample and b.last_sample != b.first_sample %} – {{ b.last_sample }}{% endif %}{% else %}—{% endif %}</td>
+      <td>{{ b.n_samples or 0 }}{% if b.n_actual is not none and b.n_actual != b.n_samples %}
+          <br><span class="muted" style="font-size:.78rem" title="materialized now vs recorded at ingest">now {{ b.n_actual }}</span>{% endif %}</td>
       <td>{% set n = b.n_samples or 0 %}{% set g = b.n_geocoded or 0 %}{{ g }}{% if n %}
-          <span class="muted" style="font-size:.8rem">({{ (100*g//n) }}%)</span>{% endif %}</td>
+          <span class="pill" style="font-size:.72rem; background:{{ '#e3f4ea' if g==n else ('#fff6e0' if g else '#fbe6e6') }}">{{ (100*g//n) }}%</span>{% endif %}</td>
       <td>{{ b.n_results or 0 }}</td>
       <td>{% if b.n_files %}📎 {{ b.n_files }}{% else %}<span class="muted">—</span>{% endif %}</td>
-      <td class="muted">{{ b.uploaded_by or 'system' }}</td>
     </tr>
     {% else %}
     <tr><td colspan="10" class="muted">No ingestions match these filters.</td></tr>
