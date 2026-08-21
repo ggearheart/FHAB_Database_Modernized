@@ -1901,7 +1901,10 @@ def create_app(dsn: str | None = None) -> Flask:
             try:
                 for up in uploads:
                     up.save(os.path.join(tmpdir, os.path.basename(up.filename)))
-                r = ingest_bend_folder(conn, tmpdir, source=source or None, user_id=session["uid"])
+                # multi-folder uploader passes one shared session id across its subfolders
+                sess_id = (request.form.get("session") or "").strip() or None
+                r = ingest_bend_folder(conn, tmpdir, source=source or None,
+                                       user_id=session["uid"], session_id=sess_id)
                 if ajax:
                     return jsonify(r)
                 flash(f"Ingested {r['samples']} sample(s) ({r['geocoded']} geocoded), "
@@ -1933,7 +1936,7 @@ def create_app(dsn: str | None = None) -> Flask:
         regions = [r["region"] for r in conn.execute(
             "SELECT DISTINCT region FROM lab_batch WHERE region IS NOT NULL ORDER BY 1").fetchall()]
         f = {k: (request.args.get(k) or "") for k in ("kind", "region", "q", "date_from", "date_to")}
-        return render_template("ingest_report.html", batches=rep["batches"], totals=rep["totals"],
+        return render_template("ingest_report.html", sessions=rep["sessions"], totals=rep["totals"],
                                regions=regions, f=f, csv_args={k: v for k, v in f.items() if v})
 
     @app.route("/ingest/report.csv")
@@ -1941,13 +1944,14 @@ def create_app(dsn: str | None = None) -> Flask:
     def ingest_report_csv():
         from flask import Response
         rows = ingestion_report(db(), **_ingest_report_filters())["batches"]
-        cols = ["id", "uploaded_at", "uploaded_by", "kind", "source", "region",
+        cols = ["ingest_session", "id", "uploaded_at", "uploaded_by", "kind", "source", "region",
                 "first_sample", "last_sample", "n_samples", "n_geocoded", "n_results",
                 "n_files", "status"]
-        head = {"id": "Sampling_Event_ID", "uploaded_at": "Ingested_At",
-                "uploaded_by": "Ingested_By", "first_sample": "First_Result_Date",
-                "last_sample": "Last_Result_Date", "n_samples": "Samples",
-                "n_geocoded": "Geocoded", "n_results": "Results", "n_files": "Files"}
+        head = {"ingest_session": "Upload_Session", "id": "Sampling_Event_ID",
+                "uploaded_at": "Ingested_At", "uploaded_by": "Ingested_By",
+                "first_sample": "First_Result_Date", "last_sample": "Last_Result_Date",
+                "n_samples": "Samples", "n_geocoded": "Geocoded", "n_results": "Results",
+                "n_files": "Files"}
         hdr = [head.get(c, c.title()) for c in cols]
         out = _csv_text(hdr, [dict(zip(hdr, (r[c] for c in cols))) for r in rows])
         stamp = __import__("datetime").date.today().isoformat()

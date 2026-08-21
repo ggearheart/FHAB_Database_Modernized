@@ -22,6 +22,7 @@ import csv
 import mimetypes
 import re
 import tempfile
+import uuid
 from pathlib import Path
 
 import psycopg
@@ -278,11 +279,15 @@ def attach_batch_file(conn, batch_id: int, path: Path, category: str) -> int:
 
 
 def ingest_bend_folder(conn: psycopg.Connection, folder, *, source: str | None = None,
-                       region: str | None = None, user_id: int | None = None) -> dict:
+                       region: str | None = None, user_id: int | None = None,
+                       session_id: str | None = None) -> dict:
     """Ingest one Bend/partner folder: convert + materialize chemistry, store the source files.
 
-    Returns a stats dict. Uses the owner connection (bypasses RLS) like the CEDEN batch loader.
+    `session_id` groups folders ingested together (a multi-folder upload passes one shared id);
+    a single ingest mints its own. Returns a stats dict (incl. the session). Uses the owner
+    connection (bypasses RLS) like the CEDEN batch loader.
     """
+    session_id = session_id or uuid.uuid4().hex
     folder = Path(folder)
     # Unpack any raw lab emails (.eml/.msg) into their attachments first, so a staffer can drop the
     # whole email in and the results spreadsheet + CoC PDFs get ingested like any other folder.
@@ -321,9 +326,11 @@ def ingest_bend_folder(conn: psycopg.Connection, folder, *, source: str | None =
         n_results = rep.get("results", 0)
 
     batch_id = conn.execute(
-        """INSERT INTO lab_batch (filename, kind, source, region, status, n_results, uploaded_by)
-           VALUES (%s,'ingested',%s,%s,'open',%s,%s) RETURNING id""",
-        (data_csv.name if data_csv else None, source, region, n_results, user_id)).fetchone()["id"]
+        """INSERT INTO lab_batch (filename, kind, source, region, status, n_results, uploaded_by,
+             ingest_session)
+           VALUES (%s,'ingested',%s,%s,'open',%s,%s,%s) RETURNING id""",
+        (data_csv.name if data_csv else None, source, region, n_results, user_id,
+         session_id)).fetchone()["id"]
 
     if data_csv is not None:
         conn.execute("UPDATE sample SET lab_batch_id=%s WHERE id > %s AND lab_batch_id IS NULL",
@@ -339,7 +346,7 @@ def ingest_bend_folder(conn: psycopg.Connection, folder, *, source: str | None =
 
     n_files = sum(1 for p in files if attach_batch_file(conn, batch_id, p, _categorize(p.name)))
     conn.commit()
-    return {"batch_id": batch_id, "source": source, "region": region,
+    return {"batch_id": batch_id, "source": source, "region": region, "session": session_id,
             "samples": n_samples, "geocoded": n_geocoded, "results": n_results, "files": n_files}
 
 
@@ -390,7 +397,7 @@ def ingestion_report(conn, *, kind=None, region=None, q=None, date_from=None, da
     where = " AND ".join(cond)
     batches = conn.execute(
         f"""SELECT b.id, b.uploaded_at, b.kind, b.source, b.region, b.status, b.filename,
-                   b.n_samples, b.n_geocoded, b.n_results, u.email AS uploaded_by,
+                   b.ingest_session, b.n_samples, b.n_geocoded, b.n_results, u.email AS uploaded_by,
                    (SELECT count(*) FROM lab_batch_file f WHERE f.batch_id = b.id) AS n_files,
                    sd.first_sample, sd.last_sample, sd.n_actual
             FROM lab_batch b
@@ -406,4 +413,40 @@ def ingestion_report(conn, *, kind=None, region=None, q=None, date_from=None, da
             FROM lab_batch b WHERE {where}""", p).fetchone()
     totals = dict(tot)
     totals["geocoded_pct"] = round(100 * totals["geocoded"] / totals["samples"]) if totals["samples"] else None
-    return {"batches": batches, "totals": totals}
+    return {"batches": batches, "totals": totals, "sessions": sessionize(batches)}
+
+
+def sessionize(batches: list) -> list[dict]:
+    """Roll the report's batch rows up into upload sessions (batches ingested together share an
+    ingest_session; a batch with none is its own session). Each session summarises who/when, how
+    many folders, the sample/geocoded/result/file totals, and the overall lab-result date range,
+    and keeps its batches for the expandable detail."""
+    from collections import OrderedDict
+    sess: "OrderedDict[str, dict]" = OrderedDict()
+    for b in batches:
+        key = b["ingest_session"] or f"b{b['id']}"
+        s = sess.get(key)
+        if s is None:
+            s = sess[key] = {"session": key, "started": b["uploaded_at"], "finished": b["uploaded_at"],
+                             "uploaded_by": b["uploaded_by"], "n_batches": 0, "samples": 0,
+                             "geocoded": 0, "results": 0, "files": 0, "first_sample": None,
+                             "last_sample": None, "batches": []}
+        s["batches"].append(b)
+        s["n_batches"] += 1
+        s["samples"] += b["n_samples"] or 0
+        s["geocoded"] += b["n_geocoded"] or 0
+        s["results"] += b["n_results"] or 0
+        s["files"] += b["n_files"] or 0
+        s["uploaded_by"] = s["uploaded_by"] or b["uploaded_by"]
+        if b["uploaded_at"]:
+            s["started"] = min(s["started"] or b["uploaded_at"], b["uploaded_at"])
+            s["finished"] = max(s["finished"] or b["uploaded_at"], b["uploaded_at"])
+        for k in ("first_sample", "last_sample"):
+            if b[k] is not None:
+                if k == "first_sample":
+                    s[k] = b[k] if s[k] is None else min(s[k], b[k])
+                else:
+                    s[k] = b[k] if s[k] is None else max(s[k], b[k])
+    for s in sess.values():
+        s["geocoded_pct"] = round(100 * s["geocoded"] / s["samples"]) if s["samples"] else None
+    return list(sess.values())

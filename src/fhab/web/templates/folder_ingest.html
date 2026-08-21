@@ -52,12 +52,15 @@ async function ingestAllSubfolders() {
   if (!dirs.length) { prog.textContent = 'No subfolders found in that folder.'; return; }
 
   const btn = document.getElementById('dirBtn'); btn.disabled = true;
+  // One shared upload-session id for every subfolder in this multi-folder upload, so the
+  // ingestion report can group them as a single ingestion.
+  const sessionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/-/g, '');
   const tot = { batches: 0, samples: 0, results: 0, files: 0, failed: 0, fails: [] };
   for (let i = 0; i < dirs.length; i++) {
     const source = dirs[i].split('/').pop();
     prog.textContent = `Ingesting ${i + 1} / ${dirs.length}: ${source} …`;
     const fd = new FormData();
-    fd.append('ajax', '1'); fd.append('source', source);
+    fd.append('ajax', '1'); fd.append('source', source); fd.append('session', sessionId);
     groups[dirs[i]].forEach(f => fd.append('files', f, f.name));
     try {
       const res = await fetch('{{ url_for("folder_ingest") }}', { method: 'POST', body: fd });

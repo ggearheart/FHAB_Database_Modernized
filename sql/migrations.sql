@@ -179,3 +179,8 @@ ALTER TABLE response ADD COLUMN IF NOT EXISTS source text;
 ALTER TABLE advisory ADD COLUMN IF NOT EXISTS locally_edited boolean NOT NULL DEFAULT false;
 ALTER TABLE advisory ADD COLUMN IF NOT EXISTS last_synced_at timestamptz;
 ALTER TABLE advisory ADD COLUMN IF NOT EXISTS source text;
+
+-- Group batches ingested together (a multi-folder upload, or the many batches one consolidated
+-- import creates) under one upload session, so the ingestion report can roll them up.
+ALTER TABLE lab_batch ADD COLUMN IF NOT EXISTS ingest_session text;
+CREATE INDEX IF NOT EXISTS lab_batch_session_idx ON lab_batch (ingest_session);
