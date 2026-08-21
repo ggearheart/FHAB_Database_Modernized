@@ -147,7 +147,7 @@
     var pts = [];
     locs.forEach(function (p) {
       if (p.lat == null || p.lon == null) return;
-      L.circleMarker([p.lat, p.lon], { radius: 7, weight: 2, color: '#fff',
+      L.circleMarker([p.lat, p.lon], { radius: 7, weight: 2, color: '#1f2937',
           fillColor: p.color, fillOpacity: 0.95 })
         .bindPopup('<b>' + p.kind + '</b><br>' + (p.label || '') + '<br>'
           + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5)
