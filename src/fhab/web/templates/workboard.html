@@ -279,13 +279,14 @@ function renderSampleMap(probe) {
     } else { sEl.innerHTML = ''; }
     const pts = [];
     const dot = (p, color, ring, radius) => L.circleMarker([p.lat, p.lon],
-      { radius: radius || 8, weight: 2, color: ring || '#fff', fillColor: color, fillOpacity: .9 });
-    // Nearby report color by date gap (days) between the report and the sample date.
-    const gapColor = d => d == null ? '#c2c8cd'           // unknown date -> faded gray
+      { radius: radius || 8, weight: 2, color: ring || '#1f2937', fillColor: color, fillOpacity: .95 });
+    // Nearby report colour by date gap (days) between the report and the sample date — saturated
+    // so the dots stay visible on the map tiles.
+    const gapColor = d => d == null ? '#64748b'           // unknown date -> slate
       : d <= 14 ? '#2563eb'                                // within 14 days -> blue
-      : d <= 30 ? '#f3d77a'                                // 14-30 days -> faded yellow
-      : d <= 60 ? '#f3b6c2'                                // 30-60 days -> faded pink
-      : '#c2c8cd';                                         // > 60 days -> faded gray
+      : d <= 30 ? '#eab308'                                // 14-30 days -> amber
+      : d <= 60 ? '#ec4899'                                // 30-60 days -> pink
+      : '#64748b';                                         // > 60 days -> slate
     const glyph = (p, color, ch, size) => L.marker([p.lat, p.lon], { icon: L.divIcon({
       className: '', iconSize: [24, 24], iconAnchor: [12, 12],
       html: '<div style="font-size:' + (size || 22) + 'px;line-height:1;color:' + color
@@ -407,8 +408,8 @@ function renderSampleMap(probe) {
       ? ((g.candidates || []).length + ' nearby report(s). '
          + (g.probe ? '◆ = searched point; ' : '') + '★ = lab sample; nearby reports by '
          + 'date gap: <b style="color:#2563eb">≤14d</b>, '
-         + '<b style="color:#d4a900">14–30d</b>, <b style="color:#d76a86">30–60d</b>, '
-         + '<b style="color:#9aa0a6">&gt;60d</b> — click a report to link, or “Save to sample” to geocode it.')
+         + '<b style="color:#a16207">14–30d</b>, <b style="color:#db2777">30–60d</b>, '
+         + '<b style="color:#475569">&gt;60d</b> — click a report to link, or “Save to sample” to geocode it.')
       : 'This sample has no mapped location. Enter latitude/longitude (from the CoC) above and “Search nearby”.';
   }).catch(() => { document.getElementById('mapNote').textContent = 'Could not load the map.'; });
 }
@@ -497,6 +498,10 @@ document.getElementById('mapModal').addEventListener('click', e => {
 
 // ── multi-select: select-all + live count ──────────────────────────────────────
 const PILL = {{ PILL|tojson }};
+// Saturated, high-contrast marker fills per status (the PILL chip colours are pale backgrounds
+// meant to sit behind dark text and disappear on the map). Paired with a dark outline below.
+const STATUS_MARK = { unlinked:'#f59e0b', linked:'#0891b2', approved:'#16a34a',
+                      flagged:'#dc2626', routine:'#7c3aed' };
 function rowBoxes() { return [...document.querySelectorAll('input[name=sample_ids]')]; }
 function updateSelCount() {
   const n = rowBoxes().filter(b => b.checked).length;
@@ -523,7 +528,7 @@ function setBox(id, checked) {
 function syncMapSelection() {
   Object.entries(_rmarkers).forEach(([id, m]) => {
     const b = document.querySelector(`input[name=sample_ids][value="${id}"]`);
-    m.setStyle({ weight: b && b.checked ? 4 : 1.5, color: b && b.checked ? '#111' : '#fff' });
+    m.setStyle({ weight: b && b.checked ? 4 : 1.5, color: b && b.checked ? '#111' : '#1f2937' });
   });
 }
 function loadResultsMap() {
@@ -537,8 +542,8 @@ function loadResultsMap() {
       _rlayer = L.geoJSON(fc, {
         pointToLayer: (feat, ll) => {
           const p = feat.properties;
-          const m = L.circleMarker(ll, { radius: 6, weight: 1.5, color: '#fff',
-            fillColor: PILL[p.status] || '#888', fillOpacity: .9 });
+          const m = L.circleMarker(ll, { radius: 7, weight: 1.5, color: '#1f2937',
+            fillColor: STATUS_MARK[p.status] || '#475569', fillOpacity: .95 });
           _rmarkers[p.id] = m;
           const files = p.n_files ? ` · 📎${p.n_files}` : '';
           m.bindPopup(

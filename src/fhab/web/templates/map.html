@@ -68,7 +68,7 @@ if (typeof L === 'undefined') {
 }
 const COLORS = {
   confirmed_hab:'#2563eb', red_tide:'#b35900', non_hab_algae:'#2e8b57',
-  spill:'#7d3c98', other_wq:'#795548', no_bloom:'#7f8c8d', under_investigation:'#f1c40f'
+  spill:'#7d3c98', other_wq:'#795548', no_bloom:'#64748b', under_investigation:'#eab308'
 };
 const LABELS = {
   confirmed_hab:'Confirmed HAB', red_tide:'Red tide', non_hab_algae:'Non-HAB algae',
@@ -109,7 +109,7 @@ const geoOpts = {
       html: `<div style="width:12px;height:12px;background:${ROUTINE};border:1.5px solid #4c1d95"></div>` }) });
     const orphan = k === 'orphan';
     return L.circleMarker(latlng, {
-      radius: orphan ? 7 : 6, weight: orphan ? 2 : 1, color: orphan ? '#0e6655' : '#fff',
+      radius: orphan ? 7 : 6, weight: orphan ? 2 : 1.4, color: orphan ? '#0e6655' : '#1f2937',
       fillColor: orphan ? ORPHAN : colorFor(f.properties), fillOpacity:0.9
     });
   },

@@ -69,7 +69,7 @@
     var p = [];
     locs.forEach(function (o) {
       if (o.lat == null || o.lon == null) return;
-      L.circleMarker([o.lat, o.lon], { radius: 7, weight: 2, color: '#fff',
+      L.circleMarker([o.lat, o.lon], { radius: 7, weight: 2, color: '#1f2937',
           fillColor: o.color, fillOpacity: 0.95 })
         .bindPopup('<b>' + o.kind + '</b><br>' + (o.label || '')).addTo(map);
       p.push([o.lat, o.lon]);

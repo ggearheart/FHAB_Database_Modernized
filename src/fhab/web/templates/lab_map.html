@@ -115,10 +115,10 @@ const form = document.getElementById('filters');
 
 // shape swatch as inline SVG (matches map markers)
 function swatch(shape, color) {
-  if (shape === 'circle') return `<svg width="16" height="16"><circle cx="8" cy="8" r="6" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
-  if (shape === 'triangle') return `<svg width="16" height="16"><polygon points="8,1 15,15 1,15" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
-  if (shape === 'diamond') return `<svg width="16" height="16"><polygon points="8,1 15,8 8,15 1,8" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
-  return `<svg width="16" height="16"><rect x="2" y="2" width="12" height="12" fill="${color}" stroke="#fff" stroke-width="1.5"/></svg>`;
+  if (shape === 'circle') return `<svg width="16" height="16"><circle cx="8" cy="8" r="6" fill="${color}" stroke="#1f2937" stroke-width="1.5"/></svg>`;
+  if (shape === 'triangle') return `<svg width="16" height="16"><polygon points="8,1 15,15 1,15" fill="${color}" stroke="#1f2937" stroke-width="1.5"/></svg>`;
+  if (shape === 'diamond') return `<svg width="16" height="16"><polygon points="8,1 15,8 8,15 1,8" fill="${color}" stroke="#1f2937" stroke-width="1.5"/></svg>`;
+  return `<svg width="16" height="16"><rect x="2" y="2" width="12" height="12" fill="${color}" stroke="#1f2937" stroke-width="1.5"/></svg>`;
 }
 // representative swatch colours for the method legend (marker colour = status, not method)
 const METHOD_SWATCH = { chemistry:'#64748b', spatt:'#7c3aed', genetic:'#d97706', microscopy:'#0e7490' };
@@ -237,7 +237,7 @@ document.addEventListener('click', e => {
 function markerFor(f, latlng) {
   const p = f.properties;
   if (p.shape === 'circle')
-    return L.circleMarker(latlng, { radius: 7, weight: 2, color: '#fff',
+    return L.circleMarker(latlng, { radius: 7, weight: 2, color: '#1f2937',
                                     fillColor: p.color, fillOpacity: 0.9 });
   return L.marker(latlng, { icon: L.divIcon({ className: '',
     html: swatch(p.shape, p.color), iconSize: [16, 16], iconAnchor: [8, 8] }) });
