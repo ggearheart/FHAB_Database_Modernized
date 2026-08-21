@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Clean up empty records{% endblock %}
+{% block body %}
+<h1>Clean up empty records</h1>
+<p class="muted" style="margin-top:-.4rem">Near-empty lab records left by malformed ingest rows — a
+  sample whose results carry <strong>no measurement, no text, and no qualifier</strong>. A non-detect
+  (ND) counts as real data and is <em>not</em> listed here.</p>
+
+<div class="callout" style="background:#fff7ed; border:1px solid #f6d5b0; border-radius:8px; padding:.7rem .9rem; margin-bottom:1rem">
+  <strong>Deletion is permanent.</strong> As a safeguard, this tool only ever deletes records that
+  are genuinely empty <em>and</em> not linked to a report/case — anything else in your selection is
+  skipped. Every deletion is recorded in the <a href="{{ url_for('admin_audit') if is_admin else '#' }}">audit log</a>
+  (who / when / the deleted row).
+</div>
+
+<div class="card">
+  <form method="get" style="display:flex; flex-wrap:wrap; gap:.7rem; align-items:flex-end">
+    <div><label>Sampling event (SE ID)</label><input name="batch" value="{{ f.batch or '' }}" placeholder="e.g. 42"></div>
+    <div><label>Search station / BG_ID / source</label><input name="q" value="{{ f.q or '' }}"></div>
+    <label style="display:flex; align-items:center; gap:.4rem; width:auto; margin-bottom:.4rem">
+      <input type="checkbox" name="include_linked" value="1" style="width:auto" {% if f.include_linked %}checked{% endif %}
+             onchange="this.form.submit()"> also show linked (kept safe from delete)
+    </label>
+    <button>Apply</button>
+    <a class="btn secondary" href="{{ url_for('lab_cleanup') }}">Clear</a>
+  </form>
+</div>
+
+<div class="card">
+  <p><strong>{{ '{:,}'.format(total) }}</strong> empty record{{ 's' if total != 1 }} match.
+    {% if rows|length < total %}<span class="muted">Showing the first {{ rows|length }}.</span>{% endif %}</p>
+
+  {% if rows %}
+  <form method="post" id="delForm" onsubmit="return document.getElementById('confirmSel').value.toUpperCase()==='DELETE' || (alert('Type DELETE to confirm.'),false)">
+    {% for k in ['batch','q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+    {% if f.include_linked %}<input type="hidden" name="include_linked" value="1">{% endif %}
+    <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.6rem">
+      <button class="secondary" style="background:#b91c1c" name="delete_selected" value="1">🗑 Delete selected</button>
+      <input id="confirmSel" name="confirm" placeholder="type DELETE" style="width:9rem" autocomplete="off">
+      <span class="muted" id="selCount"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="font-size:.9rem">
+        <tr><th><input type="checkbox" id="selAll" title="Select all shown"></th>
+            <th>Sample</th><th>Station</th><th>Date</th><th>BG_ID</th><th>Lab sample</th><th>Type</th>
+            <th>Results</th><th>Sampling event</th><th>Linked?</th></tr>
+        {% for r in rows %}
+        <tr>
+          <td><input type="checkbox" name="sample_ids" value="{{ r.id }}"></td>
+          <td>{{ r.id }}</td>
+          <td>{{ r.station_code or '—' }}</td>
+          <td>{{ r.sample_date or '—' }}</td>
+          <td>{{ r.bg_id or '—' }}</td>
+          <td>{{ r.lab_sample_id or '—' }}</td>
+          <td class="muted">{{ r.sample_type or '—' }}</td>
+          <td>{{ r.n_results }} <span class="muted" style="font-size:.78rem">blank</span></td>
+          <td>{% if r.event_id %}<a href="{{ url_for('lab_workboard', batch=r.event_id) }}">SE {{ r.event_id }}</a>{% if r.batch_source %}<br><span class="muted" style="font-size:.78rem">{{ r.batch_source }}</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{% if r.bloom_report_id %}<span class="pill" style="background:#fde68a">R{{ r.bloom_report_id }}</span>{% elif r.case_id %}<span class="pill" style="background:#fde68a">C{{ r.case_id }}</span>{% else %}<span class="muted">no</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </form>
+
+  {% if total %}
+  <form method="post" style="margin-top:1rem; border-top:1px solid var(--line); padding-top:.8rem"
+        onsubmit="return this.confirm.value.toUpperCase()==='DELETE' || (alert('Type DELETE to confirm.'),false)">
+    {% for k in ['batch','q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+    {% if f.include_linked %}<input type="hidden" name="include_linked" value="1">{% endif %}
+    <input type="hidden" name="all_matching" value="1">
+    <span class="muted">Or delete <strong>all {{ '{:,}'.format(total) }}</strong> empty records matching this filter →</span>
+    <input name="confirm" placeholder="type DELETE" style="width:9rem" autocomplete="off">
+    <button class="secondary" style="background:#7f1d1d">🗑 Delete all matching</button>
+  </form>
+  {% endif %}
+  {% else %}
+  <p class="muted">No empty records match — nothing to clean up here. 🎉</p>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    const boxes = () => [...document.querySelectorAll('input[name=sample_ids]')];
+    const sel = document.getElementById('selAll');
+    function upd() {
+      const n = boxes().filter(b => b.checked).length;
+      document.getElementById('selCount').textContent = n ? n + ' selected' : '';
+      if (sel) { sel.checked = boxes().length && boxes().every(b => b.checked);
+                 sel.indeterminate = !sel.checked && boxes().some(b => b.checked); }
+    }
+    if (sel) sel.addEventListener('change', e => { boxes().forEach(b => b.checked = e.target.checked); upd(); });
+    document.addEventListener('change', e => { if (e.target.name === 'sample_ids') upd(); });
+    upd();
+  })();
+</script>
+{% endblock %}
