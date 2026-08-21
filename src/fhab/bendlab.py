@@ -278,7 +278,7 @@ def attach_batch_file(conn, batch_id: int, path: Path, category: str) -> int:
 
 
 def ingest_bend_folder(conn: psycopg.Connection, folder, *, source: str | None = None,
-                       region: str | None = None) -> dict:
+                       region: str | None = None, user_id: int | None = None) -> dict:
     """Ingest one Bend/partner folder: convert + materialize chemistry, store the source files.
 
     Returns a stats dict. Uses the owner connection (bypasses RLS) like the CEDEN batch loader.
@@ -321,9 +321,9 @@ def ingest_bend_folder(conn: psycopg.Connection, folder, *, source: str | None =
         n_results = rep.get("results", 0)
 
     batch_id = conn.execute(
-        """INSERT INTO lab_batch (filename, kind, source, region, status, n_results)
-           VALUES (%s,'ingested',%s,%s,'open',%s) RETURNING id""",
-        (data_csv.name if data_csv else None, source, region, n_results)).fetchone()["id"]
+        """INSERT INTO lab_batch (filename, kind, source, region, status, n_results, uploaded_by)
+           VALUES (%s,'ingested',%s,%s,'open',%s,%s) RETURNING id""",
+        (data_csv.name if data_csv else None, source, region, n_results, user_id)).fetchone()["id"]
 
     if data_csv is not None:
         conn.execute("UPDATE sample SET lab_batch_id=%s WHERE id > %s AND lab_batch_id IS NULL",
@@ -391,8 +391,14 @@ def ingestion_report(conn, *, kind=None, region=None, q=None, date_from=None, da
     batches = conn.execute(
         f"""SELECT b.id, b.uploaded_at, b.kind, b.source, b.region, b.status, b.filename,
                    b.n_samples, b.n_geocoded, b.n_results, u.email AS uploaded_by,
-                   (SELECT count(*) FROM lab_batch_file f WHERE f.batch_id = b.id) AS n_files
-            FROM lab_batch b LEFT JOIN app_user u ON u.id = b.uploaded_by
+                   (SELECT count(*) FROM lab_batch_file f WHERE f.batch_id = b.id) AS n_files,
+                   sd.first_sample, sd.last_sample, sd.n_actual
+            FROM lab_batch b
+            LEFT JOIN app_user u ON u.id = b.uploaded_by
+            LEFT JOIN LATERAL (
+                SELECT min(s.sample_date) AS first_sample, max(s.sample_date) AS last_sample,
+                       count(*) AS n_actual
+                FROM sample s WHERE s.lab_batch_id = b.id) sd ON true
             WHERE {where} ORDER BY b.uploaded_at DESC, b.id DESC LIMIT 2000""", p).fetchall()
     tot = conn.execute(
         f"""SELECT count(*) AS batches, coalesce(sum(b.n_samples),0) AS samples,

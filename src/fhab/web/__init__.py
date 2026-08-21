@@ -1901,7 +1901,7 @@ def create_app(dsn: str | None = None) -> Flask:
             try:
                 for up in uploads:
                     up.save(os.path.join(tmpdir, os.path.basename(up.filename)))
-                r = ingest_bend_folder(conn, tmpdir, source=source or None)
+                r = ingest_bend_folder(conn, tmpdir, source=source or None, user_id=session["uid"])
                 if ajax:
                     return jsonify(r)
                 flash(f"Ingested {r['samples']} sample(s) ({r['geocoded']} geocoded), "
@@ -1941,9 +1941,12 @@ def create_app(dsn: str | None = None) -> Flask:
     def ingest_report_csv():
         from flask import Response
         rows = ingestion_report(db(), **_ingest_report_filters())["batches"]
-        cols = ["id", "uploaded_at", "kind", "source", "region", "n_samples", "n_geocoded",
-                "n_results", "n_files", "status", "uploaded_by"]
-        head = {"id": "Sampling_Event_ID", "uploaded_at": "Ingested_At", "n_samples": "Samples",
+        cols = ["id", "uploaded_at", "uploaded_by", "kind", "source", "region",
+                "first_sample", "last_sample", "n_samples", "n_geocoded", "n_results",
+                "n_files", "status"]
+        head = {"id": "Sampling_Event_ID", "uploaded_at": "Ingested_At",
+                "uploaded_by": "Ingested_By", "first_sample": "First_Result_Date",
+                "last_sample": "Last_Result_Date", "n_samples": "Samples",
                 "n_geocoded": "Geocoded", "n_results": "Results", "n_files": "Files"}
         hdr = [head.get(c, c.title()) for c in cols]
         out = _csv_text(hdr, [dict(zip(hdr, (r[c] for c in cols))) for r in rows])
@@ -1997,7 +2000,7 @@ def create_app(dsn: str | None = None) -> Flask:
             import io as _io
             try:
                 rows = list(_csv.DictReader(_io.StringIO(up.read().decode("utf-8-sig"))))
-                s = import_consolidated(conn, rows)
+                s = import_consolidated(conn, rows, user_id=session["uid"])
                 flash(f"Imported {s['events']} sampling event(s): {s['samples']} samples "
                       f"({s['geocoded']} geocoded, {s['routine']} routine), {s['results']} results.", "ok")
                 return redirect(url_for("lab_workboard"))
