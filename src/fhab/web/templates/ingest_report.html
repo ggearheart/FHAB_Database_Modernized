@@ -43,30 +43,48 @@
   </form>
 </div>
 
-<div class="card" style="overflow-x:auto">
-  <table style="font-size:.9rem">
-    <tr><th>SE</th><th>Ingested (when · who)</th><th>Kind</th><th>Source</th><th>Region</th>
-        <th>Lab result dates</th><th>Samples</th><th>Geocoded</th><th>Results</th><th>Files</th></tr>
-    {% for b in batches %}
-    <tr>
-      <td><a href="{{ url_for('lab_workboard', batch=b.id) }}" title="Open this batch on the workboard">SE {{ b.id }}</a></td>
-      <td style="white-space:nowrap">{{ b.uploaded_at.strftime('%Y-%m-%d %H:%M') if b.uploaded_at else '—' }}
-          <br><span class="muted" style="font-size:.78rem">{{ b.uploaded_by or 'system / pre-record' }}</span></td>
-      <td class="muted">{{ 'email/folder' if b.kind == 'ingested' else ('reconcile' if b.kind == 'staged' else b.kind) }}</td>
-      <td>{{ b.source or b.filename or '—' }}</td>
-      <td class="muted">{{ b.region or '—' }}</td>
-      <td class="muted" style="white-space:nowrap">{% if b.first_sample %}{{ b.first_sample }}{% if b.last_sample and b.last_sample != b.first_sample %} – {{ b.last_sample }}{% endif %}{% else %}—{% endif %}</td>
-      <td>{{ b.n_samples or 0 }}{% if b.n_actual is not none and b.n_actual != b.n_samples %}
-          <br><span class="muted" style="font-size:.78rem" title="materialized now vs recorded at ingest">now {{ b.n_actual }}</span>{% endif %}</td>
-      <td>{% set n = b.n_samples or 0 %}{% set g = b.n_geocoded or 0 %}{{ g }}{% if n %}
-          <span class="pill" style="font-size:.72rem; background:{{ '#e3f4ea' if g==n else ('#fff6e0' if g else '#fbe6e6') }}">{{ (100*g//n) }}%</span>{% endif %}</td>
-      <td>{{ b.n_results or 0 }}</td>
-      <td>{% if b.n_files %}📎 {{ b.n_files }}{% else %}<span class="muted">—</span>{% endif %}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="10" class="muted">No ingestions match these filters.</td></tr>
-    {% endfor %}
-  </table>
-  {% if batches|length >= 2000 %}<p class="muted" style="font-size:.82rem">Showing the most recent 2000 — narrow the filters to see more.</p>{% endif %}
+<div class="card">
+  <p class="muted" style="margin-top:0; font-size:.85rem">Grouped by <strong>upload session</strong> —
+    a multi-folder upload (or one prepared CSV) is a single ingestion. Click a session to expand its
+    individual folders/batches.</p>
+  {% for s in sessions %}
+  {% set g = s.geocoded %}{% set n = s.samples %}
+  <details style="border:1px solid var(--line); border-radius:8px; margin-bottom:.5rem" {% if sessions|length == 1 %}open{% endif %}>
+    <summary style="cursor:pointer; padding:.55rem .7rem; display:flex; flex-wrap:wrap; gap:.5rem 1.1rem; align-items:baseline">
+      <span><strong>{{ s.n_batches }}</strong> folder{{ 's' if s.n_batches != 1 }}</span>
+      <span class="muted" style="white-space:nowrap">{{ s.started.strftime('%Y-%m-%d %H:%M') if s.started else '—' }}{% if s.finished and s.finished != s.started %}–{{ s.finished.strftime('%H:%M') }}{% endif %}</span>
+      <span class="muted">by {{ s.uploaded_by or 'system / pre-record' }}</span>
+      <span>{{ s.samples }} sample{{ 's' if s.samples != 1 }}</span>
+      <span>{% if n %}<span class="pill" style="font-size:.72rem; background:{{ '#e3f4ea' if g==n else ('#fff6e0' if g else '#fbe6e6') }}">{{ (100*g//n) }}% geocoded</span>{% endif %}</span>
+      <span class="muted">{{ s.results }} result{{ 's' if s.results != 1 }}</span>
+      {% if s.files %}<span class="muted">📎 {{ s.files }}</span>{% endif %}
+      {% if s.first_sample %}<span class="muted" style="white-space:nowrap">lab dates {{ s.first_sample }}{% if s.last_sample and s.last_sample != s.first_sample %} – {{ s.last_sample }}{% endif %}</span>{% endif %}
+    </summary>
+    <div style="overflow-x:auto; border-top:1px solid var(--line)">
+      <table style="font-size:.88rem; margin:0">
+        <tr><th>SE</th><th>Ingested</th><th>Kind</th><th>Source</th><th>Region</th>
+            <th>Lab result dates</th><th>Samples</th><th>Geocoded</th><th>Results</th><th>Files</th></tr>
+        {% for b in s.batches %}
+        <tr>
+          <td><a href="{{ url_for('lab_workboard', batch=b.id) }}" title="Open this batch on the workboard">SE {{ b.id }}</a></td>
+          <td style="white-space:nowrap">{{ b.uploaded_at.strftime('%Y-%m-%d %H:%M') if b.uploaded_at else '—' }}</td>
+          <td class="muted">{{ 'email/folder' if b.kind == 'ingested' else ('reconcile' if b.kind == 'staged' else b.kind) }}</td>
+          <td>{{ b.source or b.filename or '—' }}</td>
+          <td class="muted">{{ b.region or '—' }}</td>
+          <td class="muted" style="white-space:nowrap">{% if b.first_sample %}{{ b.first_sample }}{% if b.last_sample and b.last_sample != b.first_sample %} – {{ b.last_sample }}{% endif %}{% else %}—{% endif %}</td>
+          <td>{{ b.n_samples or 0 }}{% if b.n_actual is not none and b.n_actual != b.n_samples %}
+              <br><span class="muted" style="font-size:.78rem" title="materialized now vs recorded at ingest">now {{ b.n_actual }}</span>{% endif %}</td>
+          <td>{% set bn = b.n_samples or 0 %}{% set bg = b.n_geocoded or 0 %}{{ bg }}{% if bn %}
+              <span class="muted" style="font-size:.8rem">({{ (100*bg//bn) }}%)</span>{% endif %}</td>
+          <td>{{ b.n_results or 0 }}</td>
+          <td>{% if b.n_files %}📎 {{ b.n_files }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </details>
+  {% else %}
+  <p class="muted">No ingestions match these filters.</p>
+  {% endfor %}
 </div>
 {% endblock %}

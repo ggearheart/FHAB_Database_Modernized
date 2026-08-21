@@ -245,6 +245,23 @@ def test_ingestion_report_metadata_totals_and_filters(conn):
     assert ingestion_report(conn, q="clear")["batches"][0]["source"] == "Clear Lake (RB5)"
 
 
+def test_ingestion_sessions_group_multi_folder_uploads(conn):
+    """Batches sharing an ingest_session roll up into one session; batches without one stand alone."""
+    from fhab.bendlab import ingestion_report
+    conn.execute("""INSERT INTO lab_batch (id, kind, source, status, n_samples, n_geocoded, n_results, ingest_session)
+                    VALUES (8001,'ingested','Folder A','open',3,3,9,'sess-xyz'),
+                           (8002,'ingested','Folder B','open',2,1,6,'sess-xyz'),
+                           (8003,'ingested','Lone folder','open',4,4,4,NULL)""")
+    conn.commit()
+    sessions = ingestion_report(conn)["sessions"]
+    by = {s["session"]: s for s in sessions}
+    assert by["sess-xyz"]["n_batches"] == 2                       # the two folders grouped
+    assert by["sess-xyz"]["samples"] == 5 and by["sess-xyz"]["geocoded"] == 4
+    assert by["sess-xyz"]["geocoded_pct"] == 80
+    assert {b["id"] for b in by["sess-xyz"]["batches"]} == {8001, 8002}
+    assert by["b8003"]["n_batches"] == 1                          # ungrouped batch = its own session
+
+
 def test_ingest_folder_records_the_user(conn, tmp_path):
     """The ingesting user is recorded on the batch so the report can show who did it."""
     from fhab.auth import create_user

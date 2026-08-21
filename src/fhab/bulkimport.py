@@ -27,8 +27,11 @@ def _rows_from(path_or_rows):
         return list(csv.DictReader(fh))
 
 
-def import_consolidated(conn, path_or_rows, *, user_id=None) -> dict:
-    """Import the consolidated CSV. Returns {events, samples, geocoded, routine, results}."""
+def import_consolidated(conn, path_or_rows, *, user_id=None, session_id=None) -> dict:
+    """Import the consolidated CSV. Returns {events, samples, geocoded, routine, results}. All the
+    batches it creates share one upload session, since they came in as one file."""
+    import uuid
+    session_id = session_id or uuid.uuid4().hex
     rows = _rows_from(path_or_rows)
     loader = CedenLoader(conn)            # reuse station + analyte resolution
     events = defaultdict(list)
@@ -42,9 +45,10 @@ def import_consolidated(conn, path_or_rows, *, user_id=None) -> dict:
         region = clean(erows[0].get("Region"))
         n_samp = sum(1 for _ in _group_samples(erows))
         bid = conn.execute(
-            """INSERT INTO lab_batch (kind, source, region, status, n_samples, uploaded_by)
-               VALUES ('ingested', %s, %s, 'open', %s, %s) RETURNING id""",
-            (ev, region, n_samp, user_id)).fetchone()["id"]
+            """INSERT INTO lab_batch (kind, source, region, status, n_samples, uploaded_by,
+                 ingest_session)
+               VALUES ('ingested', %s, %s, 'open', %s, %s, %s) RETURNING id""",
+            (ev, region, n_samp, user_id, session_id)).fetchone()["id"]
         stats["events"] += 1
 
         geoc = 0
