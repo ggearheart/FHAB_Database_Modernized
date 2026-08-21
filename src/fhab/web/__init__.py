@@ -46,6 +46,7 @@ from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov, reset_loca
 from ..samples import count_samples, create_sample, get_sample, list_samples, update_sample
 from ..settings import EMAIL_NEW_REPORT, FORWARD_TO, get_setting, set_setting
 from ..dedup import candidate_duplicate_samples, duplicate_count, merge_samples
+from ..cleanup import count_empty_records, delete_samples, empty_lab_records
 from ..bulkimport import import_consolidated
 from ..maintenance import KEPT_TABLES, LAB_TABLES, lab_data_counts, purge_lab_data
 from ..taxonomy import (TaxonomyError, delete_analyte, list_analytes, merge_analytes,
@@ -356,6 +357,8 @@ def create_app(dsn: str | None = None) -> Flask:
              "desc": "Browse every sample; create one manually or from a CSV; edit location & details."},
             {"title": "Find duplicate samples", "href": url_for("lab_duplicates"),
              "desc": "Detect and merge samples that arrived more than once across ingest paths."},
+            {"title": "Clean up empty records", "href": url_for("lab_cleanup"),
+             "desc": "Find near-empty ingestion artifacts (no real measurement) and delete the bad ones."},
             {"title": "Lab data workboard", "href": url_for("lab_workboard"),
              "desc": "Assign, link, and QA-review lab samples against reports/cases."},
             {"title": "Ingestion report", "href": url_for("ingest_report"),
@@ -1119,6 +1122,31 @@ def create_app(dsn: str | None = None) -> Flask:
         return resp
 
     # ---------- Lab-data reconciliation workboard ----------
+    @app.route("/lab/cleanup", methods=["GET", "POST"])
+    @staff_required
+    def lab_cleanup():
+        conn = db()
+        src = request.form if request.method == "POST" else request.args
+        f = {"batch": (src.get("batch") or "").strip() or None,
+             "q": (src.get("q") or "").strip() or None,
+             "include_linked": src.get("include_linked") == "1"}
+        if request.method == "POST":
+            if (request.form.get("confirm") or "").strip().upper() != "DELETE":
+                flash("Type DELETE to confirm — nothing was removed.", "error")
+            else:
+                if request.form.get("all_matching") == "1":
+                    ids = [r["id"] for r in empty_lab_records(conn, f, limit=100000)]
+                else:
+                    ids = request.form.getlist("sample_ids")
+                res = delete_samples(conn, session["uid"], ids, include_linked=f["include_linked"])
+                flash(f"Deleted {res['deleted']} empty record(s)"
+                      + (f"; skipped {res['skipped']} (not empty, or linked)." if res["skipped"] else "."),
+                      "ok")
+            keep = {"batch": f["batch"], "q": f["q"], "include_linked": "1" if f["include_linked"] else None}
+            return redirect(url_for("lab_cleanup", **{k: v for k, v in keep.items() if v}))
+        return render_template("lab_cleanup.html", rows=empty_lab_records(conn, f, limit=500),
+                               total=count_empty_records(conn, f), f=f)
+
     @app.route("/lab/duplicates", methods=["GET", "POST"])
     @staff_required
     def lab_duplicates():
