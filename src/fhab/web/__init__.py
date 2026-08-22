@@ -45,7 +45,9 @@ from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov, reset_local_edit_flags
 from ..samples import count_samples, create_sample, get_sample, list_samples, update_sample
 from ..settings import EMAIL_NEW_REPORT, FORWARD_TO, get_setting, set_setting
-from ..dedup import candidate_duplicate_samples, duplicate_count, merge_samples
+from ..dedup import (candidate_duplicate_events, candidate_duplicate_samples,
+                     delete_samples as dedup_delete_samples, duplicate_count, duplicate_summary,
+                     merge_samples)
 from ..cleanup import (count_empty_records, delete_samples, empty_lab_records,
                        empty_record_analytes)
 from ..bulkimport import import_consolidated
@@ -1156,22 +1158,34 @@ def create_app(dsn: str | None = None) -> Flask:
     @staff_required
     def lab_duplicates():
         conn = db()
+        src = request.form if request.method == "POST" else request.args
+        f = {"q": (src.get("q") or "").strip() or None, "batch": (src.get("batch") or "").strip() or None}
         if request.method == "POST":
-            survivor = (request.form.get("survivor") or "").strip()
-            members = request.form.getlist("member")
-            if not survivor.isdigit():
-                flash("Pick which sample to keep.", "error")
-            else:
-                try:
-                    r = merge_samples(conn, session["uid"], int(survivor), members)
-                    flash(f"Merged {r['merged']} duplicate(s) into sample {survivor} — "
-                          f"{r['results_repointed']} result(s) moved, {r['results_deduped']} de-duplicated.",
-                          "ok" if r["merged"] else "error")
-                except (ValueError, psycopg.Error) as exc:
-                    conn.rollback()
-                    flash("Could not merge: " + str(exc).splitlines()[0], "error")
-            return redirect(url_for("lab_duplicates"))
-        return render_template("dedup.html", groups=candidate_duplicate_samples(conn))
+            if request.form.get("action") == "delete":
+                if (request.form.get("confirm") or "").strip().upper() != "DELETE":
+                    flash("Type DELETE to confirm removing the selected duplicates.", "error")
+                else:
+                    res = dedup_delete_samples(conn, session["uid"], request.form.getlist("sample_ids"))
+                    flash(f"Deleted {res['deleted']} duplicate sample(s)"
+                          + (f"; skipped {res['skipped']} (linked — merge those instead)."
+                             if res["skipped"] else "."), "ok")
+            else:  # merge
+                survivor = (request.form.get("survivor") or "").strip()
+                if not survivor.isdigit():
+                    flash("Pick which sample to keep.", "error")
+                else:
+                    try:
+                        r = merge_samples(conn, session["uid"], int(survivor), request.form.getlist("member"))
+                        flash(f"Merged {r['merged']} duplicate(s) into sample {survivor} — "
+                              f"{r['results_repointed']} result(s) moved, {r['results_deduped']} de-duplicated.",
+                              "ok" if r["merged"] else "error")
+                    except (ValueError, psycopg.Error) as exc:
+                        conn.rollback()
+                        flash("Could not merge: " + str(exc).splitlines()[0], "error")
+            return redirect(url_for("lab_duplicates", **{k: v for k, v in f.items() if v}))
+        return render_template("dedup.html", summary=duplicate_summary(conn),
+                               groups=candidate_duplicate_samples(conn, q=f["q"], batch=f["batch"]),
+                               event_groups=candidate_duplicate_events(conn), f=f)
 
     # ---------- Sample work area (browse / create / edit sample records) ----------
     @app.route("/lab/samples")

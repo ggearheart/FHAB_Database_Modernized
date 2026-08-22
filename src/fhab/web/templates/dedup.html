@@ -1,35 +1,79 @@
 {% extends "base.html" %}
-{% block title %}Find duplicate samples{% endblock %}
+{% block title %}Find duplicate records{% endblock %}
 {% block body %}
-<h1>Find duplicate samples</h1>
+<h1>Find &amp; fix duplicate records</h1>
+
 <div class="card">
-  <p class="muted">Samples that share an identity fingerprint (an explicit lab ID, or the same
-    station + date + type) — likely the <em>same</em> physical sample ingested more than once.
-    These are <strong>candidates</strong>: station+date+type can also be legitimate field replicates,
-    so review each group and choose which record to <strong>keep</strong>. Merging repoints the
-    others' results and links onto the kept sample, de-duplicates its results, and deletes the
-    duplicates. Un-check any member that is <em>not</em> a duplicate to leave it alone.</p>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px">
+    {% for big, lbl in [
+        (summary.sample_groups, 'Duplicate sample groups'),
+        (summary.sample_extras, 'Redundant sample records'),
+        (summary.event_groups, 'Possible duplicate reports'),
+        (summary.event_extras, 'Redundant report records')] %}
+    <div style="background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px 14px">
+      <div style="font-size:1.6rem; font-weight:700; color:var(--green); line-height:1">{{ '{:,}'.format(big) }}</div>
+      <div class="muted" style="font-size:.8rem; margin-top:4px">{{ lbl }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="muted" style="font-size:.85rem; margin:.7rem 0 0">Samples that share an identity
+    fingerprint (an explicit lab ID, or the same station + date + type) are likely the <em>same</em>
+    physical sample ingested more than once. These are <strong>candidates</strong> — station+date+type
+    can also be legitimate field replicates — so review each group and either <strong>merge</strong>
+    them into one kept record, or <strong>delete</strong> the redundant copies.</p>
+</div>
+
+<div class="card">
+  <form method="get" style="display:flex; flex-wrap:wrap; gap:.7rem; align-items:flex-end">
+    <div><label>Sampling event (SE ID)</label><input name="batch" value="{{ f.batch or '' }}" placeholder="e.g. 42"></div>
+    <div><label>Search station / BG_ID / lab ID / source</label><input name="q" value="{{ f.q or '' }}"></div>
+    <button>Apply</button>
+    <a class="btn secondary" href="{{ url_for('lab_duplicates') }}">Clear</a>
+  </form>
+</div>
+
+<h2 style="font-size:1.15rem">Duplicate lab records {% if f.q or f.batch %}<span class="muted" style="font-size:.85rem">(filtered)</span>{% endif %}</h2>
+
+{% if groups %}
+<!-- Cross-group batch delete: each row's 🗑 box below posts here via form= association. -->
+<div class="card" style="position:sticky; top:.4rem; z-index:5">
+  <form method="post" id="delForm" onsubmit="return this.confirm.value.toUpperCase()==='DELETE' || (alert('Type DELETE to confirm.'),false)">
+    <input type="hidden" name="action" value="delete">
+    {% for k in ['q','batch'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+    <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
+      <span class="muted">Ticked 🗑 rows across all groups →</span>
+      <button class="secondary" style="background:#b91c1c">🗑 Delete selected duplicates</button>
+      <input name="confirm" placeholder="type DELETE" style="width:9rem" autocomplete="off">
+      <span class="muted" id="delCount"></span>
+      <span class="muted" style="font-size:.82rem">Linked (report/case) rows are skipped — merge those.</span>
+    </div>
+    <!-- the sample_ids checkboxes live in the group cards below, associated by form="delForm" -->
+  </form>
 </div>
 
 {% for g in groups %}
 <div class="card">
   <form method="post" onsubmit="return confirm('Merge the checked samples into the one marked Keep? This deletes the duplicates.')">
-    <div class="muted" style="font-size:.85rem">Fingerprint: <code>{{ g.key }}</code> · {{ g.n }} samples</div>
+    {% for k in ['q','batch'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+    <div class="muted" style="font-size:.85rem">Matched on <strong>{{ g.match_on }}</strong>
+      {% if '|' in g.key %}<span title="station + date + type can be a real field replicate — check before merging">⚠️ composite key</span>{% endif %}
+      · {{ g.n }} records · fingerprint <code>{{ g.key }}</code></div>
     <table style="margin-top:.3rem">
-      <tr><th>Keep</th><th>Merge</th><th>ID</th><th>Station</th><th>Date</th><th>Type</th>
+      <tr><th>Keep</th><th>Merge</th><th>🗑</th><th>ID</th><th>Station</th><th>Date</th><th>Type</th>
           <th>BG / lab / sample ID</th><th>Sampling event</th><th>Results</th><th>Status</th></tr>
       {% for m in g.members %}
       <tr>
         <td style="text-align:center"><input type="radio" name="survivor" value="{{ m.id }}" style="width:auto" {% if loop.first %}checked{% endif %}></td>
         <td style="text-align:center"><input type="checkbox" name="member" value="{{ m.id }}" style="width:auto" checked></td>
-        <td><a href="{{ url_for('sample_detail', sid=m.id) }}">{{ m.id }}</a></td>
+        <td style="text-align:center"><input type="checkbox" name="sample_ids" value="{{ m.id }}" form="delForm" class="delBox" style="width:auto"></td>
+        <td><a href="{{ url_for('sample_detail', sid=m.id) }}" target="_blank">{{ m.id }}</a></td>
         <td>{{ m.station_code or '—' }}</td>
         <td>{{ m.sample_date or '—' }}</td>
         <td class="muted">{{ m.sample_type or '—' }}</td>
         <td class="muted">{{ m.bg_id or m.lab_sample_id or m.sample_id or '—' }}</td>
         <td class="muted">{% if m.lab_batch_id %}SE {{ m.lab_batch_id }}{% if m.batch_source %} · {{ m.batch_source }}{% endif %}{% else %}—{% endif %}</td>
         <td>{{ m.n_results }}</td>
-        <td>{% if m.bloom_report_id %}R{{ m.bloom_report_id }}{% elif m.case_id %}C{{ m.case_id }}{% elif m.sampling_type=='routine' %}routine{% else %}unlinked{% endif %}</td>
+        <td>{% if m.bloom_report_id %}<span class="pill" style="background:#fde68a">R{{ m.bloom_report_id }}</span>{% elif m.case_id %}<span class="pill" style="background:#fde68a">C{{ m.case_id }}</span>{% elif m.sampling_type=='routine' %}routine{% else %}<span class="muted">unlinked</span>{% endif %}</td>
       </tr>
       {% endfor %}
     </table>
@@ -37,7 +81,44 @@
     <button>Merge checked into “Keep”</button>
   </form>
 </div>
-{% else %}
-<div class="card"><p class="muted">No candidate duplicate samples found.</p></div>
 {% endfor %}
+{% else %}
+<div class="card"><p class="muted">No candidate duplicate samples{% if f.q or f.batch %} match this filter{% endif %}. 🎉</p></div>
+{% endif %}
+
+{% if event_groups %}
+<h2 style="font-size:1.15rem; margin-top:1.4rem">Possible duplicate reports</h2>
+<div class="card">
+  <p class="muted" style="font-size:.85rem; margin-top:0">Reports for the <strong>same water body, date
+    and region</strong> — worth a look. Report de-duplication is done manually (cases, responses and
+    advisories hang off these IDs): open each and decide which to keep or close.</p>
+  {% for g in event_groups %}
+  <div style="border:1px solid var(--line); border-radius:8px; padding:.5rem .7rem; margin-bottom:.5rem">
+    <div class="muted" style="font-size:.85rem">{{ g.members[0].water_body_name }} ·
+      {{ g.members[0].observation_date }} · {{ g.members[0].regional_water_board or '—' }} — {{ g.n }} reports</div>
+    <table style="margin-top:.2rem; font-size:.9rem">
+      <tr><th>Report</th><th>Case</th><th>Outcome</th><th>Samples</th></tr>
+      {% for m in g.members %}
+      <tr>
+        <td><a href="{{ url_for('report_detail', brid=m.bloom_report_id) }}" target="_blank">R{{ m.bloom_report_id }}</a></td>
+        <td>{% if m.case_id %}C{{ m.case_id }}{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="muted">{{ m.determination_code or 'not recorded' }}</td>
+        <td>{{ m.n_samples }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<script>
+  (function () {
+    const boxes = () => [...document.querySelectorAll('.delBox')];
+    function upd() { const n = boxes().filter(b => b.checked).length;
+      document.getElementById('delCount').textContent = n ? n + ' marked to delete' : ''; }
+    document.addEventListener('change', e => { if (e.target.classList.contains('delBox')) upd(); });
+    upd();
+  })();
+</script>
 {% endblock %}
