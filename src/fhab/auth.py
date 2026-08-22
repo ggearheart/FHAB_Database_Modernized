@@ -200,13 +200,17 @@ def user_regions(conn: psycopg.Connection, user_id: int) -> list[str]:
     return [r["scope_region"] for r in rows]
 
 
-@contextmanager
-def acting_as(conn: psycopg.Connection, user_id: int | None):
-    """Run queries as `user_id` under RLS (via the fhab_app role). Resets on exit.
+# The two non-owning roles the app runs queries under so RLS is enforced (the owner bypasses it).
+# Both are library constants — never interpolate user input into SET ROLE.
+_ROLE_ACTING = "fhab_app"   # explicit "act as this user" scope (acting_as)
+_ROLE_WEB = "fhab_web"      # default web-request identity (web_user); inherits fhab_app's grants
 
-    Pass user_id=None to act as an anonymous public visitor.
-    """
-    conn.execute("SET ROLE fhab_app")
+
+@contextmanager
+def _as_role(conn: psycopg.Connection, user_id: int | None, role: str):
+    """Run queries as `user_id` under RLS via `role` (a non-owning role, so policies apply).
+    Resets the role and user on exit. Pass user_id=None for an anonymous public visitor."""
+    conn.execute(f"SET ROLE {role}")
     conn.execute("SELECT set_config('fhab.user_id', %s, false)",
                  ("" if user_id is None else str(user_id),))
     try:
@@ -224,3 +228,24 @@ def acting_as(conn: psycopg.Connection, user_id: int | None):
                 conn.execute(stmt)
             except Exception:  # noqa: BLE001
                 pass
+
+
+@contextmanager
+def acting_as(conn: psycopg.Connection, user_id: int | None):
+    """Run queries as `user_id` under RLS (via the fhab_app role). Resets on exit.
+
+    Pass user_id=None to act as an anonymous public visitor.
+    """
+    with _as_role(conn, user_id, _ROLE_ACTING) as c:
+        yield c
+
+
+@contextmanager
+def web_user(conn: psycopg.Connection, user_id: int | None):
+    """Default web-request path (governance #4): run under the least-privilege `fhab_web` role so
+    Row-Level Security is enforced by the database. The app's per-request connection is the table
+    owner (which bypasses RLS), so wrapping a route's data access in this context is what makes the
+    region / owner-org / PII policies an actual backstop rather than app-layer discipline alone.
+    Resets on exit. Pass user_id=None for an anonymous visitor."""
+    with _as_role(conn, user_id, _ROLE_WEB) as c:
+        yield c
