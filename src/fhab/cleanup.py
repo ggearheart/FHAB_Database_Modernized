@@ -92,13 +92,17 @@ def delete_samples(conn, user_id, sample_ids, *, include_linked=False) -> dict:
     guard = "" if include_linked else " AND s.bloom_report_id IS NULL AND s.case_id IS NULL"
     eligible = [r["id"] for r in conn.execute(
         f"SELECT s.id FROM sample s WHERE s.id = ANY(%s) AND NOT {_HAS_DATA}{guard}", (ids,)).fetchall()]
-    deleted = 0
-    if eligible:
-        # clear the FK references that don't cascade, then the results, then the sample
-        conn.execute("DELETE FROM sample_link WHERE sample_id = ANY(%s)", (eligible,))
-        conn.execute("UPDATE lab_stage_sample SET linked_sample = NULL WHERE linked_sample = ANY(%s)",
-                     (eligible,))
-        conn.execute("DELETE FROM result WHERE sample_id = ANY(%s)", (eligible,))
-        deleted = conn.execute("DELETE FROM sample WHERE id = ANY(%s)", (eligible,)).rowcount
+    deleted = purge_samples(conn, eligible)
     conn.commit()
     return {"deleted": deleted, "skipped": len(ids) - len(eligible)}
+
+
+def purge_samples(conn, ids: list[int]) -> int:
+    """Low-level delete of samples + their child rows (results, and the FK refs that don't cascade).
+    No eligibility check — callers must guard. Does not commit. Returns rows deleted."""
+    if not ids:
+        return 0
+    conn.execute("DELETE FROM sample_link WHERE sample_id = ANY(%s)", (ids,))
+    conn.execute("UPDATE lab_stage_sample SET linked_sample = NULL WHERE linked_sample = ANY(%s)", (ids,))
+    conn.execute("DELETE FROM result WHERE sample_id = ANY(%s)", (ids,))
+    return conn.execute("DELETE FROM sample WHERE id = ANY(%s)", (ids,)).rowcount
