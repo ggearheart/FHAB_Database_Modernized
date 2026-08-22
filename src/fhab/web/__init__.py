@@ -20,7 +20,7 @@ import tempfile
 from ..auth import (acting_as, approve_signup, authenticate, change_own_password, create_user,
                     delete_user, gen_password, grant_role, is_pending_signup, list_roles_for,
                     reject_signup, request_signup, reset_password, revoke_role, set_active,
-                    set_password, update_user, user_references, user_regions)
+                    set_password, update_user, user_references, user_regions, web_user)
 from ..cases import (CASE_STATUSES, assign_report_to_case, create_case, update_case)
 from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_for_event)
 from ..bendlab import (batch_file, batch_files, ingest_bend_folder, ingested_batches,
@@ -333,8 +333,10 @@ def create_app(dsn: str | None = None) -> Flask:
                   "desc": "File a bloom report (the full MyWaterQuality form)."}]
         if set(session.get("roles", [])) & STAFF_WRITER_ROLES:
             try:
-                pending = db().execute("SELECT count(*) AS c FROM public_report_submission "
-                                       "WHERE status='pending'").fetchone()["c"]
+                conn = db()
+                with web_user(conn, session["uid"]):   # governance #4: count under RLS
+                    pending = conn.execute("SELECT count(*) AS c FROM public_report_submission "
+                                           "WHERE status='pending'").fetchone()["c"]
             except Exception:  # noqa: BLE001
                 pending = None
             items.append({"title": "Review submissions", "href": url_for("intake_review"),
@@ -1535,7 +1537,10 @@ def create_app(dsn: str | None = None) -> Flask:
     def intake_review():
         status = request.args.get("status", "pending")
         trusted_only = request.args.get("trusted") == "1"
-        subs = list_submissions(db(), session["uid"], status, trusted_only=trusted_only)
+        conn = db()
+        # Governance #4: read the reporter-PII queue under the RLS-enforced role, not the owner path.
+        with web_user(conn, session["uid"]):
+            subs = list_submissions(conn, session["uid"], status, trusted_only=trusted_only)
         return render_template("intake_review.html", subs=subs, status=status,
                                trusted_only=trusted_only, regions=_regions())
 

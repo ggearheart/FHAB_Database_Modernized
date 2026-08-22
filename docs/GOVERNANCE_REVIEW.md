@@ -14,14 +14,15 @@ before broader production use), **MEDIUM** (address on the roadmap).
 duplicate-samples tool at `/lab/duplicates`; a shared cross-source identifier is still recommended
 upstream); **#5 addressed** (row-level audit log — trigger-based history + `/admin/audit`); **#3
 addressed** (per-record `locally_edited`/`last_synced_at` provenance + refresh guard so staff
-corrections aren't reverted). **#4 (enforce RLS at runtime) is the remaining HIGH item.**
+corrections aren't reverted). **#4 (enforce RLS at runtime) is in progress — staged rollout, see
+below.**
 
 | # | Finding | Category | Severity |
 |---|---------|----------|----------|
 | 1 | No cross-source identity for samples/results → duplication | Relational / quality | **HIGH** — tool added |
 | 2 | `max(id)+1` primary-key assignment (race + id-space overlap) | Relational | **HIGH** — fixed |
 | 3 | Circular data.ca.gov lineage — no single source of truth | Governance | **HIGH** — addressed (row-level provenance guard) |
-| 4 | RLS bypassed at runtime (owner connection) | Governance | **HIGH** — open |
+| 4 | RLS bypassed at runtime (owner connection) | Governance | **HIGH** — in progress (staged) |
 | 5 | No row-level audit / change history | Governance | **HIGH** — fixed (audit_log triggers + /admin/audit) |
 | 6 | Fragile reference links (registry code, parallel linkage, no user FKs) | Relational | MEDIUM |
 | 7 | Controlled vocabularies stored as free text | Governance / quality | MEDIUM |
@@ -122,6 +123,29 @@ reporter PII. (RLS also scopes `event` by region but not its `sample`/`result`.)
 **Fix:** run user-facing requests through `acting_as` by default (owner connection reserved for
 loaders/admin jobs), or add a least-privilege connection role so RLS is always in force for the web
 app; add a test that non-admin cross-region reads are denied at the DB.
+
+**Remediation — staged rollout (in progress).** A dedicated least-privilege role, `fhab_web`
+(`sql/access_control.sql`), inherits every `fhab_app` grant, so requests run under it get the full
+RLS treatment with no separate grant list to maintain. The web layer wraps a route's data access in
+`web_user(conn, uid)` (`fhab.auth`) — a sibling of `acting_as` that `SET ROLE`s into `fhab_web` —
+to move that route off the RLS-bypassing owner path. Migrating in slices keeps blast radius small:
+
+- **Stage 1 (done):** role + `web_user` primitive; the reporter-PII intake reads (`/intake/review`,
+  the dashboard pending count) migrated; regression test `tests/test_rls_enforcement.py` proves the
+  DB backstop (region scoping, PII lockdown, cross-region write denial) — each contrasted against
+  the owner path that leaks it.
+- **Stage 2 (next):** remaining sensitive reads — lab workboard / lab map / dedup / cleanup /
+  ingestion report, and any other `db()` read of `sample`/`result`/`event`/PII tables.
+- **Stage 3:** writes (staff edits, intake promotion, links/QA/geocode) under `web_user`, keeping the
+  owner path only for jobs that legitimately bypass RLS (migrations, loaders, refresh, cross-table
+  merges, audit inserts, reserved-range PK minting).
+- **Stage 4 (hardening / ops):** promote `fhab_web` to a real **LOGIN** role on its own DSN so the
+  web app physically cannot reach the owner/bypass path, and add `FORCE ROW LEVEL SECURITY` on the
+  owner for defence in depth. This stage needs a Render env change (a second connection string).
+
+Note (policy, separate from enforcement): `sample`/`result`/`station` RLS scopes contributors by
+`owner_org` but does **not** region-scope internal staff (unlike `event`), so any internal user sees
+all lab rows even once enforced. If lab data should be region-scoped, tighten those policies too.
 
 ### 5. No row-level audit / change history — HIGH
 Only `report_activity` (a light per-user "recent reports" log) and `created_at` exist. Updates —

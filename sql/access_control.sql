@@ -12,6 +12,17 @@ DO $$ BEGIN
     CREATE ROLE fhab_app NOLOGIN;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+-- `fhab_web` is the default connection identity for user-facing web requests (governance #4).
+-- The app otherwise connects as the table owner, which *bypasses* RLS; running requests as this
+-- non-owning role means the region / owner-org / PII policies are enforced by the database, not
+-- just by app-layer discipline. It inherits every privilege granted to `fhab_app` (below), so the
+-- two roles never drift apart. `acting_as` uses `fhab_app`; the default request path uses this.
+-- (Roadmap: promote `fhab_web` to a LOGIN role on its own DSN so the web app physically cannot
+--  reach the owner/bypass path — the strongest form of this control.)
+DO $$ BEGIN
+    CREATE ROLE fhab_web NOLOGIN;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 -- ---------- Tables ----------
 
 CREATE TABLE IF NOT EXISTS app_user (
@@ -319,6 +330,11 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO fhab_app;
 -- On a managed Postgres the app user owns the tables (so bypasses RLS by default) but is not
 -- a superuser, so it needs explicit membership to SET ROLE fhab_app.
 GRANT fhab_app TO current_user;
+-- fhab_web inherits every fhab_app privilege (SELECT + the scoped writes granted below), so the
+-- default request path can do everything acting_as can, with no separate grant list to keep in
+-- sync. The owner is granted membership so it can SET ROLE fhab_web per request.
+GRANT fhab_app TO fhab_web;
+GRANT fhab_web TO current_user;
 -- Writes are allowed only on the tables that have write policies above.
 GRANT INSERT, UPDATE, DELETE ON
     event, station, sample, result, hab_case, waterbody, location, response, advisory,
