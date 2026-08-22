@@ -21,17 +21,46 @@ _FROM = ("FROM sample s LEFT JOIN station st ON st.id = s.station_id "
          "LEFT JOIN lab_batch b ON b.id = s.lab_batch_id")
 
 
+# A record has "stray identity" if it carries any of these despite having no data.
+_HAS_IDENTITY = ("(st.station_code IS NOT NULL OR s.sample_date IS NOT NULL "
+                 "OR nullif(btrim(s.bg_id), '') IS NOT NULL "
+                 "OR nullif(btrim(s.lab_sample_id), '') IS NOT NULL)")
+
+
 def _where(f: dict) -> tuple[str, dict]:
     cond = [f"NOT {_HAS_DATA}"]
     p: dict = {}
     if not f.get("include_linked"):
         cond.append("s.bloom_report_id IS NULL AND s.case_id IS NULL")
+    # triage: totally blank (no identifying fields) vs. has a station/date/id but no data
+    mode = f.get("mode")
+    if mode == "blank":
+        cond.append(f"NOT {_HAS_IDENTITY}")
+    elif mode == "identified":
+        cond.append(_HAS_IDENTITY)
     if str(f.get("batch") or "").isdigit():
         cond.append("s.lab_batch_id = %(batch)s"); p["batch"] = int(f["batch"])
     if f.get("q"):
         cond.append("(st.station_code ILIKE %(q)s OR s.bg_id ILIKE %(q)s OR b.source ILIKE %(q)s)")
         p["q"] = f"%{f['q']}%"
+    if f.get("analyte"):
+        cond.append("EXISTS (SELECT 1 FROM result r JOIN analyte a ON a.id = r.analyte_id "
+                    "WHERE r.sample_id = s.id AND a.analyte ILIKE %(analyte)s)")
+        p["analyte"] = f"%{f['analyte']}%"
     return " AND ".join(cond), p
+
+
+def empty_record_analytes(conn, f: dict | None = None) -> list[str]:
+    """Distinct analyte names present on the empty records (the blank result rows still name an
+    analyte). Shows what the artifacts are — and doubles as the filter's option list. Ignores the
+    analyte filter itself so the full list is always shown."""
+    scoped = {k: v for k, v in (f or {}).items() if k != "analyte"}
+    where, p = _where(scoped)
+    return [r["analyte"] for r in conn.execute(
+        f"""SELECT a.analyte, count(*) AS n {_FROM}
+            JOIN result r ON r.sample_id = s.id JOIN analyte a ON a.id = r.analyte_id
+            WHERE {where} AND a.analyte IS NOT NULL
+            GROUP BY a.analyte ORDER BY n DESC, a.analyte""", p).fetchall()]
 
 
 def empty_lab_records(conn, f: dict | None = None, *, limit=500, offset=0) -> list:

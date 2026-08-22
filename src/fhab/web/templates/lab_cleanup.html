@@ -15,6 +15,15 @@
 
 <div class="card">
   <form method="get" style="display:flex; flex-wrap:wrap; gap:.7rem; align-items:flex-end">
+    <div><label>What to show</label>
+      <select name="mode" onchange="this.form.submit()">
+        <option value="">All empty records</option>
+        <option value="identified" {% if f.mode=='identified' %}selected{% endif %}>Has station / date / ID (but no data)</option>
+        <option value="blank" {% if f.mode=='blank' %}selected{% endif %}>Totally blank (no identity)</option>
+      </select></div>
+    <div><label>Analyte</label>
+      <input name="analyte" value="{{ f.analyte or '' }}" list="analyteList" placeholder="any analyte">
+      <datalist id="analyteList">{% for a in analytes %}<option value="{{ a }}">{% endfor %}</datalist></div>
     <div><label>Sampling event (SE ID)</label><input name="batch" value="{{ f.batch or '' }}" placeholder="e.g. 42"></div>
     <div><label>Search station / BG_ID / source</label><input name="q" value="{{ f.q or '' }}"></div>
     <label style="display:flex; align-items:center; gap:.4rem; width:auto; margin-bottom:.4rem">
@@ -24,6 +33,12 @@
     <button>Apply</button>
     <a class="btn secondary" href="{{ url_for('lab_cleanup') }}">Clear</a>
   </form>
+  {% if analytes %}
+  <p class="muted" style="font-size:.83rem; margin:.6rem 0 0">Analytes on these empty records
+    (the blank rows still name an analyte) — click to filter:
+    {% for a in analytes %}<a href="{{ url_for('lab_cleanup', analyte=a, mode=f.mode or None, batch=f.batch or None, include_linked='1' if f.include_linked else None) }}"
+       style="text-decoration:none"><span class="pill" style="background:{{ '#dbeafe' if f.analyte==a else 'var(--bg)' }}; border:1px solid var(--line); margin:0 .2rem .2rem 0; display:inline-block">{{ a }}</span></a>{% endfor %}</p>
+  {% endif %}
 </div>
 
 <div class="card">
@@ -32,7 +47,7 @@
 
   {% if rows %}
   <form method="post" id="delForm" onsubmit="return document.getElementById('confirmSel').value.toUpperCase()==='DELETE' || (alert('Type DELETE to confirm.'),false)">
-    {% for k in ['batch','q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+    {% for k in ['batch','q','mode','analyte'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
     {% if f.include_linked %}<input type="hidden" name="include_linked" value="1">{% endif %}
     <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.6rem">
       <button class="secondary" style="background:#b91c1c" name="delete_selected" value="1">🗑 Delete selected</button>
@@ -65,7 +80,7 @@
   {% if total %}
   <form method="post" style="margin-top:1rem; border-top:1px solid var(--line); padding-top:.8rem"
         onsubmit="return this.confirm.value.toUpperCase()==='DELETE' || (alert('Type DELETE to confirm.'),false)">
-    {% for k in ['batch','q'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
+    {% for k in ['batch','q','mode','analyte'] %}{% if f[k] %}<input type="hidden" name="{{ k }}" value="{{ f[k] }}">{% endif %}{% endfor %}
     {% if f.include_linked %}<input type="hidden" name="include_linked" value="1">{% endif %}
     <input type="hidden" name="all_matching" value="1">
     <span class="muted">Or delete <strong>all {{ '{:,}'.format(total) }}</strong> empty records matching this filter →</span>

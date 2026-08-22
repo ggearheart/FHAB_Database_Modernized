@@ -28,6 +28,30 @@ def test_empty_detection(conn):
     assert count_empty_records(conn) >= 2
 
 
+def test_triage_mode_blank_vs_identified(conn):
+    """The mode facet splits totally-blank artifacts from ones carrying a station/date/id."""
+    blank = _sample(conn, results=[{}])                             # no identity at all
+    ident = _sample(conn, results=[{}])
+    conn.execute("UPDATE sample SET sample_date='2026-06-15' WHERE id=%s", (ident,)); conn.commit()
+
+    ids_blank = {r["id"] for r in empty_lab_records(conn, {"mode": "blank"})}
+    ids_ident = {r["id"] for r in empty_lab_records(conn, {"mode": "identified"})}
+    assert blank in ids_blank and ident not in ids_blank
+    assert ident in ids_ident and blank not in ids_ident
+    assert {blank, ident} <= {r["id"] for r in empty_lab_records(conn, {})}   # both under "all"
+
+
+def test_analyte_filter_and_list(conn):
+    """Empty rows still name an analyte; you can list them and filter by one."""
+    from fhab.cleanup import empty_record_analytes
+    aid = conn.execute("INSERT INTO analyte (analyte) VALUES ('Microcystins') RETURNING id").fetchone()["id"]
+    with_an = _sample(conn, results=[{"analyte_id": aid}])          # blank result, but names an analyte
+    without = _sample(conn, results=[{}])
+    assert "Microcystins" in empty_record_analytes(conn)           # shown in the "used" list
+    hit = {r["id"] for r in empty_lab_records(conn, {"analyte": "microcyst"})}   # partial, case-insensitive
+    assert with_an in hit and without not in hit
+
+
 def test_delete_only_removes_empty_unlinked(conn):
     empty = _sample(conn, results=[{}])
     valued = _sample(conn, results=[{"measurement_value": 1.0}])
