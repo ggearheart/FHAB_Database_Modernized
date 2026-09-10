@@ -73,4 +73,23 @@
   <p class="muted">Manage these on the workboard sample map.</p>
 </div>
 {% endif %}
+
+<div class="card" style="border-color:#e6b3b3">
+  <h1 style="font-size:1.05rem; color:#b91c1c">Delete this sample</h1>
+  <p class="muted" style="margin-top:0; font-size:.88rem">Permanently removes sample {{ sample.id }} and
+    its {{ results|length }} result{{ 's' if results|length != 1 }}. This is audited and cannot be undone.
+    {% if sample.bloom_report_id or sample.case_id %}This sample is <strong>linked</strong> to
+    {% if sample.bloom_report_id %}report R{{ sample.bloom_report_id }}{% endif %}{% if sample.case_id %} case {{ sample.case_id }}{% endif %} —
+    deleting drops lab data attached to that record, so it is blocked unless you tick the box below.{% endif %}</p>
+  <form method="post" onsubmit="return this.confirm.value.toUpperCase()==='DELETE' || (alert('Type DELETE to confirm.'),false)">
+    <input type="hidden" name="action" value="delete">
+    <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
+      <input name="confirm" placeholder="type DELETE" style="width:9rem" autocomplete="off">
+      {% if sample.bloom_report_id or sample.case_id %}
+      <label style="font-weight:400"><input type="checkbox" name="force_linked" style="width:auto"> delete even though linked</label>
+      {% endif %}
+      <button class="secondary" style="background:#b91c1c">🗑 Delete sample</button>
+    </div>
+  </form>
+</div>
 {% endblock %}

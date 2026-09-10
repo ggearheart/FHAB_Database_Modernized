@@ -375,6 +375,42 @@ def ingested_batches(conn) -> list[dict]:
     ).fetchall()
 
 
+def delete_batches(conn, user_id, batch_ids, *, force_linked=False) -> dict:
+    """Delete whole ingestions — a folder/batch and everything it brought in (its samples, their
+    results, and the stored source files). Pass several `batch_ids` to remove more than one folder
+    (or an entire upload session) at once.
+
+    Guard: a batch whose samples have been linked to a report/case is left untouched (and reported
+    as skipped) unless `force_linked` — deleting it would drop lab data now attached to a case.
+    Sample deletions are attributed to `user_id` in the audit log; a batch's files, staging rows,
+    and station links fall away via ON DELETE CASCADE once the batch row is gone.
+    """
+    from .cleanup import purge_samples
+    ids = [int(x) for x in batch_ids if str(x).isdigit()]
+    if not ids:
+        return {"deleted_batches": 0, "deleted_samples": 0, "skipped": []}
+    conn.execute("SELECT set_config('fhab.user_id', %s, false)", (str(user_id or ""),))
+    deleted_batches = deleted_samples = 0
+    skipped = []
+    for bid in ids:
+        if not conn.execute("SELECT 1 FROM lab_batch WHERE id=%s", (bid,)).fetchone():
+            skipped.append({"id": bid, "reason": "not found"})
+            continue
+        sample_ids = [r["id"] for r in conn.execute(
+            "SELECT id FROM sample WHERE lab_batch_id=%s", (bid,)).fetchall()]
+        linked = conn.execute(
+            "SELECT count(*) AS c FROM sample WHERE lab_batch_id=%s "
+            "AND (bloom_report_id IS NOT NULL OR case_id IS NOT NULL)", (bid,)).fetchone()["c"]
+        if linked and not force_linked:
+            skipped.append({"id": bid, "reason": f"{linked} sample(s) linked to a report/case"})
+            continue
+        deleted_samples += purge_samples(conn, sample_ids)
+        conn.execute("DELETE FROM lab_batch WHERE id=%s", (bid,))   # cascades files/staging/links
+        deleted_batches += 1
+    conn.commit()
+    return {"deleted_batches": deleted_batches, "deleted_samples": deleted_samples, "skipped": skipped}
+
+
 def ingestion_report(conn, *, kind=None, region=None, q=None, date_from=None, date_to=None) -> dict:
     """Filterable report over every ingestion (lab_batch): when it was ingested, its kind, source,
     region, sample / geocoded / result counts, files, status and who ran it, plus totals.

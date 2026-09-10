@@ -271,3 +271,67 @@ def test_ingest_folder_records_the_user(conn, tmp_path):
     r = ingest_bend_folder(conn, d, user_id=uid)
     who = conn.execute("SELECT uploaded_by FROM lab_batch WHERE id=%s", (r["batch_id"],)).fetchone()["uploaded_by"]
     assert who == uid
+
+
+def _batch_with_samples(conn, bid, *, n=2, session=None, linked=False):
+    """A lab_batch with n samples (each carrying one result), optionally linked to a report."""
+    conn.execute("INSERT INTO lab_batch (id, kind, source, status, ingest_session) "
+                 "VALUES (%s,'ingested',%s,'open',%s)", (bid, f"Folder {bid}", session))
+    conn.execute("INSERT INTO lab_batch_file (batch_id, filename, data) VALUES (%s,'coc.pdf',%s)",
+                 (bid, b"%PDF-1.4"))
+    sids = []
+    for i in range(n):
+        sid = conn.execute("INSERT INTO sample (lab_batch_id, sample_date) VALUES (%s,'2025-06-01') "
+                           "RETURNING id", (bid,)).fetchone()["id"]
+        conn.execute("INSERT INTO result (result_id_unique, sample_id) VALUES (%s,%s)",
+                     (f"{bid}-{i}", sid))
+        sids.append(sid)
+    if linked:
+        conn.execute("INSERT INTO event (bloom_report_id) VALUES (%s)", (bid,))
+        conn.execute("UPDATE sample SET bloom_report_id=%s WHERE id=%s", (bid, sids[0]))
+    conn.commit()
+    return sids
+
+
+def test_delete_batches_removes_folder_and_everything_in_it(conn):
+    from fhab.bendlab import delete_batches
+    sids = _batch_with_samples(conn, 7101, n=3)
+    res = delete_batches(conn, user_id=1, batch_ids=[7101])
+    assert res["deleted_batches"] == 1 and res["deleted_samples"] == 3 and res["skipped"] == []
+    assert conn.execute("SELECT count(*) c FROM lab_batch WHERE id=7101").fetchone()["c"] == 0
+    assert conn.execute("SELECT count(*) c FROM lab_batch_file WHERE batch_id=7101").fetchone()["c"] == 0
+    assert conn.execute("SELECT count(*) c FROM sample WHERE id=ANY(%s)", (sids,)).fetchone()["c"] == 0
+    assert conn.execute("SELECT count(*) c FROM result WHERE sample_id=ANY(%s)", (sids,)).fetchone()["c"] == 0
+
+
+def test_delete_batches_multi_folder_session_at_once(conn):
+    from fhab.bendlab import delete_batches
+    _batch_with_samples(conn, 7201, n=2, session="sess-A")
+    _batch_with_samples(conn, 7202, n=1, session="sess-A")
+    res = delete_batches(conn, user_id=1, batch_ids=[7201, 7202])   # a whole upload session
+    assert res["deleted_batches"] == 2 and res["deleted_samples"] == 3
+    assert conn.execute("SELECT count(*) c FROM lab_batch WHERE id=ANY(ARRAY[7201,7202])").fetchone()["c"] == 0
+
+
+def test_delete_batches_guards_linked_unless_forced(conn):
+    from fhab.bendlab import delete_batches
+    _batch_with_samples(conn, 7301, n=2, linked=True)     # one sample linked to a report
+    res = delete_batches(conn, user_id=1, batch_ids=[7301])
+    assert res["deleted_batches"] == 0 and len(res["skipped"]) == 1
+    assert res["skipped"][0]["id"] == 7301 and "linked" in res["skipped"][0]["reason"]
+    assert conn.execute("SELECT count(*) c FROM lab_batch WHERE id=7301").fetchone()["c"] == 1  # kept
+    # forcing deletes it and its samples
+    res2 = delete_batches(conn, user_id=1, batch_ids=[7301], force_linked=True)
+    assert res2["deleted_batches"] == 1 and res2["deleted_samples"] == 2
+    assert conn.execute("SELECT count(*) c FROM lab_batch WHERE id=7301").fetchone()["c"] == 0
+
+
+def test_delete_batches_is_audited(conn):
+    from fhab.auth import create_user
+    from fhab.bendlab import delete_batches
+    uid = create_user(conn, "deleter@wb.ca.gov")
+    sids = _batch_with_samples(conn, 7401, n=1)
+    delete_batches(conn, user_id=uid, batch_ids=[7401])
+    a = conn.execute("SELECT actor_id, action FROM audit_log WHERE table_name='sample' "
+                     "AND row_key=%s", (str(sids[0]),)).fetchone()
+    assert a and a["action"] == "DELETE" and a["actor_id"] == uid

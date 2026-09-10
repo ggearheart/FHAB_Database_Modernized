@@ -46,11 +46,36 @@
 <div class="card">
   <p class="muted" style="margin-top:0; font-size:.85rem">Grouped by <strong>upload session</strong> —
     a multi-folder upload (or one prepared CSV) is a single ingestion. Click a session to expand its
-    individual folders/batches.</p>
+    individual folders/batches. Tick a session (or individual folders) to delete them.</p>
+
+  {% if sessions %}
+  <!-- Delete selected ingestions. Batch checkboxes below post here via form= association;
+       filters are carried in the action URL so the redirect returns to this same view. -->
+  <div style="position:sticky; top:.4rem; z-index:5; background:var(--card); border:1px solid #e6b3b3;
+              border-radius:8px; padding:.5rem .7rem; margin-bottom:.6rem">
+    <form method="post" action="{{ url_for('ingest_delete', **csv_args) }}" id="ingestDel"
+          onsubmit="return this.confirm.value.toUpperCase()==='DELETE' || (alert('Type DELETE to confirm.'),false)">
+      <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
+        <button class="secondary" style="background:#b91c1c">🗑 Delete selected ingestions</button>
+        <input name="confirm" placeholder="type DELETE" style="width:9rem" autocomplete="off">
+        <span class="muted" id="ingestDelCount"></span>
+        <label style="font-weight:400; font-size:.85rem"><input type="checkbox" name="force_linked" style="width:auto"> delete even when linked to a report/case</label>
+      </div>
+      <p class="muted" style="margin:.35rem 0 0; font-size:.8rem">Removes each selected folder and
+        everything it ingested — its samples, their results, and the stored source files. Audited;
+        cannot be undone. Folders with report/case-linked samples are kept unless you tick the box.</p>
+    </form>
+  </div>
+  {% endif %}
+
   {% for s in sessions %}
+  {% set sidx = loop.index %}
   {% set g = s.geocoded %}{% set n = s.samples %}
   <details style="border:1px solid var(--line); border-radius:8px; margin-bottom:.5rem" {% if sessions|length == 1 %}open{% endif %}>
     <summary style="cursor:pointer; padding:.55rem .7rem; display:flex; flex-wrap:wrap; gap:.5rem 1.1rem; align-items:baseline">
+      <label onclick="event.stopPropagation()" title="Select every folder in this session"
+             style="font-weight:400; white-space:nowrap"><input type="checkbox" class="sessBox"
+             data-sess="{{ sidx }}" style="width:auto"> select</label>
       <span><strong>{{ s.n_batches }}</strong> folder{{ 's' if s.n_batches != 1 }}</span>
       <span class="muted" style="white-space:nowrap">{{ s.started.strftime('%Y-%m-%d %H:%M') if s.started else '—' }}{% if s.finished and s.finished != s.started %}–{{ s.finished.strftime('%H:%M') }}{% endif %}</span>
       <span class="muted">by {{ s.uploaded_by or 'system / pre-record' }}</span>
@@ -62,10 +87,12 @@
     </summary>
     <div style="overflow-x:auto; border-top:1px solid var(--line)">
       <table style="font-size:.88rem; margin:0">
-        <tr><th>SE</th><th>Ingested</th><th>Kind</th><th>Source</th><th>Region</th>
+        <tr><th>🗑</th><th>SE</th><th>Ingested</th><th>Kind</th><th>Source</th><th>Region</th>
             <th>Lab result dates</th><th>Samples</th><th>Geocoded</th><th>Results</th><th>Files</th></tr>
         {% for b in s.batches %}
         <tr>
+          <td style="text-align:center"><input type="checkbox" name="batch_ids" value="{{ b.id }}"
+              form="ingestDel" class="batchBox" data-sess="{{ sidx }}" style="width:auto"></td>
           <td><a href="{{ url_for('lab_workboard', batch=b.id) }}" title="Open this batch on the workboard">SE {{ b.id }}</a></td>
           <td style="white-space:nowrap">{{ b.uploaded_at.strftime('%Y-%m-%d %H:%M') if b.uploaded_at else '—' }}</td>
           <td class="muted">{{ 'email/folder' if b.kind == 'ingested' else ('reconcile' if b.kind == 'staged' else b.kind) }}</td>
@@ -87,4 +114,23 @@
   <p class="muted">No ingestions match these filters.</p>
   {% endfor %}
 </div>
+
+<script>
+  (function () {
+    const batches = () => [...document.querySelectorAll('.batchBox')];
+    function count() {
+      const n = batches().filter(b => b.checked).length;
+      document.getElementById('ingestDelCount').textContent =
+        n ? n + ' folder' + (n === 1 ? '' : 's') + ' selected' : '';
+    }
+    document.addEventListener('change', e => {
+      const t = e.target;
+      if (t.classList.contains('sessBox')) {   // a session box toggles all its folders
+        batches().filter(b => b.dataset.sess === t.dataset.sess).forEach(b => { b.checked = t.checked; });
+      }
+      if (t.classList.contains('sessBox') || t.classList.contains('batchBox')) count();
+    });
+    count();
+  })();
+</script>
 {% endblock %}
