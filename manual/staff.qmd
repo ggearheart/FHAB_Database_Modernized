@@ -79,17 +79,34 @@ own page: **[★ Ingesting lab data](lab-ingest.qmd)**. In brief, under **Ingest
   PDFs); the files are kept on the batch.
 - **Upload CEDEN lab data** — a CEDEN WaterChemistry CSV (auto-links confident matches).
 - **Lab batch reconciliation** — a staged CEDEN template you link group-by-group.
-- **Lab data workboard** — assign / link / QA-review, geocode from the CoC, and tag routine
-  sampling.
+- **Lab data workboard** — assign / link / QA-review, geocode from the CoC, tag routine sampling,
+  and **explore/multi-select** samples on the workboard **results map** (its status tallies are
+  **filter-aware**).
 - **Bulk sample coordinates** — paste `station, lat, lon` rows to geocode many at once.
+- **Ingestion report** — audit every ingestion (who/when, counts, geocoded-% health), grouped by
+  upload session, with CSV — and **delete whole folders or sessions** when a drop went wrong.
+- **Clean up empty records** and **Find duplicate samples** — remove near-empty ingestion
+  artifacts, and merge or batch-delete samples that arrived more than once. You can also delete a
+  **single sample** from the *Sample work area*.
 
-See the [dedicated page](lab-ingest.qmd) for step-by-step instructions and a lab-ingest test script.
+See the [dedicated page](lab-ingest.qmd) for step-by-step instructions and a lab-ingest test
+script — including the [ingestion report](lab-ingest.qmd#ingestion-report),
+[cleanup](lab-ingest.qmd#cleanup), and [duplicate](lab-ingest.qmd#duplicates) tools.
 
-### 7. Lab results browser (*Lab*)
+### 7. Lab results browser (*Lab*) and lab map (*Lab map*)
 
-- Browse **all** field and lab results across reports in one place. Filter by water body /
+- **Lab** — browse **all** field and lab results across reports in one place. Filter by water body /
   analyte (search), analysis type, data type, region, sample-date range, and non-detects;
   sort by date, water body, analyte, or value; and **Download CSV** of the filtered set.
+- **Lab map** — geocoded lab samples plotted by station. **Marker shape = lab method**
+  (● chemistry · ◆ SPATT · ▲ genetic · ■ microscopy) and **colour = status**; hover for a summary,
+  click to pin. Filter by **method** (Chemistry / SPATT / Genetic / Microscopy) and, for chemistry,
+  by **cyanotoxin advisory tier**; the **legend** explains both the tier colours and the method
+  shapes. Where a station has samples over time, the popup links to a **per-station trend plot**.
+- **Result ID lookup (QC):** both pages let you find an exact result by its **Result ID**
+  (`result_id_unique` / F-code) or **Sample ID** — the Lab map has a Result-ID search box, and the
+  Result ID is shown on the workboard and sample pages — so you can pinpoint and cross-check a
+  single result when doing quality control.
 
 ### 8. Notifications (*🔔*)
 
@@ -106,7 +123,12 @@ See the [dedicated page](lab-ingest.qmd) for step-by-step instructions and a lab
 
 ### 10. Admin only — Accounts, Groups, Analytes, Refresh & Reset
 
-- **Accounts:** create users and grant/revoke roles.
+- **Accounts:** full account management — create users, **approve self-service signups**, and
+  grant/revoke roles, plus **reset password** (a temporary password shown once that the user must
+  change at next sign-in), **deactivate / reactivate**, **edit** email & name, and **delete**
+  (allowed only for accounts with no work history — otherwise deactivate, to preserve provenance).
+  A **status** column shows active/inactive, must-change-password, no-password, and last login.
+  Everyone can change their own password from **Change your password** in the nav.
 - **Groups:** register a community/partner group and mint an **API key** (shown once) so that
   group can submit attributed — and optionally "trusted" — reports.
 - **Analytes:** curate the analyte vocabulary — edit an analyte's name/class/unit, **merge**
