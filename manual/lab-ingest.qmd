@@ -128,19 +128,33 @@ and quality-reviewed. It's built as a **task board**: the lead **assigns** work,
   has files** — click one to filter. The first two split the unlinked pile into samples that are
   ready to research (they have a location) versus those still waiting on coordinates; the last one
   is the **actionable subset** — samples that need coordinates *and* have a CoC on file to read them
-  off. Start there.
+  off. Start there. **The counts on the chips reflect the filters you've applied** — set a region or
+  a batch and the tallies re-count for just that view, so you can see, e.g., how many samples in
+  *this* ingest still need geocoding.
 - **Filters:** status, assignee (incl. **Me** / Unassigned), region, a **Geocoding** filter
   (Geocoded / Not geocoded), a **Files** filter (**Has files** / **No files**), and a station /
   water-body search. A batch link filters the board to just that ingest.
 - **Each row shows its provenance:** the sampling event, a **📎 file count** (linking to the batch's
-  stored files) or *"no files"*, and the **ingestion date** — so you can tell at a glance which
-  items have a CoC to work from.
+  stored files) or *"no files"*, the **ingestion date**, and the **Result ID** — so you can tell at
+  a glance which items have a CoC to work from, and cite an exact result when doing QC.
 - **Assign:** check rows, pick a team member under *"With checked rows →"*, **Assign**.
 - **Per sample:** **Link / Re-link** by report (R#) or case (C#); **+Report** (create one from the
   station); **✓ QA** approve; **⚑** flag with a reason; **Unlink**; **Routine** (see below).
   *Re-linking clears QA so the sample returns to the review queue.*
 - **Batch reconcile:** *Reconcile checked* or *Reconcile all unlinked in this view* auto-links the
   confident, unambiguous matches in one pass.
+
+### The results map (🗺 Map of results) — explore & multi-select
+
+Above the table, **Map of results** opens a map of every geocoded sample in the **current filtered
+view** (set a region, batch, or status first to focus it). Markers are colored by status
+(unlinked, linked, QA-approved, flagged, routine). It's built for exploring links and picking
+several samples at once:
+
+- Click a marker to see the sample and jump to its row.
+- Use **Select all in view** — or tick individual samples on the map/table — to build a selection,
+  then **assign** or act on the whole set together. Filtering first and then multi-selecting the
+  filtered results is the quickest way to move a batch of related samples through the same edit.
 
 ### The sample map (🗺) — the research popup
 
@@ -210,6 +224,75 @@ sample, use **Routine** (row button or the map popup's *Tag routine sampling*) t
 
 ---
 
+## Managing lab data: the ingestion report, cleanup & duplicates
+
+Once data is in, three tools under **Ingest Data** help you audit it, remove junk, and fix
+double-ups. All three are staff-only.
+
+### Ingestion report — what came in, and how well {#ingestion-report}
+
+**Ingest Data → Ingestion report** is a filterable audit of **every ingestion**. Four tiles at the
+top summarize the current view — **Ingestions, Samples, Geocoded %, Results**. Filter by **kind**
+(email/folder vs. reconciliation), **region**, **ingested-from / to** dates, or a **search** on
+source or SE ID; **Download CSV** exports the filtered rows.
+
+Rows are **grouped by upload session** — a multi-folder upload (or one prepared CSV) is a single
+ingestion, so a 50-folder drop shows as one session you can expand to its individual folders. Each
+session shows **who ran it and when**, how many folders, the sample/geocoded/result/file totals,
+its **geocoded-% health pill**, and the **lab-result date range** it covers.
+
+::: {.callout-warning title="Deleting whole ingestions"}
+Made a bad drop, or ingested a test folder you want gone? Tick a session's **select** box (it
+selects every folder in it) — or tick individual folders, across sessions — then use the sticky
+**🗑 Delete selected ingestions** bar and type **DELETE** to confirm. This removes each selected
+folder **and everything it brought in**: its samples, their results, and the stored source files.
+It's **audited** and **cannot be undone**. A folder whose samples have already been **linked to a
+report/case** is *kept* and named in a notice, so you don't drop case data by accident — tick
+**delete even when linked** only if you really mean to.
+:::
+
+### Clean up empty records — near-empty ingestion artifacts {#cleanup}
+
+Malformed rows sometimes land as **near-empty samples** — no measurement value, text, or qualifier.
+**Ingest Data → Clean up empty records** finds them so you can remove them safely.
+
+- **Triage modes** split *totally blank* rows (no station/date/id at all) from ones that carry a
+  **station/date/id but no data** — clean out the pure blanks first.
+- Filter by **ingest batch (SE)** or a **station/BG_ID/source** search. You can also **search by
+  analyte name** — the page lists **every analyte present on the empty rows** (with counts) as
+  quick filters, so you can see exactly what the artifacts are.
+- Tick the bad rows and **Delete**. The delete is **guarded**: it only ever removes rows that are
+  genuinely empty **and** unlinked (anything else in your selection is skipped), and every deletion
+  is **audited**.
+
+### Find & fix duplicate records {#duplicates}
+
+The same physical sample can arrive twice (folder ingest *and* a data.ca.gov pull, say).
+**Ingest Data → Find duplicate samples** now opens as a **report** and lets you resolve them.
+
+- **Summary tiles:** duplicate **sample groups** and **redundant sample records**, plus possible
+  duplicate **reports** and redundant report records. Filter by **sampling event** or a
+  station/BG_ID/lab-ID/source search.
+- **Each group shows *why* it matched** — an explicit lab sample id, sample id, or BG_ID, or the
+  weaker *station + date + type* (flagged **⚠️ composite key**, since that can be a legitimate field
+  replicate) — plus the fingerprint. For each group you can either:
+  - **Merge** the duplicates into the one you mark **Keep** (results and links are repointed onto
+    the survivor and its results de-duplicated), or
+  - tick the redundant copies for a **batch delete** (type **DELETE**; linked rows are skipped;
+    audited).
+- A read-only **Possible duplicate reports** section groups reports that share a water body, date,
+  and region — open each to decide which to keep (report de-duplication stays manual, since cases
+  and advisories hang off those IDs).
+
+### Deleting a single sample {#delete-sample}
+
+To remove **one** sample, open it in the **Sample work area** (Ingest Data → *Sample work area* →
+click a sample) and use the **Delete this sample** box at the bottom: type **DELETE** to confirm.
+It removes the sample and its results, is **audited**, and — like the tools above — is **blocked if
+the sample is linked to a report/case** unless you tick **delete even though linked**.
+
+---
+
 ## Suggested lab-ingest test script (~15 min)
 
 1. **Ingest an email folder** (Ingest Data → *Ingest lab email folders*) — pick all files from one
@@ -224,4 +307,7 @@ sample, use **Routine** (row button or the map popup's *Tag routine sampling*) t
 4. Tag one sample as **Routine sampling**, then confirm it appears under the *Routine* chip.
 5. Run **Reconcile all unlinked in this view** and see how many auto-link.
 6. Open **Lab** (results browser) and confirm your batch's results appear; **Download CSV**.
-7. Note anything confusing along the way — see [Giving feedback](feedback.qmd).
+7. Open the **[Ingestion report](#ingestion-report)** — find your upload session, check the who/when
+   and geocoded-% look right. *(Optional, on a throwaway test drop: select it and try **🗑 Delete
+   selected ingestions** to confirm it clears the samples/results/files.)*
+8. Note anything confusing along the way — see [Giving feedback](feedback.qmd).
