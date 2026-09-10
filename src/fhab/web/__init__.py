@@ -23,8 +23,8 @@ from ..auth import (acting_as, approve_signup, authenticate, change_own_password
                     set_password, update_user, user_references, user_regions, web_user)
 from ..cases import (CASE_STATUSES, assign_report_to_case, create_case, update_case)
 from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_for_event)
-from ..bendlab import (batch_file, batch_files, ingest_bend_folder, ingested_batches,
-                       ingestion_report)
+from ..bendlab import (batch_file, batch_files, delete_batches, ingest_bend_folder,
+                       ingested_batches, ingestion_report)
 from ..labmatch import (_candidates, auto_match, create_event_from_stage, link_stage_sample,
                         skip_stage_sample, stage_batch)
 from ..places import COUNTIES, similar_waterbodies, suggest_waterbodies
@@ -1225,6 +1225,18 @@ def create_app(dsn: str | None = None) -> Flask:
     def sample_detail(sid):
         conn = db()
         if request.method == "POST":
+            if request.form.get("action") == "delete":
+                if (request.form.get("confirm") or "").strip().upper() != "DELETE":
+                    flash("Type DELETE to confirm removing this sample.", "error")
+                    return redirect(url_for("sample_detail", sid=sid))
+                force = bool(request.form.get("force_linked"))
+                res = dedup_delete_samples(conn, session["uid"], [sid], allow_linked=force)
+                if res["deleted"]:
+                    flash(f"Deleted sample {sid} and its results.", "ok")
+                    return redirect(url_for("samples_list"))
+                flash("Sample not deleted — it is linked to a report/case. "
+                      "Tick “delete even though linked” to force.", "error")
+                return redirect(url_for("sample_detail", sid=sid))
             try:
                 update_sample(conn, session["uid"], sid, request.form)
                 flash("Sample updated.", "ok")
@@ -1990,6 +2002,37 @@ def create_app(dsn: str | None = None) -> Flask:
         f = {k: (request.args.get(k) or "") for k in ("kind", "region", "q", "date_from", "date_to")}
         return render_template("ingest_report.html", sessions=rep["sessions"], totals=rep["totals"],
                                regions=regions, f=f, csv_args={k: v for k, v in f.items() if v})
+
+    @app.route("/ingest/delete", methods=["POST"])
+    @staff_required
+    def ingest_delete():
+        conn = db()
+        f = _ingest_report_filters()
+        back = url_for("ingest_report", **{k: v for k, v in
+                       {"kind": f["kind"], "region": f["region"], "q": f["q"],
+                        "date_from": f["date_from"], "date_to": f["date_to"]}.items() if v})
+        if (request.form.get("confirm") or "").strip().upper() != "DELETE":
+            flash("Type DELETE to confirm removing the selected ingestions.", "error")
+            return redirect(back)
+        batch_ids = request.form.getlist("batch_ids")
+        if not batch_ids:
+            flash("Select at least one ingestion (folder or session) to delete.", "error")
+            return redirect(back)
+        try:
+            res = delete_batches(conn, session["uid"], batch_ids,
+                                 force_linked=bool(request.form.get("force_linked")))
+        except psycopg.Error as exc:
+            conn.rollback()
+            flash("Could not delete: " + str(exc).splitlines()[0], "error")
+            return redirect(back)
+        msg = (f"Deleted {res['deleted_batches']} ingestion(s) and {res['deleted_samples']} "
+               f"sample(s) with their results and files.")
+        flash(msg, "ok")
+        if res["skipped"]:
+            flash("Kept " + str(len(res["skipped"])) + " ingestion(s) that are linked to a "
+                  "report/case: " + "; ".join(f"SE {s['id']} ({s['reason']})" for s in res["skipped"])
+                  + ". Tick “delete even when linked” to force.", "error")
+        return redirect(back)
 
     @app.route("/ingest/report.csv")
     @staff_required
