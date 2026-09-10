@@ -47,7 +47,7 @@ ul.task-list li input[type="checkbox"] {
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-502bea0607b7f8e3fc38bba08d9a0dc5.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-0e1e2e26fad3dc7612b067c36a1d1a03.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,9 +189,17 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#d.-attach-results-to-one-report-or-case" id="toc-d.-attach-results-to-one-report-or-case" class="nav-link" data-scroll-target="#d.-attach-results-to-one-report-or-case">D. Attach results to one report or case</a></li>
   <li><a href="#after-ingest-reconcile-on-the-lab-data-workboard" id="toc-after-ingest-reconcile-on-the-lab-data-workboard" class="nav-link" data-scroll-target="#after-ingest-reconcile-on-the-lab-data-workboard">After ingest: reconcile on the Lab data workboard</a>
   <ul class="collapse">
+  <li><a href="#the-results-map-map-of-results-explore-multi-select" id="toc-the-results-map-map-of-results-explore-multi-select" class="nav-link" data-scroll-target="#the-results-map-map-of-results-explore-multi-select">The results map (🗺 Map of results) — explore &amp; multi-select</a></li>
   <li><a href="#the-sample-map-the-research-popup" id="toc-the-sample-map-the-research-popup" class="nav-link" data-scroll-target="#the-sample-map-the-research-popup">The sample map (🗺) — the research popup</a></li>
   <li><a href="#geocoding-ungeocoded-samples" id="toc-geocoding-ungeocoded-samples" class="nav-link" data-scroll-target="#geocoding-ungeocoded-samples">Geocoding ungeocoded samples</a></li>
   <li><a href="#routine-sampling-not-every-sample-is-a-bloom-report" id="toc-routine-sampling-not-every-sample-is-a-bloom-report" class="nav-link" data-scroll-target="#routine-sampling-not-every-sample-is-a-bloom-report">Routine sampling (not every sample is a bloom report)</a></li>
+  </ul></li>
+  <li><a href="#managing-lab-data-the-ingestion-report-cleanup-duplicates" id="toc-managing-lab-data-the-ingestion-report-cleanup-duplicates" class="nav-link" data-scroll-target="#managing-lab-data-the-ingestion-report-cleanup-duplicates">Managing lab data: the ingestion report, cleanup &amp; duplicates</a>
+  <ul class="collapse">
+  <li><a href="#ingestion-report" id="toc-ingestion-report" class="nav-link" data-scroll-target="#ingestion-report">Ingestion report — what came in, and how well</a></li>
+  <li><a href="#cleanup" id="toc-cleanup" class="nav-link" data-scroll-target="#cleanup">Clean up empty records — near-empty ingestion artifacts</a></li>
+  <li><a href="#duplicates" id="toc-duplicates" class="nav-link" data-scroll-target="#duplicates">Find &amp; fix duplicate records</a></li>
+  <li><a href="#delete-sample" id="toc-delete-sample" class="nav-link" data-scroll-target="#delete-sample">Deleting a single sample</a></li>
   </ul></li>
   <li><a href="#suggested-lab-ingest-test-script-15-min" id="toc-suggested-lab-ingest-test-script-15-min" class="nav-link" data-scroll-target="#suggested-lab-ingest-test-script-15-min">Suggested lab-ingest test script (~15 min)</a></li>
   </ul>
@@ -352,13 +360,21 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="after-ingest-reconcile-on-the-lab-data-workboard">After ingest: reconcile on the Lab data workboard</h2>
 <p><strong>Ingest Data → Lab data workboard</strong> is where lab samples get connected to events/reports/cases and quality-reviewed. It’s built as a <strong>task board</strong>: the lead <strong>assigns</strong> work, team members <strong>link</strong>, a reviewer <strong>QA-approves</strong> or <strong>flags</strong>.</p>
 <ul>
-<li><strong>Status chips:</strong> <em>Unlinked</em>, <em>Linked · awaiting QA</em>, <em>Flagged for rework</em>, <em>QA approved</em>, and <em>Routine sampling</em>, plus <strong>Geocoded · not linked</strong>, <strong>Needs geocoding</strong>, and <strong>📎 Needs geocoding · has files</strong> — click one to filter. The first two split the unlinked pile into samples that are ready to research (they have a location) versus those still waiting on coordinates; the last one is the <strong>actionable subset</strong> — samples that need coordinates <em>and</em> have a CoC on file to read them off. Start there.</li>
+<li><strong>Status chips:</strong> <em>Unlinked</em>, <em>Linked · awaiting QA</em>, <em>Flagged for rework</em>, <em>QA approved</em>, and <em>Routine sampling</em>, plus <strong>Geocoded · not linked</strong>, <strong>Needs geocoding</strong>, and <strong>📎 Needs geocoding · has files</strong> — click one to filter. The first two split the unlinked pile into samples that are ready to research (they have a location) versus those still waiting on coordinates; the last one is the <strong>actionable subset</strong> — samples that need coordinates <em>and</em> have a CoC on file to read them off. Start there. <strong>The counts on the chips reflect the filters you’ve applied</strong> — set a region or a batch and the tallies re-count for just that view, so you can see, e.g., how many samples in <em>this</em> ingest still need geocoding.</li>
 <li><strong>Filters:</strong> status, assignee (incl.&nbsp;<strong>Me</strong> / Unassigned), region, a <strong>Geocoding</strong> filter (Geocoded / Not geocoded), a <strong>Files</strong> filter (<strong>Has files</strong> / <strong>No files</strong>), and a station / water-body search. A batch link filters the board to just that ingest.</li>
-<li><strong>Each row shows its provenance:</strong> the sampling event, a <strong>📎 file count</strong> (linking to the batch’s stored files) or <em>“no files”</em>, and the <strong>ingestion date</strong> — so you can tell at a glance which items have a CoC to work from.</li>
+<li><strong>Each row shows its provenance:</strong> the sampling event, a <strong>📎 file count</strong> (linking to the batch’s stored files) or <em>“no files”</em>, the <strong>ingestion date</strong>, and the <strong>Result ID</strong> — so you can tell at a glance which items have a CoC to work from, and cite an exact result when doing QC.</li>
 <li><strong>Assign:</strong> check rows, pick a team member under <em>“With checked rows →”</em>, <strong>Assign</strong>.</li>
 <li><strong>Per sample:</strong> <strong>Link / Re-link</strong> by report (R#) or case (C#); <strong>+Report</strong> (create one from the station); <strong>✓ QA</strong> approve; <strong>⚑</strong> flag with a reason; <strong>Unlink</strong>; <strong>Routine</strong> (see below). <em>Re-linking clears QA so the sample returns to the review queue.</em></li>
 <li><strong>Batch reconcile:</strong> <em>Reconcile checked</em> or <em>Reconcile all unlinked in this view</em> auto-links the confident, unambiguous matches in one pass.</li>
 </ul>
+<section id="the-results-map-map-of-results-explore-multi-select" class="level3">
+<h3 class="anchored" data-anchor-id="the-results-map-map-of-results-explore-multi-select">The results map (🗺 Map of results) — explore &amp; multi-select</h3>
+<p>Above the table, <strong>Map of results</strong> opens a map of every geocoded sample in the <strong>current filtered view</strong> (set a region, batch, or status first to focus it). Markers are colored by status (unlinked, linked, QA-approved, flagged, routine). It’s built for exploring links and picking several samples at once:</p>
+<ul>
+<li>Click a marker to see the sample and jump to its row.</li>
+<li>Use <strong>Select all in view</strong> — or tick individual samples on the map/table — to build a selection, then <strong>assign</strong> or act on the whole set together. Filtering first and then multi-selecting the filtered results is the quickest way to move a batch of related samples through the same edit.</li>
+</ul>
+</section>
 <section id="the-sample-map-the-research-popup" class="level3">
 <h3 class="anchored" data-anchor-id="the-sample-map-the-research-popup">The sample map (🗺) — the research popup</h3>
 <p>Click a sample’s <strong>🗺</strong> to open its context map. This is where the tedious research/linking happens, so it gathers everything in one place:</p>
@@ -403,6 +419,55 @@ ul.task-list li input[type="checkbox"] {
 <hr>
 </section>
 </section>
+<section id="managing-lab-data-the-ingestion-report-cleanup-duplicates" class="level2">
+<h2 class="anchored" data-anchor-id="managing-lab-data-the-ingestion-report-cleanup-duplicates">Managing lab data: the ingestion report, cleanup &amp; duplicates</h2>
+<p>Once data is in, three tools under <strong>Ingest Data</strong> help you audit it, remove junk, and fix double-ups. All three are staff-only.</p>
+<section id="ingestion-report" class="level3">
+<h3 class="anchored" data-anchor-id="ingestion-report">Ingestion report — what came in, and how well</h3>
+<p><strong>Ingest Data → Ingestion report</strong> is a filterable audit of <strong>every ingestion</strong>. Four tiles at the top summarize the current view — <strong>Ingestions, Samples, Geocoded %, Results</strong>. Filter by <strong>kind</strong> (email/folder vs.&nbsp;reconciliation), <strong>region</strong>, <strong>ingested-from / to</strong> dates, or a <strong>search</strong> on source or SE ID; <strong>Download CSV</strong> exports the filtered rows.</p>
+<p>Rows are <strong>grouped by upload session</strong> — a multi-folder upload (or one prepared CSV) is a single ingestion, so a 50-folder drop shows as one session you can expand to its individual folders. Each session shows <strong>who ran it and when</strong>, how many folders, the sample/geocoded/result/file totals, its <strong>geocoded-% health pill</strong>, and the <strong>lab-result date range</strong> it covers.</p>
+<div class="callout callout-style-default callout-warning callout-titled" title="Deleting whole ingestions">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Warning</span>Deleting whole ingestions
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Made a bad drop, or ingested a test folder you want gone? Tick a session’s <strong>select</strong> box (it selects every folder in it) — or tick individual folders, across sessions — then use the sticky <strong>🗑 Delete selected ingestions</strong> bar and type <strong>DELETE</strong> to confirm. This removes each selected folder <strong>and everything it brought in</strong>: its samples, their results, and the stored source files. It’s <strong>audited</strong> and <strong>cannot be undone</strong>. A folder whose samples have already been <strong>linked to a report/case</strong> is <em>kept</em> and named in a notice, so you don’t drop case data by accident — tick <strong>delete even when linked</strong> only if you really mean to.</p>
+</div>
+</div>
+</section>
+<section id="cleanup" class="level3">
+<h3 class="anchored" data-anchor-id="cleanup">Clean up empty records — near-empty ingestion artifacts</h3>
+<p>Malformed rows sometimes land as <strong>near-empty samples</strong> — no measurement value, text, or qualifier. <strong>Ingest Data → Clean up empty records</strong> finds them so you can remove them safely.</p>
+<ul>
+<li><strong>Triage modes</strong> split <em>totally blank</em> rows (no station/date/id at all) from ones that carry a <strong>station/date/id but no data</strong> — clean out the pure blanks first.</li>
+<li>Filter by <strong>ingest batch (SE)</strong> or a <strong>station/BG_ID/source</strong> search. You can also <strong>search by analyte name</strong> — the page lists <strong>every analyte present on the empty rows</strong> (with counts) as quick filters, so you can see exactly what the artifacts are.</li>
+<li>Tick the bad rows and <strong>Delete</strong>. The delete is <strong>guarded</strong>: it only ever removes rows that are genuinely empty <strong>and</strong> unlinked (anything else in your selection is skipped), and every deletion is <strong>audited</strong>.</li>
+</ul>
+</section>
+<section id="duplicates" class="level3">
+<h3 class="anchored" data-anchor-id="duplicates">Find &amp; fix duplicate records</h3>
+<p>The same physical sample can arrive twice (folder ingest <em>and</em> a data.ca.gov pull, say). <strong>Ingest Data → Find duplicate samples</strong> now opens as a <strong>report</strong> and lets you resolve them.</p>
+<ul>
+<li><strong>Summary tiles:</strong> duplicate <strong>sample groups</strong> and <strong>redundant sample records</strong>, plus possible duplicate <strong>reports</strong> and redundant report records. Filter by <strong>sampling event</strong> or a station/BG_ID/lab-ID/source search.</li>
+<li><strong>Each group shows <em>why</em> it matched</strong> — an explicit lab sample id, sample id, or BG_ID, or the weaker <em>station + date + type</em> (flagged <strong>⚠️ composite key</strong>, since that can be a legitimate field replicate) — plus the fingerprint. For each group you can either:
+<ul>
+<li><strong>Merge</strong> the duplicates into the one you mark <strong>Keep</strong> (results and links are repointed onto the survivor and its results de-duplicated), or</li>
+<li>tick the redundant copies for a <strong>batch delete</strong> (type <strong>DELETE</strong>; linked rows are skipped; audited).</li>
+</ul></li>
+<li>A read-only <strong>Possible duplicate reports</strong> section groups reports that share a water body, date, and region — open each to decide which to keep (report de-duplication stays manual, since cases and advisories hang off those IDs).</li>
+</ul>
+</section>
+<section id="delete-sample" class="level3">
+<h3 class="anchored" data-anchor-id="delete-sample">Deleting a single sample</h3>
+<p>To remove <strong>one</strong> sample, open it in the <strong>Sample work area</strong> (Ingest Data → <em>Sample work area</em> → click a sample) and use the <strong>Delete this sample</strong> box at the bottom: type <strong>DELETE</strong> to confirm. It removes the sample and its results, is <strong>audited</strong>, and — like the tools above — is <strong>blocked if the sample is linked to a report/case</strong> unless you tick <strong>delete even though linked</strong>.</p>
+<hr>
+</section>
+</section>
 <section id="suggested-lab-ingest-test-script-15-min" class="level2">
 <h2 class="anchored" data-anchor-id="suggested-lab-ingest-test-script-15-min">Suggested lab-ingest test script (~15 min)</h2>
 <ol type="1">
@@ -412,6 +477,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Tag one sample as <strong>Routine sampling</strong>, then confirm it appears under the <em>Routine</em> chip.</li>
 <li>Run <strong>Reconcile all unlinked in this view</strong> and see how many auto-link.</li>
 <li>Open <strong>Lab</strong> (results browser) and confirm your batch’s results appear; <strong>Download CSV</strong>.</li>
+<li>Open the <strong><a href="#ingestion-report">Ingestion report</a></strong> — find your upload session, check the who/when and geocoded-% look right. <em>(Optional, on a throwaway test drop: select it and try <strong>🗑 Delete selected ingestions</strong> to confirm it clears the samples/results/files.)</em></li>
 <li>Note anything confusing along the way — see <a href="./feedback.html">Giving feedback</a>.</li>
 </ol>
 
