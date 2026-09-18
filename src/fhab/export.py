@@ -117,6 +117,7 @@ CROSSWALK_COLUMNS = [
     # station's coordinates by point-in-polygon against the authoritative boundary layers
     # (WBD HUC12 subwatershed name, CA counties, Regional Water Board boundaries). See fhab.geo.
     ("Water_Body_Name", "coalesce(w.water_body_name, hu.name)"),
+    ("Water_Body_Type", "coalesce(w.water_body_type, st.water_body_type)"),
     ("Regional_Water_Board", "coalesce(w.regional_water_board, st.regional_water_board)"),
     ("County", "coalesce(w.county, st.county)"),
     ("HUC12", "coalesce(st.huc12, l.huc12)"),

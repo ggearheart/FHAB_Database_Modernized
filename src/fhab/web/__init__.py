@@ -1751,14 +1751,15 @@ def create_app(dsn: str | None = None) -> Flask:
                     lo, sk, de = report["loaded"], report["skipped"], report["derived"]
                     parts = []
                     for name, label in (("huc12", "HUC12"), ("county", "counties"),
-                                        ("regional_board", "regional boards")):
+                                        ("regional_board", "regional boards"),
+                                        ("nhd_waterbody", "NHD waterbodies")):
                         if name in lo:
                             parts.append(f"loaded {lo[name]:,} {label}")
                         elif name in sk:
                             parts.append(f"kept {sk[name]:,} {label}")
                     flash(f"{'; '.join(parts)}. Derived onto stations — HUC12 "
-                          f"{de['huc12']['station']}, county {de['county']}, region {de['region']}.",
-                          "ok")
+                          f"{de['huc12']['station']}, county {de['county']}, region {de['region']}, "
+                          f"water body type {de['water_body_type']}.", "ok")
                 except Exception as exc:  # noqa: BLE001
                     db().rollback()
                     flash("Boundary refresh failed: " + str(exc).splitlines()[0], "error")

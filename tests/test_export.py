@@ -68,7 +68,7 @@ def test_chemistry_and_crosswalk_exports(loaded_conn):
 
     xw_h, xw = fetch_flatfile(loaded_conn, "chemistry-crosswalk")
     for col in ("ResultRowID", "Sample_ID", "Sampling_Event_ID", "Bloom_Report_ID", "Case_ID",
-                "HUC12", "Latitude", "Station_GeoConnex"):
+                "HUC12", "Water_Body_Type", "Latitude", "Station_GeoConnex"):
         assert col in xw_h
     # Same row population and a shared join key (ResultRowID) across both files.
     assert len(chem) == len(xw)
@@ -107,12 +107,14 @@ def test_crosswalk_authoritative_geo_fill(conn):
     from pathlib import Path
 
     from fhab.export import fetch_flatfile
-    from fhab.geo import derive_geo, load_counties, load_huc12, load_regional_boards
+    from fhab.geo import (derive_geo, load_counties, load_huc12, load_nhd_waterbody,
+                          load_regional_boards)
     fx = Path(__file__).parent / "fixtures" / "geo"
     load_huc12(conn, fx / "huc12_sample.geojson")
     load_counties(conn, fx / "county_sample.geojson")
     load_regional_boards(conn, fx / "regional_board_sample.geojson")
-    # a station inside all three fixture polygons, with an unlinked result
+    load_nhd_waterbody(conn, fx / "nhd_waterbody_sample.geojson")
+    # a station inside all the fixture polygons, with an unlinked result
     st = conn.execute("""INSERT INTO station (station_code, geom)
                          VALUES ('XW1', ST_SetSRID(ST_MakePoint(-122.8675, 38.0525),4326))
                          RETURNING id""").fetchone()["id"]
@@ -128,3 +130,4 @@ def test_crosswalk_authoritative_geo_fill(conn):
     assert row["Regional_Water_Board"] == "Region 5 - Central Valley"
     assert str(row["HUC12"]).strip() == "180500059999"
     assert row["Water_Body_Name"] == "Test Watershed"     # WBD subwatershed name fallback
+    assert row["Water_Body_Type"] == "Lake/Pond"          # NHD FTYPE, derived + normalized

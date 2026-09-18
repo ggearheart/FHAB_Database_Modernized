@@ -116,6 +116,18 @@ CREATE TABLE IF NOT EXISTS regional_board (
 );
 CREATE INDEX IF NOT EXISTS regional_board_geom_gix ON regional_board USING gist (geom);
 
+-- USGS NHD Waterbody polygons (CA subset) — the authoritative source of a water body's TYPE.
+-- ftype is the water body type (LakePond / Reservoir / SwampMarsh / Playa / Estuary / IceMass);
+-- loaded via fhab.geo; used to derive station.water_body_type for the crosswalk export.
+CREATE TABLE IF NOT EXISTS nhd_waterbody (
+    comid     bigint PRIMARY KEY,
+    ftype     text,
+    fcode     integer,
+    gnis_name text,
+    geom      geometry(MultiPolygon, 4326)
+);
+CREATE INDEX IF NOT EXISTS nhd_waterbody_geom_gix ON nhd_waterbody USING gist (geom);
+
 -- A point: an ad-hoc report/observation location or a fixed monitoring site.
 CREATE TABLE IF NOT EXISTS location (
     id            bigserial PRIMARY KEY,
