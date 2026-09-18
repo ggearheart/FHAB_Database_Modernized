@@ -2,13 +2,15 @@
 
 from pathlib import Path
 
-from fhab.geo import (derive_county, derive_geo, derive_huc12, derive_region, load_counties,
-                      load_huc12, load_regional_boards, mint_geoconnex, refresh_boundaries)
+from fhab.geo import (derive_county, derive_geo, derive_huc12, derive_region,
+                      derive_water_body_type, load_counties, load_huc12, load_nhd_waterbody,
+                      load_regional_boards, mint_geoconnex, refresh_boundaries)
 
 FIX = Path(__file__).parent / "fixtures" / "geo"
 HUC12_FIXTURE = FIX / "huc12_sample.geojson"
 COUNTY_FIXTURE = FIX / "county_sample.geojson"
 REGION_FIXTURE = FIX / "regional_board_sample.geojson"
+NHD_FIXTURE = FIX / "nhd_waterbody_sample.geojson"
 
 # A point inside the test watershed polygon (-123..-122.5 lon, 37.8..38.2 lat).
 INSIDE = "ST_SetSRID(ST_MakePoint(-122.8675, 38.0525), 4326)"
@@ -92,16 +94,38 @@ def test_load_and_derive_county_region(conn):
     assert s["county"] == "Test County" and s["regional_water_board"] == "Region 5 - Central Valley"
 
 
+def test_load_nhd_and_derive_water_body_type(conn):
+    """The station is inside both fixture polygons; the smaller (LakePond) wins, and FTYPE is
+    normalized to a readable label."""
+    assert load_nhd_waterbody(conn, NHD_FIXTURE) == 2
+    r = conn.execute("SELECT ftype, ST_GeometryType(geom) g FROM nhd_waterbody WHERE comid=102").fetchone()
+    assert r["ftype"] == "LakePond" and r["g"] == "ST_MultiPolygon"
+
+    conn.execute(f"INSERT INTO station (station_code, geom) VALUES ('S1', {INSIDE})")
+    conn.execute("INSERT INTO station (station_code, geom) VALUES "  # a station in no polygon
+                 "('S2', ST_SetSRID(ST_MakePoint(-100.0, 40.0), 4326))")
+    conn.commit()
+    assert derive_water_body_type(conn) == 1                       # only the inside station typed
+    got = {r["station_code"]: r["water_body_type"] for r in
+           conn.execute("SELECT station_code, water_body_type FROM station").fetchall()}
+    assert got["S1"] == "Lake/Pond"                                # smallest polygon + normalized
+    assert got["S2"] is None                                       # river/stream site: left unset
+    assert derive_water_body_type(conn) == 0                       # idempotent
+
+
 def test_derive_geo_all_layers(conn):
     load_huc12(conn, HUC12_FIXTURE)
     load_counties(conn, COUNTY_FIXTURE)
     load_regional_boards(conn, REGION_FIXTURE)
+    load_nhd_waterbody(conn, NHD_FIXTURE)
     conn.execute(f"INSERT INTO station (station_code, geom) VALUES ('S1', {INSIDE})")
     conn.commit()
     out = derive_geo(conn)
-    assert out["huc12"]["station"] == 1 and out["county"] == 1 and out["region"] == 1
-    s = conn.execute("SELECT huc12, county, regional_water_board FROM station").fetchone()
+    assert (out["huc12"]["station"] == 1 and out["county"] == 1 and out["region"] == 1
+            and out["water_body_type"] == 1)
+    s = conn.execute("SELECT huc12, county, regional_water_board, water_body_type FROM station").fetchone()
     assert s["huc12"].strip() == "180500059999" and s["county"] == "Test County"
+    assert s["water_body_type"] == "Lake/Pond"
 
 
 def test_refresh_boundaries_skips_already_loaded(conn):
@@ -110,10 +134,12 @@ def test_refresh_boundaries_skips_already_loaded(conn):
     load_huc12(conn, HUC12_FIXTURE)
     load_counties(conn, COUNTY_FIXTURE)
     load_regional_boards(conn, REGION_FIXTURE)
+    load_nhd_waterbody(conn, NHD_FIXTURE)
     conn.execute(f"INSERT INTO station (station_code, geom) VALUES ('S1', {INSIDE})")
     conn.commit()
 
     rep = refresh_boundaries(conn)          # no force -> all layers kept, no fetch_layer call
     assert rep["loaded"] == {}
-    assert set(rep["skipped"]) == {"huc12", "county", "regional_board"}
+    assert set(rep["skipped"]) == {"huc12", "county", "regional_board", "nhd_waterbody"}
     assert rep["derived"]["county"] == 1    # derive still runs (idempotent)
+    assert rep["derived"]["water_body_type"] == 1

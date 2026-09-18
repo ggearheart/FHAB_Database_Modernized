@@ -163,6 +163,8 @@ END $$;
 -- Derived authoritative geo attributes on station (point-in-polygon; see fhab.geo).
 ALTER TABLE station ADD COLUMN IF NOT EXISTS county               text;
 ALTER TABLE station ADD COLUMN IF NOT EXISTS regional_water_board text;
+-- Water body type derived from NHD waterbodies (LakePond / Reservoir / SwampMarsh / …).
+ALTER TABLE station ADD COLUMN IF NOT EXISTS water_body_type      text;
 
 -- Governance #3: source-of-truth provenance. A staff correction to a published record must not
 -- be silently reverted by the next data.ca.gov refresh. locally_edited is flipped true by a

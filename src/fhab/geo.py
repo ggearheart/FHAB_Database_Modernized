@@ -19,18 +19,29 @@ import psycopg
 
 GEOCONNEX = "https://geoconnex.us/ca-fhab"
 
-# Authoritative source layers (ArcGIS REST). Each: (query_url, out_fields, where). All support
-# f=geojson + resultOffset paging and return WGS84 when asked (outSR=4326).
+# A generous CA bounding box (WGS84: xmin,ymin,xmax,ymax) for services that have no state field —
+# they must be spatially filtered instead. NHD waterbodies are national, so we clip to CA.
+_CA_BBOX = "-124.6,32.4,-114.0,42.1"
+
+# Authoritative source layers (ArcGIS REST). Each entry: url, fields (outFields), where, and an
+# optional `order` (paging sort key; defaults to the first field) and `bbox` (an envelope filter for
+# services with no state attribute). All support f=geojson + resultOffset paging and WGS84 (outSR).
 SOURCES = {
     # USGS Watershed Boundary Dataset, 12-digit HU (subwatershed) layer, CA subset.
-    "huc12": ("https://hydro.nationalmap.gov/arcgis/rest/services/wbd/MapServer/6/query",
-              "huc12,name,hutype,tohuc,areasqkm", "states LIKE '%CA%'"),
+    "huc12": {"url": "https://hydro.nationalmap.gov/arcgis/rest/services/wbd/MapServer/6/query",
+              "fields": "huc12,name,hutype,tohuc,areasqkm", "where": "states LIKE '%CA%'"},
     # CA State Geoportal authoritative county boundaries.
-    "county": ("https://services.gis.ca.gov/arcgis/rest/services/Boundaries/CA_Counties/FeatureServer/0/query",
-               "County,FIPS", "1=1"),
+    "county": {"url": "https://services.gis.ca.gov/arcgis/rest/services/Boundaries/CA_Counties/FeatureServer/0/query",
+               "fields": "County,FIPS", "where": "1=1"},
     # CA Water Boards Regional Board Boundaries (RB 1-9), hosted (portalserver) copy.
-    "regional_board": ("https://gispublic.waterboards.ca.gov/portalserver/rest/services/Hosted/Regional_Board_Boundary_Features/FeatureServer/1/query",
-                       "rb,rb_name", "1=1"),
+    "regional_board": {"url": "https://gispublic.waterboards.ca.gov/portalserver/rest/services/Hosted/Regional_Board_Boundary_Features/FeatureServer/1/query",
+                       "fields": "rb,rb_name", "where": "1=1"},
+    # USGS National Hydrography Dataset — Waterbody (small-scale), the authoritative source of a
+    # water body's *type* (FTYPE: LakePond / Reservoir / SwampMarsh / Playa / Estuary / IceMass).
+    # National service with no state field, so clip to CA by envelope; order by COMID for stable paging.
+    "nhd_waterbody": {"url": "https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/10/query",
+                      "fields": "comid,ftype,fcode,gnis_name", "where": "1=1",
+                      "order": "comid", "bbox": _CA_BBOX},
 }
 
 # A browser User-Agent — the CA Water Boards WAF serves a bot challenge (HTML) to the default
@@ -55,14 +66,19 @@ def fetch_layer(name: str, page: int = _PAGE) -> dict:
     if not shutil.which("curl"):
         raise RuntimeError("curl is required to fetch boundary layers but was not found on PATH.")
     from urllib.parse import urlencode
-    url, out_fields, where = SOURCES[name]
+    src = SOURCES[name]
+    url, out_fields, where = src["url"], src["fields"], src["where"]
+    order = src.get("order") or out_fields.split(",")[0]
     features: list[dict] = []
     offset = 0
     while True:
         params = {"where": where, "outFields": out_fields, "returnGeometry": "true",
                   "outSR": "4326", "geometryPrecision": _GEOM_PRECISION,
-                  "maxAllowableOffset": _MAX_OFFSET, "orderByFields": out_fields.split(",")[0],
+                  "maxAllowableOffset": _MAX_OFFSET, "orderByFields": order,
                   "resultOffset": offset, "resultRecordCount": page, "f": "geojson"}
+        if src.get("bbox"):   # services with no state field: clip to a CA envelope
+            params.update({"geometry": src["bbox"], "geometryType": "esriGeometryEnvelope",
+                           "inSR": "4326", "spatialRel": "esriSpatialRelIntersects"})
         raw = subprocess.run(["curl", "-fsSL", "--max-time", "150", "-A", _UA,
                               f"{url}?{urlencode(params)}"],
                              check=True, capture_output=True, text=True, timeout=180).stdout
@@ -158,6 +174,58 @@ def load_regional_boards(conn: psycopg.Connection, fc_or_path) -> int:
     return n
 
 
+# NHD FTYPE -> a human-readable water body type. Unmapped types pass through as-is.
+_WBT_LABEL = {"LakePond": "Lake/Pond", "SwampMarsh": "Swamp/Marsh", "IceMass": "Ice Mass"}
+
+# The same mapping as SQL, for the derive's set-based UPDATE (keeps normalization in one place).
+_WBT_CASE = ("CASE nw.ftype " +
+             " ".join(f"WHEN '{k}' THEN '{v}'" for k, v in _WBT_LABEL.items()) +
+             " ELSE nw.ftype END")
+
+
+def load_nhd_waterbody(conn: psycopg.Connection, fc_or_path) -> int:
+    """Load NHD Waterbody polygons (fields COMID, FTYPE, FCODE, GNIS_NAME) into nhd_waterbody.
+    FTYPE is the authoritative water body type (LakePond / Reservoir / SwampMarsh / …). Returns rows."""
+    fc = _feature_collection(fc_or_path)
+    n = 0
+    with conn.cursor() as cur:
+        for feat in fc.get("features", []):
+            p = _props_ci(feat)
+            comid = p.get("comid")
+            geom = feat.get("geometry")
+            if comid is None or geom is None:
+                continue
+            cur.execute(
+                """INSERT INTO nhd_waterbody (comid, ftype, fcode, gnis_name, geom)
+                   VALUES (%s,%s,%s,%s, ST_Multi(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON(%s),4326))))
+                   ON CONFLICT (comid) DO UPDATE SET
+                     ftype = EXCLUDED.ftype, fcode = EXCLUDED.fcode,
+                     gnis_name = EXCLUDED.gnis_name, geom = EXCLUDED.geom""",
+                (int(comid), p.get("ftype"), p.get("fcode"), p.get("gnis_name"), json.dumps(geom)),
+            )
+            n += 1
+    conn.commit()
+    return n
+
+
+def derive_water_body_type(conn: psycopg.Connection) -> int:
+    """Assign station.water_body_type by point-in-polygon against NHD waterbodies. When a point
+    falls in more than one polygon (nested), the smallest (most specific) wins. Returns rows updated.
+    Stations not inside any NHD waterbody polygon (e.g. river/stream sites) are left unset."""
+    rows = conn.execute(
+        f"""UPDATE station s SET water_body_type = t.wbt
+            FROM (
+                SELECT DISTINCT ON (s2.id) s2.id, {_WBT_CASE} AS wbt
+                FROM station s2 JOIN nhd_waterbody nw ON ST_Contains(nw.geom, s2.geom)
+                WHERE s2.geom IS NOT NULL
+                ORDER BY s2.id, ST_Area(nw.geom) ASC
+            ) t
+            WHERE s.id = t.id AND s.water_body_type IS DISTINCT FROM t.wbt
+            RETURNING s.id""").fetchall()
+    conn.commit()
+    return len(rows)
+
+
 def derive_huc12(conn: psycopg.Connection) -> dict[str, int]:
     """Assign location.huc12 and station.huc12 by point-in-polygon. Returns counts."""
     out = {}
@@ -203,10 +271,11 @@ def derive_region(conn: psycopg.Connection) -> int:
 
 
 def derive_geo(conn: psycopg.Connection) -> dict:
-    """Assign HUC12 (station+location), county and region to every geocoded station."""
+    """Assign HUC12 (station+location), county, region, and water body type to geocoded stations."""
     return {"huc12": derive_huc12(conn),
             "county": derive_county(conn),
-            "region": derive_region(conn)}
+            "region": derive_region(conn),
+            "water_body_type": derive_water_body_type(conn)}
 
 
 def mint_geoconnex(conn: psycopg.Connection) -> dict[str, int]:
@@ -236,6 +305,7 @@ _BOUNDARY_PLAN = (
     ("huc12", "huc12", load_huc12),
     ("county", "ca_county", load_counties),
     ("regional_board", "regional_board", load_regional_boards),
+    ("nhd_waterbody", "nhd_waterbody", load_nhd_waterbody),
 )
 
 
@@ -270,8 +340,10 @@ def boundary_status(conn: psycopg.Connection) -> dict:
         "huc12": one("SELECT count(*) c FROM huc12"),
         "county": one("SELECT count(*) c FROM ca_county"),
         "regional_board": one("SELECT count(*) c FROM regional_board"),
+        "nhd_waterbody": one("SELECT count(*) c FROM nhd_waterbody"),
         "stations_total": one("SELECT count(*) c FROM station WHERE geom IS NOT NULL"),
         "stations_huc12": one("SELECT count(*) c FROM station WHERE huc12 IS NOT NULL"),
         "stations_county": one("SELECT count(*) c FROM station WHERE county IS NOT NULL"),
         "stations_region": one("SELECT count(*) c FROM station WHERE regional_water_board IS NOT NULL"),
+        "stations_water_body_type": one("SELECT count(*) c FROM station WHERE water_body_type IS NOT NULL"),
     }

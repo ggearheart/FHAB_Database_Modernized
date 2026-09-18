@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","properties":{"COMID":101,"FTYPE":"SwampMarsh","FCODE":46600,"GNIS_NAME":"Big Marsh"},"geometry":{"type":"Polygon","coordinates":[[[-123.5,37.8],[-122.5,37.8],[-122.5,38.3],[-123.5,38.3],[-123.5,37.8]]]}},
+{"type":"Feature","properties":{"COMID":102,"FTYPE":"LakePond","FCODE":39004,"GNIS_NAME":"Little Lake"},"geometry":{"type":"Polygon","coordinates":[[[-122.90,38.02],[-122.83,38.02],[-122.83,38.09],[-122.90,38.09],[-122.90,38.02]]]}}
+]}
