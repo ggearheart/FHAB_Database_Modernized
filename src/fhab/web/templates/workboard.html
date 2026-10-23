@@ -65,6 +65,11 @@
       <select name="region" onchange="this.form.submit()"><option value="">Any</option>
         {% for r in regions %}<option value="{{ r }}" {% if f.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}
       </select></div>
+    <div><label>Sample year</label>
+      <select name="year" onchange="this.form.submit()"><option value="">Any</option>
+        {% for y in years %}<option value="{{ y }}" {% if f.year==y|string %}selected{% endif %}>{{ y }}</option>{% endfor %}
+        <option value="none" {% if f.year=='none' %}selected{% endif %}>No date</option>
+      </select></div>
     <div><label>Geocoding</label>
       <select name="geocoded" onchange="this.form.submit()"><option value="">Any</option>
         <option value="yes" {% if f.geocoded=='yes' %}selected{% endif %}>Geocoded</option>

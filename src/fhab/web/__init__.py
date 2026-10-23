@@ -35,12 +35,12 @@ from ..export import DATASETS, fetch_flatfile
 from ..labmap import (METHOD_META, METHOD_ORDER, TIER_META, TIER_ORDER, lab_map_features,
                       method_counts, station_trend, tier_counts)
 from ..labquery import count_results, filter_options, query_results
-from ..labtasks import (assign_samples, batch_reconcile_samples, bulk_geocode, clear_routine,
-                        count_workboard, create_report_from_sample, link_sample,
+from ..labtasks import (YEAR_SERIES, assign_samples, batch_reconcile_samples, bulk_geocode,
+                        clear_routine, count_workboard, create_report_from_sample, link_sample,
                         link_sample_stations, link_sample_to_reports, qa_review, sample_geo,
-                        set_sample_location, set_sample_point, status_tallies, tag_routine,
-                        team_members, unlink_sample, unlink_sample_station, workboard,
-                        workboard_points)
+                        sample_years, set_sample_location, set_sample_point, status_by_year,
+                        status_tallies, tag_routine, team_members, unlink_sample,
+                        unlink_sample_station, workboard, workboard_points)
 from ..ocr import OcrUnavailable, ocr_pdf_coords
 from ..refresh import DATASET_URL, RefreshError, refresh_from_ca_gov, reset_local_edit_flags
 from ..samples import count_samples, create_sample, get_sample, list_samples, update_sample
@@ -260,9 +260,11 @@ def create_app(dsn: str | None = None) -> Flask:
                 pass
 
     def _regions():
+        # Report waterbodies plus station-derived regions (unlinked lab samples carry only the latter).
         return [r["regional_water_board"] for r in db().execute(
-            "SELECT DISTINCT regional_water_board FROM waterbody "
-            "WHERE regional_water_board IS NOT NULL ORDER BY 1").fetchall()]
+            "SELECT regional_water_board FROM waterbody WHERE regional_water_board IS NOT NULL "
+            "UNION SELECT regional_water_board FROM station WHERE regional_water_board IS NOT NULL "
+            "ORDER BY 1").fetchall()]
 
     def _determinations():
         return db().execute(
@@ -1250,12 +1252,13 @@ def create_app(dsn: str | None = None) -> Flask:
             return redirect(url_for("samples_list"))
         return render_template("sample_detail.html", **data)
 
+    WB_FILTERS = ("status", "assignee", "region", "q", "batch", "geocoded", "event", "files", "year")
+
     @app.route("/lab/workboard")
     @staff_required
     def lab_workboard():
         a = request.args
-        f = {k: (a.get(k) or "").strip() or None
-             for k in ("status", "assignee", "region", "q", "batch", "geocoded", "event", "files")}
+        f = {k: (a.get(k) or "").strip() or None for k in WB_FILTERS}
         sort = a.get("sort") if a.get("sort") in ("date", "station", "status") else "date"
         try:
             page = max(0, int(a.get("page", 0)))
@@ -1272,18 +1275,30 @@ def create_app(dsn: str | None = None) -> Flask:
             files = batch_files(conn, int(f["batch"])) if batch else None
         # Chips preserve the non-facet filters (region/search/etc.) and are scoped to that view.
         chip_args = {k: v for k, v in f.items()
-                     if v and k in ("region", "assignee", "q", "event", "batch")}
+                     if v and k in ("region", "assignee", "q", "event", "batch", "year")}
         return render_template("workboard.html", rows=rows, total=total, page=page, per=per, f=f,
                                sort=sort, tallies=status_tallies(conn, f, me=session["uid"]),
                                team=team_members(conn), regions=_regions(), base_args=base_args,
-                               batch=batch, batch_files=files, chip_args=chip_args)
+                               batch=batch, batch_files=files, chip_args=chip_args,
+                               years=sample_years(conn))
+
+    @app.route("/lab/by-year")
+    @staff_required
+    def lab_by_year():
+        region = (request.args.get("region") or "").strip() or None
+        conn = db()
+        rows = status_by_year(conn, {"region": region})
+        totals = {k: sum(r[k] for r in rows) for k, *_ in YEAR_SERIES}
+        totals["total"] = sum(r["total"] for r in rows)
+        series = [{"key": k, "label": lbl, "color": c, "args": a} for k, lbl, c, a in YEAR_SERIES]
+        return render_template("lab_by_year.html", rows=rows, totals=totals, series=series,
+                               region=region, regions=_regions())
 
     @app.route("/lab/workboard.geojson")
     @staff_required
     def lab_workboard_geojson():
         a = request.args
-        f = {k: (a.get(k) or "").strip() or None
-             for k in ("status", "assignee", "region", "q", "batch", "geocoded", "event", "files")}
+        f = {k: (a.get(k) or "").strip() or None for k in WB_FILTERS}
         rows = workboard_points(db(), f, me=session["uid"])
         feats = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]},
                   "properties": {"id": r["id"], "station_code": r["station_code"], "status": r["status"],
