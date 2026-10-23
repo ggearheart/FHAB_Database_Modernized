@@ -54,7 +54,15 @@ def _where(f: dict, me: int | None):
     elif assignee and assignee.isdigit():
         cond.append("s.assigned_to = %(assignee)s"); p["assignee"] = int(assignee)
     if f.get("region"):
-        cond.append("w.regional_water_board = %(region)s"); p["region"] = f["region"]
+        # A linked sample takes its report's region; an unlinked one its station's (derived by
+        # point-in-polygon), so unlinked samples are filterable by region too.
+        cond.append("coalesce(w.regional_water_board, st.regional_water_board) = %(region)s")
+        p["region"] = f["region"]
+    yr = str(f.get("year") or "")
+    if yr.isdigit():
+        cond.append("extract(year FROM s.sample_date) = %(year)s"); p["year"] = int(yr)
+    elif yr == "none":
+        cond.append("s.sample_date IS NULL")
     if str(f.get("batch") or "").isdigit():
         cond.append("s.lab_batch_id = %(batch)s"); p["batch"] = int(f["batch"])
     ev = (f.get("event") or "").strip()   # sampling event = the ingested batch: match id or name
@@ -148,6 +156,43 @@ def status_tallies(conn, f: dict | None = None, *, me=None) -> dict:
             AND EXISTS (SELECT 1 FROM lab_batch_file bf WHERE bf.batch_id = s.lab_batch_id)""", p
     ).fetchone()["c"]
     return t
+
+
+# "Lab Data by Year" series, in stack order (bottom -> top): the reconciliation pipeline, then
+# the side states. Each: (key, label, colour, workboard drill-through filter). Colours are a
+# validated categorical set (adjacent CVD/normal-vision separation) — keep this order.
+YEAR_SERIES = (
+    ("nogeo", "Not geocoded · unlinked", "#e87ba4", {"status": "unlinked", "geocoded": "no"}),
+    ("geo_unlinked", "Geocoded · not linked", "#eda100", {"status": "unlinked", "geocoded": "yes"}),
+    ("linked", "Linked · awaiting QA", "#2a78d6", {"status": "linked"}),
+    ("approved", "QA approved", "#008300", {"status": "approved"}),
+    ("routine", "Routine sampling", "#6250d6", {"status": "routine"}),
+    ("flagged", "Flagged for rework", "#e34948", {"status": "flagged"}),
+)
+
+
+def status_by_year(conn, f: dict | None = None) -> list:
+    """Lab sample counts per sample year, split by reconciliation status — the workboard's buckets
+    (with *unlinked* split by geocoding), so progress can be read over time. Same population and
+    filters as the workboard; samples with no sample date fall in a final `year=None` row."""
+    extra, p = _where(f or {}, None)
+    buckets = {
+        "nogeo": f"({_STATUS}) = 'unlinked' AND st.geom IS NULL",
+        "geo_unlinked": f"({_STATUS}) = 'unlinked' AND st.geom IS NOT NULL",
+        **{k: f"({_STATUS}) = '{k}'" for k in ("linked", "approved", "routine", "flagged")},
+    }
+    cols = ", ".join(f"count(*) FILTER (WHERE {cond}) AS {k}" for k, cond in buckets.items())
+    return conn.execute(
+        f"""SELECT extract(year FROM s.sample_date)::int AS year, {cols}, count(*) AS total
+            {_FROM}{extra}
+            GROUP BY 1 ORDER BY 1 NULLS LAST""", p).fetchall()
+
+
+def sample_years(conn) -> list:
+    """Distinct sample years present on lab samples (newest first), for the Year filter."""
+    return [r["y"] for r in conn.execute(
+        f"""SELECT DISTINCT extract(year FROM s.sample_date)::int AS y {_FROM}
+              AND s.sample_date IS NOT NULL ORDER BY 1 DESC""").fetchall()]
 
 
 def team_members(conn) -> list:

@@ -636,3 +636,71 @@ def test_workboard_requires_staff(client, conn):
     set_password(conn, pub, "pw")
     client.post("/login", data={"email": "v@public.org", "password": "pw"}, follow_redirects=True)
     assert b"Staff access required" in client.get("/lab/workboard", follow_redirects=True).data
+
+
+def _lab_sample(conn, code, date, *, geo=True, region=None, **cols):
+    """A lab sample (with one result) at a station, optionally geocoded / region-tagged."""
+    geom = "ST_SetSRID(ST_MakePoint(-121.4,38.5),4326)" if geo else "NULL"
+    st = conn.execute(f"INSERT INTO station (station_code, geom, regional_water_board) "
+                      f"VALUES (%s, {geom}, %s) RETURNING id", (code, region)).fetchone()["id"]
+    keys = ["station_id", "sample_date", *cols]
+    sid = conn.execute(f"INSERT INTO sample ({', '.join(keys)}) VALUES ({', '.join(['%s'] * len(keys))}) "
+                       "RETURNING id", (st, date, *cols.values())).fetchone()["id"]
+    conn.execute("INSERT INTO result (result_id_unique, sample_id, data_type) "
+                 "VALUES (%s, %s, 'Laboratory')", (f"y-{sid}", sid))
+    conn.commit()
+    return sid
+
+
+def test_status_by_year_buckets(conn):
+    """Counts land in the right year and status bucket; unlinked splits by geocoding; undated
+    samples form a trailing year=None row."""
+    from fhab.labtasks import status_by_year
+    staff = _staff(conn)
+    brid = enter_report(conn, staff, water_body_name="Year Lake", region=R5)
+    _lab_sample(conn, "Y1", "2024-06-01", geo=False)                    # 2024 not geocoded
+    _lab_sample(conn, "Y2", "2024-07-01")                               # 2024 geocoded, unlinked
+    _lab_sample(conn, "Y3", "2025-06-01", bloom_report_id=brid)         # 2025 linked
+    _lab_sample(conn, "Y4", "2025-06-02", bloom_report_id=brid, qa_status="approved")
+    _lab_sample(conn, "Y5", "2025-06-03", sampling_type="routine")      # 2025 routine
+    _lab_sample(conn, "Y6", "2025-06-04", bloom_report_id=brid, qa_status="flagged")
+    _lab_sample(conn, "Y7", None)                                       # no date
+
+    by = {r["year"]: r for r in status_by_year(conn)}
+    assert list(by) == [2024, 2025, None]                               # ordered, undated last
+    assert (by[2024]["nogeo"], by[2024]["geo_unlinked"], by[2024]["total"]) == (1, 1, 2)
+    assert (by[2025]["linked"], by[2025]["approved"], by[2025]["routine"], by[2025]["flagged"]) == (1, 1, 1, 1)
+    assert by[2025]["total"] == 4 and by[None]["total"] == 1
+    # every row's buckets add up to its total
+    keys = ("nogeo", "geo_unlinked", "linked", "approved", "routine", "flagged")
+    assert all(sum(r[k] for k in keys) == r["total"] for r in by.values())
+
+
+def test_year_and_region_filters_include_unlinked(conn):
+    """The workboard year facet drills into one year (or undated); the region facet matches an
+    unlinked sample by its station's derived region, not only linked ones."""
+    from fhab.labtasks import status_by_year
+    a = _lab_sample(conn, "F1", "2024-05-01", region=R5)
+    b = _lab_sample(conn, "F2", "2025-05-01", region="Region 1 - North Coast")
+    c = _lab_sample(conn, "F3", None, region=R5)
+    ids = lambda f: {r["id"] for r in workboard(conn, f)}
+    assert ids({"year": "2024"}) == {a}
+    assert ids({"year": "none"}) == {c}
+    assert ids({"region": R5}) == {a, c}                    # unlinked, matched via station region
+    assert {r["year"] for r in status_by_year(conn, {"region": R5})} == {2024, None}
+
+
+def test_lab_by_year_page(conn):
+    from fhab.web import create_app
+    from tests.conftest import TEST_DSN
+    u = _staff(conn, "year@wb.ca.gov"); set_password(conn, u, "pw"); conn.commit()
+    _lab_sample(conn, "P1", "2025-06-01", geo=False)
+    app = create_app(dsn=TEST_DSN); app.config["TESTING"] = True
+    cl = app.test_client()
+    cl.post("/login", data={"email": "year@wb.ca.gov", "password": "pw"})
+    html = cl.get("/lab/by-year").get_data(as_text=True)
+    assert "Lab Data by Year" in html and "Not geocoded · unlinked" in html
+    assert "Table view" in html and "year=2025" in html               # drill-through links
+    assert 'href="/lab/by-year"' in html                              # nav tab
+    wb = cl.get("/lab/workboard?year=2025&status=unlinked&geocoded=no").get_data(as_text=True)
+    assert "P1" in wb and 'name="year"' in wb

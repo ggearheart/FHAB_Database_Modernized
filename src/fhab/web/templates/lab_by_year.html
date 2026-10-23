@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Lab Data by Year{% endblock %}
+{% block body %}
+<style>
+  /* Chart tokens (light, matching the app chrome). Series colours come from YEAR_SERIES. */
+  .lby { --surface:#ffffff; --ink2:#52514e; --muted:#7a8a84; --grid:#e8ece9; --axis:#c3c9c6; }
+  .lby-legend { display:flex; flex-wrap:wrap; gap:.35rem 1.1rem; margin:.2rem 0 .6rem; font-size:.85rem; }
+  .lby-legend span { display:inline-flex; align-items:center; gap:.4rem; color:var(--ink); }
+  .lby-legend i { width:12px; height:12px; border-radius:3px; display:inline-block; }
+  .lby-chart { position:relative; }
+  .lby-chart svg { width:100%; height:auto; display:block; }
+  .lby-chart text { font:11px system-ui,-apple-system,"Segoe UI",sans-serif; fill:var(--muted);
+                    font-variant-numeric:tabular-nums; }
+  .lby-chart .tot { fill:var(--ink2); font-weight:600; }
+  .lby-chart .band { cursor:pointer; outline:none; }
+  .lby-chart .band .hit { fill:transparent; }
+  .lby-chart .band:hover .hit, .lby-chart .band:focus .hit { fill:#f1f5f3; }
+  .lby-chart .seg.on { fill-opacity:.78; }
+  #lbyTip { position:absolute; pointer-events:none; background:#fff; border:1px solid var(--line);
+            border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,.10); padding:.5rem .65rem;
+            font-size:.82rem; min-width:13rem; z-index:5; }
+  #lbyTip .hd { font-weight:600; color:var(--ink); margin-bottom:.25rem; }
+  #lbyTip .row { display:flex; align-items:center; gap:.45rem; line-height:1.55; }
+  #lbyTip .row b { min-width:3.2rem; text-align:right; font-variant-numeric:tabular-nums; color:var(--ink); }
+  #lbyTip .row .k { width:12px; height:0; border-top:2.5px solid; }
+  #lbyTip .row .l { color:#5b6b65; }
+  #lbyTip .row.on { background:#f1f5f3; border-radius:4px; }
+  #lbyTip .ft { color:var(--muted); font-size:.75rem; margin-top:.3rem; }
+  .lby-table td.n, .lby-table th.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .lby-table th i { width:9px; height:9px; border-radius:2px; display:inline-block; margin-right:.3rem; }
+  .lby-table a { color:inherit; }
+  .lby-table tr.tot td { font-weight:600; border-top:2px solid var(--line); }
+</style>
+
+<h1>Lab Data by Year</h1>
+<p class="muted" style="margin-top:-.4rem">Lab samples by <strong>sample year</strong>, split by where they
+  stand in reconciliation — from <em>not geocoded</em> through <em>QA approved</em>. Click a bar segment
+  (or a table count) to open those samples on the <a href="{{ url_for('lab_workboard') }}">workboard</a>.</p>
+
+<div class="card">
+  <form method="get" style="display:flex; flex-wrap:wrap; gap:.7rem; align-items:flex-end">
+    <div style="min-width:16rem"><label>Region</label>
+      <select name="region" onchange="this.form.submit()"><option value="">All regions</option>
+        {% for r in regions %}<option value="{{ r }}" {% if region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select></div>
+    {% if region %}<a class="btn secondary" href="{{ url_for('lab_by_year') }}">Clear</a>{% endif %}
+  </form>
+</div>
+
+{% if rows %}
+<div class="card lby">
+  <div class="lby-legend" aria-label="Legend">
+    {% for s in series %}<span><i style="background:{{ s.color }}"></i>{{ s.label }}</span>{% endfor %}
+  </div>
+  <div class="lby-chart" id="lbyChart">
+    <div id="lbyTip" hidden></div>
+  </div>
+  <p class="muted" style="margin:.4rem 0 0; font-size:.8rem">Bars are stacked bottom-to-top in the
+    order above; the number over each bar is that year's total. <em>Geocoded</em> = the sample's station
+    has coordinates. Samples with no sample date are grouped under <em>No date</em>.</p>
+</div>
+
+<div class="card lby" style="overflow-x:auto">
+  <h2 style="font-size:1.05rem; margin-top:0">Table view</h2>
+  <table class="lby-table">
+    <tr><th>Year</th>
+      {% for s in series %}<th class="n"><i style="background:{{ s.color }}"></i>{{ s.label }}</th>{% endfor %}
+      <th class="n">Total</th></tr>
+    {% for r in rows %}
+    {% set yv = r.year if r.year is not none else 'none' %}
+    <tr>
+      <td><a href="{{ url_for('lab_workboard', year=yv, region=region) }}">{{ r.year if r.year is not none else 'No date' }}</a></td>
+      {% for s in series %}
+      <td class="n">{% if r[s.key] %}<a href="{{ url_for('lab_workboard', year=yv, region=region, **s.args) }}">{{ '{:,}'.format(r[s.key]) }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
+      {% endfor %}
+      <td class="n">{{ '{:,}'.format(r.total) }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="tot"><td>All years</td>
+      {% for s in series %}<td class="n">{{ '{:,}'.format(totals[s.key]) }}</td>{% endfor %}
+      <td class="n">{{ '{:,}'.format(totals.total) }}</td></tr>
+  </table>
+</div>
+{% else %}
+<div class="card"><p class="muted">No lab samples{% if region %} in {{ region }}{% endif %} yet.</p></div>
+{% endif %}
+
+{% if rows %}
+<script>
+(function () {
+  const ROWS = {{ rows | tojson }};
+  const SERIES = {{ series | tojson }};
+  const REGION = {{ (region or '') | tojson }};
+  const WB = {{ url_for('lab_workboard') | tojson }};
+  const NS = 'http://www.w3.org/2000/svg';
+  const host = document.getElementById('lbyChart'), tip = document.getElementById('lbyTip');
+  const fmt = n => n.toLocaleString();
+  const compact = n => n >= 1000 ? (n / 1000).toFixed(n % 1000 && n < 10000 ? 1 : 0).replace(/\.0$/, '') + 'K' : String(n);
+  const yearLabel = r => r.year == null ? 'No date' : String(r.year);
+  const drill = (r, args) => {
+    const q = new URLSearchParams({ year: r.year == null ? 'none' : r.year, ...(args || {}) });
+    if (REGION) q.set('region', REGION);
+    return WB + '?' + q.toString();
+  };
+  const el = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+
+  // geometry
+  const W = 860, H = 300, M = { t: 22, r: 8, b: 26, l: 44 };
+  const pw = W - M.l - M.r, ph = H - M.t - M.b;
+  const max = Math.max(1, ...ROWS.map(r => r.total));
+  const step = (() => { const raw = max / 5, p = 10 ** Math.floor(Math.log10(raw));
+    return [1, 2, 2.5, 5, 10].map(m => m * p).find(s => s >= raw); })();
+  const top = Math.ceil(max / step) * step;
+  const y = v => M.t + ph - (v / top) * ph;
+  const band = pw / ROWS.length, bw = Math.min(24, band * 0.7), GAP = 2, R = 4;
+
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': 'Stacked bar chart of lab samples per sample year by reconciliation status. The same numbers are in the table view below.' });
+  // gridlines + y ticks
+  for (let v = 0; v <= top; v += step) {
+    el('line', { x1: M.l, x2: W - M.r, y1: y(v), y2: y(v), stroke: v === 0 ? '#c3c9c6' : '#e8ece9',
+                 'stroke-width': 1, 'shape-rendering': 'crispEdges' }, svg);
+    el('text', { x: M.l - 6, y: y(v) + 3.5, 'text-anchor': 'end' }, svg).textContent = compact(v);
+  }
+
+  ROWS.forEach((r, i) => {
+    const cx = M.l + band * i + band / 2, x = cx - bw / 2;
+    const g = el('g', { class: 'band', tabindex: 0, role: 'link',
+      'aria-label': `${yearLabel(r)}: ${fmt(r.total)} samples. ` +
+        SERIES.map(s => `${s.label} ${fmt(r[s.key])}`).join(', ') }, svg);
+    el('rect', { class: 'hit', x: M.l + band * i + 1, y: M.t, width: band - 2, height: ph }, g);
+    // stacked segments, bottom -> top, 2px surface gap between them; rounded data-end on top only
+    let acc = 0;
+    const live = SERIES.filter(s => r[s.key] > 0);
+    live.forEach((s, j) => {
+      const y0 = y(acc), y1 = y(acc + r[s.key]);
+      acc += r[s.key];
+      const isTop = j === live.length - 1;   // the top segment carries the rounded data-end, no gap
+      let seg;
+      if (isTop && y0 - y1 > R) {
+        const d = `M${x},${y0}V${y1 + R}Q${x},${y1} ${x + R},${y1}H${x + bw - R}` +
+                  `Q${x + bw},${y1} ${x + bw},${y1 + R}V${y0}Z`;
+        seg = el('path', { d, fill: s.color, class: 'seg' }, g);
+      } else {
+        seg = el('rect', { x, y: isTop ? y1 : y1 + GAP, width: bw, height: Math.max(1, y0 - y1 - (isTop ? 0 : GAP)),
+                           fill: s.color, class: 'seg' }, g);
+      }
+      seg.dataset.key = s.key;
+    });
+    el('text', { x: cx, y: y(r.total) - 6, 'text-anchor': 'middle', class: 'tot' }, g).textContent = compact(r.total);
+    el('text', { x: cx, y: H - 8, 'text-anchor': 'middle' }, g).textContent = yearLabel(r);
+
+    const show = (evt, key) => {
+      g.querySelectorAll('.seg').forEach(n => n.classList.toggle('on', n.dataset.key === key));
+      tip.replaceChildren();
+      const hd = document.createElement('div'); hd.className = 'hd';
+      hd.textContent = `${yearLabel(r)} · ${fmt(r.total)} samples`; tip.appendChild(hd);
+      [...SERIES].reverse().forEach(s => {           // top-of-stack first, matching the bar
+        const row = document.createElement('div'); row.className = 'row' + (s.key === key ? ' on' : '');
+        const k = document.createElement('span'); k.className = 'k'; k.style.borderColor = s.color;
+        const b = document.createElement('b'); b.textContent = fmt(r[s.key]);
+        const l = document.createElement('span'); l.className = 'l'; l.textContent = s.label;
+        row.append(k, b, l); tip.appendChild(row);
+      });
+      const ft = document.createElement('div'); ft.className = 'ft';
+      ft.textContent = key ? 'Click to open these samples on the workboard' : 'Click a segment to open it on the workboard';
+      tip.appendChild(ft);
+      tip.hidden = false;
+      const hb = host.getBoundingClientRect(), scale = hb.width / W;
+      let left = (cx + bw / 2 + 10) * scale, topPx = (M.t + 4) * scale;
+      if (left + tip.offsetWidth > hb.width) left = (cx - bw / 2 - 10) * scale - tip.offsetWidth;
+      tip.style.left = Math.max(0, left) + 'px'; tip.style.top = topPx + 'px';
+    };
+    const keyAt = evt => evt.target.dataset && evt.target.dataset.key;
+    g.addEventListener('pointermove', evt => show(evt, keyAt(evt)));
+    g.addEventListener('focus', evt => show(evt, null));
+    g.addEventListener('pointerleave', () => { tip.hidden = true; g.querySelectorAll('.seg').forEach(n => n.classList.remove('on')); });
+    g.addEventListener('blur', () => { tip.hidden = true; });
+    g.addEventListener('click', evt => {
+      const s = SERIES.find(s => s.key === keyAt(evt));
+      window.location = drill(r, s ? s.args : null);
+    });
+    g.addEventListener('keydown', evt => { if (evt.key === 'Enter') window.location = drill(r, null); });
+  });
+  host.insertBefore(svg, tip);
+})();
+</script>
+{% endif %}
+{% endblock %}
