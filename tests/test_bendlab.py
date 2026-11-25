@@ -566,3 +566,24 @@ def test_reparse_replace_only_untouched(conn):
     kept = reparse_batches(conn, [9401], replace=True)
     assert kept["parsed"] == [] and "worked on" in kept["skipped"][0]["reason"]
     assert {r["id"] for r in conn.execute("SELECT id FROM sample WHERE lab_batch_id=9401").fetchall()} == new_ids
+
+
+def test_report_tables_labelled_location():
+    """Some reports head the results/microscopy tables' first column 'Location' (holding the
+    sample ID, e.g. 'Vial 1'); those rows still attach to their samples."""
+    from fhab.bendlab import bend_report_to_ceden
+    text = "\n".join([
+        "ANALYTICAL REPORT FOR SAMPLES",
+        "Sample ID,Location,Date Collected,Date Received,Matrix,Preserved,BG_ID",
+        "Vial 1,Large Lake,8/16/2023 11:00,8/17/2023 9:35,Water,N,PL38",
+        "SAMPLE RESULTS",
+        "Location,Method,Target,Result,Quantitation Limit,Units,Notes",
+        "Vial 1,ELISA,Saxitoxin,ND,0.02,µg/L,U",
+        "MICROSCOPY RESULTS - Identification of CyanoHABs",
+        "Location,Dominant,Sub-dominant,Also present,,Notes",
+        "Vial 1,Microcystis,Anabaenopsis,,Low amounts.",
+    ])
+    rows = bend_report_to_ceden(text)
+    assert {r["Analyte"] for r in rows} == {"Saxitoxin", "Cyanobacteria taxa (dominant)",
+                                            "Cyanobacteria taxa (sub-dominant)"}
+    assert all(r["BG_ID"] == "PL38" and r["StationCode"] == "Large Lake" for r in rows)

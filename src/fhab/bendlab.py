@@ -184,6 +184,13 @@ def is_bend_report(text: str) -> bool:
     return "ANALYTICAL REPORT FOR SAMPLES" in head or "SAMPLE RESULTS" in head
 
 
+def _is_header(first_label: str, section: str | None) -> bool:
+    """A table's header row. Some reports label the results/microscopy tables' first column
+    'Location' though it holds the Sample ID ("Vial 1"); the sample table itself says Sample ID."""
+    low = (first_label or "").strip().lower()
+    return low == "sample id" or (low == "location" and section not in (None, "samples"))
+
+
 def parse_bend_report(text: str) -> dict:
     """Split a Bend lab-report export into {meta, samples, results, microscopy}.
 
@@ -210,8 +217,8 @@ def parse_bend_report(text: str) -> dict:
             continue
         if section is None:
             continue
-        if first.lower() == "sample id":
-            header = [_HEADER_ALIAS.get(c.lower(), c) for c in cells]
+        if _is_header(first, section):
+            header = ["Sample ID"] + [_HEADER_ALIAS.get(c.lower(), c) for c in cells[1:]]
             continue
         if header is None:
             continue
@@ -437,8 +444,9 @@ def bend_pdf_to_csv(text: str) -> str:
         if section is None:
             continue
         sp = _spans(line)
-        if sp and sp[0][2].lower() == "sample id":
+        if sp and _is_header(sp[0][2], section):
             cols = [list(x) for x in sp]
+            cols[0][2] = "Sample ID"
             for s, e, t in above:                   # a header label wrapped onto the line above
                 labels = [c[2].lower() for c in cols]
                 if t.lower().startswith(("quantita", "quantifica", "reporting")) and "limit" in labels:
