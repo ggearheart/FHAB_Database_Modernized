@@ -462,3 +462,23 @@ def test_reparse_route(conn):
     html = cl.post("/ingest/reparse", data={"batch_ids": ["9201"]}, follow_redirects=True).get_data(as_text=True)
     assert "Re-parsed 1 ingestion" in html
     assert conn.execute("SELECT n_samples FROM lab_batch WHERE id=9201").fetchone()["n_samples"] == 3
+
+
+def test_pdf_text_and_route(conn):
+    from fhab.auth import create_user, grant_role, set_password
+    from fhab.bendlab import pdf_text
+    from fhab.web import create_app
+    from tests.conftest import TEST_DSN
+    from tests.pdfmini import mini_pdf
+    pdf = mini_pdf([[[(40, "SAMPLE RESULTS")], [(40, "1"), (90, "ELISA"), (160, "Saxitoxin"), (300, "ND")]]])
+    text = pdf_text(pdf)
+    assert "SAMPLE RESULTS" in text and "Saxitoxin" in text
+    conn.execute("INSERT INTO lab_batch (id, kind, status) VALUES (9301,'ingested','open')")
+    fid = conn.execute("INSERT INTO lab_batch_file (batch_id, category, filename, data) "
+                       "VALUES (9301,'transmittal','x_testing_results.pdf',%s) RETURNING id", (pdf,)).fetchone()["id"]
+    u = create_user(conn, "pt@wb.ca.gov"); set_password(conn, u, "pw"); grant_role(conn, u, "wb_staff")
+    conn.commit()
+    app = create_app(dsn=TEST_DSN); app.config["TESTING"] = True
+    cl = app.test_client(); cl.post("/login", data={"email": "pt@wb.ca.gov", "password": "pw"})
+    r = cl.get(f"/batch/9301/file/{fid}.txt")
+    assert r.status_code == 200 and "Saxitoxin" in r.get_data(as_text=True)

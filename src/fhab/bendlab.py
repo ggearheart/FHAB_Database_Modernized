@@ -326,6 +326,20 @@ def results_text(path: Path) -> str:
         return raw.decode("cp1252", errors="replace")
 
 
+def pdf_text(data) -> str:
+    """Text of a PDF (bytes or path), one page after another, with table columns kept apart by
+    runs of spaces (pypdf layout mode). Scanned PDFs with no text layer return ''."""
+    from pypdf import PdfReader
+    src = io.BytesIO(data) if isinstance(data, (bytes, bytearray, memoryview)) else str(data)
+    out = []
+    for page in PdfReader(src).pages:
+        try:
+            out.append(page.extract_text(extraction_mode="layout") or "")
+        except Exception:  # noqa: BLE001 — one unreadable page must not sink the document
+            out.append("")
+    return "\n".join(out)
+
+
 def _cell_text(v) -> str:
     """Render an xlsx cell like the CSV export would (dates as M/D/YYYY H:MM, no trailing .0)."""
     from datetime import datetime

@@ -2181,6 +2181,22 @@ def create_app(dsn: str | None = None) -> Flask:
                         headers={"Content-Disposition":
                                  f'inline; filename="{f["filename"]}"'})
 
+    @app.route("/batch/<int:bid>/file/<int:fid>.txt")
+    @staff_required
+    def batch_file_text(bid, fid):
+        """Plain-text view of a stored PDF (its text layer) — handy for copying values out of a
+        lab report, and shows at a glance whether a PDF is machine-readable or a scan."""
+        from ..bendlab import pdf_text
+        f = batch_file(db(), fid)
+        if not f or not (f["filename"] or "").lower().endswith(".pdf"):
+            return Response("Not a stored PDF.", status=404, mimetype="text/plain")
+        try:
+            text = pdf_text(bytes(f["data"])).strip()
+        except Exception as exc:  # noqa: BLE001
+            text = f"(could not read this PDF: {str(exc).splitlines()[0]})"
+        return Response(text or "(no text layer — this PDF is a scanned image)",
+                        mimetype="text/plain; charset=utf-8")
+
     @app.route("/batch/lab-reconcile/<int:bid>")
     @staff_required
     def lab_batch(bid):
