@@ -278,6 +278,12 @@ def bend_report_to_ceden(text: str, in_registry=lambda code: False) -> list[dict
     project = clean(rep["meta"].get("Project"))
     base_for: dict[str, dict] = {}
 
+    listed = set(rep["samples"])
+
+    def known(sample_id: str) -> bool:
+        """A result row must name a sample from the report's sample table (when it has one)."""
+        return bool(sample_id) and (not listed or sample_id in listed)
+
     def base(sample_id: str) -> dict:
         if sample_id not in base_for:
             s = rep["samples"].get(sample_id, {})
@@ -297,7 +303,7 @@ def bend_report_to_ceden(text: str, in_registry=lambda code: False) -> list[dict
     for r in rep["results"]:
         sid = r.get("Sample ID", "")
         method_raw, target = (r.get("Method") or "").strip(), (r.get("Target") or "").strip()
-        if not sid or not target:
+        if not known(sid) or not target:
             continue
         if method_raw.upper() in ("QPCR", "PCR"):
             method = "qPCR"
@@ -322,7 +328,7 @@ def bend_report_to_ceden(text: str, in_registry=lambda code: False) -> list[dict
                     "MatrixName": "sampletissue" if dry else "samplewater"})
     for m in rep["microscopy"]:
         sid = m.get("Sample ID", "")
-        if not sid:
+        if not known(sid):
             continue
         found = False
         for col, role in _MICRO_ROLES:
@@ -342,7 +348,7 @@ def bend_report_to_ceden(text: str, in_registry=lambda code: False) -> list[dict
                         "Units": None, "Fraction": None, "MatrixName": None})
     for e in rep["enumeration"]:   # cell counts per genus: density + total biovolume
         sid, genus = e.get("Sample ID", ""), (e.get("Genus") or e.get("Taxa") or "").strip()
-        if not sid or not genus:
+        if not known(sid) or not genus:
             continue
         for want, analyte, unit in (("cells/ml", "Cyanobacteria cell density", "cells/mL"),
                                     ("m3/ml", "Cyanobacteria total biovolume", "µm3/mL")):
@@ -454,10 +460,10 @@ def bend_pdf_to_csv(text: str) -> str:
             cells = _assign(head, cols[:notes_i]) + [note]
         else:
             cells, note = _assign(sp, cols), ""
-        if cells[0]:
+        if cells[0] and sum(1 for c in cells if c) >= 2:   # a lone word (a photo caption) isn't a row
             rows.append(cells)
             last = cells
-        elif last is not None:      # a wrapped line: only ever extends the note (captions etc. ignored)
+        elif last is not None and not cells[0]:   # a wrapped line: only ever extends the note
             if notes_i is not None and note:
                 last[notes_i] = f"{last[notes_i]} {note}".strip()
         else:

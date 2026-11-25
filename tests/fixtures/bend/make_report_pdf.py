@@ -39,6 +39,7 @@ def build() -> bytes:
           row(COLS_M, ["Sample ID", "Dominant", "Sub-dominant", "Also present", "Notes"]),
           row(COLS_M, ["999TSTC01", "Microcystis", "", "Dolichospermum", "This sample contained a"]),
           [(400, "moderate amount of"), (560, "Microcystis")],          # a gap inside the note
+          [(40, "Microcystis")],                    # photo caption right under it, no blank line
           row(COLS_M, ["Test Park", "NA", "", "", "No cyanobacteria were observed."]),
           [], [(210, "Microcystis")], [],
           [(20, "MICROSCOPY RESULTS - Enumeration of CyanoHABs"), (560, "Total")],

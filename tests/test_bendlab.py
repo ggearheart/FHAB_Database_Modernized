@@ -501,6 +501,7 @@ def test_bend_pdf_parses_like_the_csv():
     rows = pdf_results(pdf_text(_report_pdf()))
     by = {(r["LabSampleID"], r.get("ResultKey") or r["Analyte"]): r for r in rows}
     assert len(rows) == 11                                # 4 results + 3 taxa + 2×2 enumeration
+    assert {r["LabSampleID"] for r in rows} == {"999TSTC01", "Test Park"}   # caption not a sample
     mc = by[("999TSTC01", "Microcystins")]
     assert (mc["StationCode"], mc["Result"], mc["RL"], mc["Units"]) == ("999TSTC01", "0.24", "0.15", "ug/L")
     assert (mc["SampleDate"], mc["SampleTime"], mc["BG_ID"]) == ("6/20/2022", "10:58", "TP0001")
