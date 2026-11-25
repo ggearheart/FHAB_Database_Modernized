@@ -19,6 +19,7 @@ work for staff — coordinates for those live on the (often scanned) chain-of-cu
 from __future__ import annotations
 
 import csv
+import io
 import mimetypes
 import re
 import tempfile
@@ -125,14 +126,225 @@ def bend_wide_to_ceden(rows: list[dict], header: list[str], pick_station) -> lis
     return out
 
 
+# --- Bend "analytical report" layout (2022–2023 exports) --------------------------------
+#
+# Older Bend results files are the printed lab report saved as CSV/XLSX rather than a flat results
+# table: a letterhead block (Project / Project # / Reported) repeated on every page, then titled
+# sections — ANALYTICAL REPORT FOR SAMPLES (one row per sample: Location, Date Collected, Matrix,
+# BG_ID), SAMPLE RESULTS (already long: Sample ID, Method, Target, Result, Quantitation Limit,
+# Units, Notes), MICROSCOPY RESULTS (Dominant / Sub-dominant / Also present + a narrative note),
+# then QUALITY CONTROL and the qualifier legend, which are not sample data.
+
+_REPORT_SECTIONS = (("ANALYTICAL REPORT FOR SAMPLES", "samples"), ("SAMPLE RESULTS", "results"),
+                    ("MICROSCOPY RESULTS", "microscopy"), ("QUALITY CONTROL", None),
+                    ("QUALIFIERS", None))
+# In the report, a qPCR "Target" names the toxin its gene marker codes for.
+_QPCR_TARGET_GENE = {"anatoxin-a": "anaC gene", "anatoxin": "anaC gene",
+                     "cylindrospermopsin": "cyrA gene", "microcystin": "mcyE gene",
+                     "microcystin/nod.": "mcyE gene", "saxitoxin": "sxtA gene",
+                     "16s": "Cyanobacteria 16S rRNA gene",
+                     "cyanobacteria 16s": "Cyanobacteria 16S rRNA gene"}
+_MICRO_ROLES = (("Dominant", "dominant"), ("Sub-dominant", "sub-dominant"),
+                ("Also present", "also present"))
+_STATION_CODE_RE = re.compile(r"^\d{3}[A-Z0-9][A-Z0-9_\-]{2,}$", re.I)   # e.g. 204LME025, 909CCCSPX
+
+
+def is_bend_report(text: str) -> bool:
+    """True when a results file is the sectioned Bend lab-report layout (not a flat table)."""
+    head = (text or "")[:20000].upper()
+    return "ANALYTICAL REPORT FOR SAMPLES" in head or "SAMPLE RESULTS" in head
+
+
+def parse_bend_report(text: str) -> dict:
+    """Split a Bend lab-report export into {meta, samples, results, microscopy}.
+
+    Page letterheads/footers start with an empty first cell and are skipped; a section title
+    switches the active table; a 'Sample ID' row (re)sets its column header, so tables that
+    continue across pages keep parsing."""
+    meta: dict = {}
+    samples: dict[str, dict] = {}
+    results: list[dict] = []
+    micro: list[dict] = []
+    section, header = None, None
+    for raw in csv.reader(io.StringIO(text)):
+        cells = [(c or "").strip() for c in raw]
+        for i, c in enumerate(cells[:-1]):            # letterhead: "Project:", "Reported:" …
+            if c.endswith(":") and cells[i + 1] and c[:-1] not in meta:
+                meta[c[:-1]] = cells[i + 1]
+        first = cells[0] if cells else ""
+        if not first:
+            continue
+        title = next((sec for key, sec in _REPORT_SECTIONS if first.upper().startswith(key)), "")
+        if title != "":
+            section, header = title, None
+            continue
+        if section is None:
+            continue
+        if first.lower() == "sample id":
+            header = cells
+            continue
+        if header is None:
+            continue
+        rec: dict = {}
+        for k, v in zip(header, cells):
+            if k and (k not in rec or not rec[k]):
+                rec[k] = v
+        if section == "samples":
+            samples[first] = rec
+        elif section == "results":
+            results.append(rec)
+        else:   # microscopy: the narrative sits after the taxon columns (often under a blank header)
+            rec["_notes"] = " ".join(c for c in cells[4:] if c)
+            micro.append(rec)
+    return {"meta": meta, "samples": samples, "results": results, "microscopy": micro}
+
+
+def _num(v: str | None) -> str:
+    """'46,075' -> '46075' (thousands separators); other text unchanged."""
+    v = (v or "").strip()
+    return v.replace(",", "") if re.fullmatch(r"[<>]?[\d,]+(\.\d+)?", v) else v
+
+
+def _split_collected(v: str | None) -> tuple[str | None, str | None]:
+    """'5/4/2023 11:00' -> ('5/4/2023', '11:00'); a 0:00 time means 'not recorded'."""
+    parts = (v or "").strip().split()
+    if not parts:
+        return None, None
+    m = re.match(r"(\d{1,2}):(\d{2})", parts[1]) if len(parts) > 1 else None
+    if not m:
+        return parts[0], None
+    h, mi = int(m.group(1)), int(m.group(2))
+    ampm = parts[2].upper() if len(parts) > 2 else ""
+    if ampm == "PM" and h < 12:
+        h += 12
+    elif ampm == "AM" and h == 12:
+        h = 0
+    return parts[0], (None if h == 0 and mi == 0 else f"{h:02d}:{mi:02d}")
+
+
+def _report_station(sample_id: str, location: str, in_registry) -> tuple[str | None, str | None]:
+    """Pick (station_code, station_name) from a report sample row. The CEDEN code sits in either
+    Sample ID or Location depending on the submitter: prefer one the registry knows, then one that
+    looks like a CEDEN code, then the Location text (a place name to geocode from the CoC)."""
+    sid, loc = (sample_id or "").strip(), (location or "").strip()
+    label = None if sid.isdigit() else (sid or None)   # a bare running number ("1") isn't an ID
+    candidates = ((sid, loc or None), (loc, label))
+    for test in (in_registry, _STATION_CODE_RE.match):
+        for code, name in candidates:
+            if code and test(code):
+                return code, name
+    if loc:
+        return loc, loc
+    return (sid or None), None
+
+
+def bend_report_to_ceden(text: str, in_registry=lambda code: False) -> list[dict]:
+    """Convert a Bend lab-report export into CEDEN WaterChemistry long rows (same shape as
+    `bend_wide_to_ceden`), including microscopy taxa. QC rows are not sample data and are skipped."""
+    rep = parse_bend_report(text)
+    project = clean(rep["meta"].get("Project"))
+    base_for: dict[str, dict] = {}
+
+    def base(sample_id: str) -> dict:
+        if sample_id not in base_for:
+            s = rep["samples"].get(sample_id, {})
+            code, name = _report_station(sample_id, s.get("Location", ""), in_registry)
+            d, t = _split_collected(s.get("Date Collected"))
+            base_for[sample_id] = {
+                "StationCode": clean(code), "StationName": clean(name), "SampleDate": d,
+                "SampleTime": t, "ProjectCode": project, "LabBatch": None,
+                "BG_ID": clean(s.get("BG_ID")), "SampleTypeCode": clean(s.get("Matrix")),
+                "LabSampleID": clean(sample_id)}
+        return base_for[sample_id]
+
+    out: list[dict] = []
+    for r in rep["results"]:
+        sid = r.get("Sample ID", "")
+        method_raw, target = (r.get("Method") or "").strip(), (r.get("Target") or "").strip()
+        if not sid or not target:
+            continue
+        if method_raw.upper() in ("QPCR", "PCR"):
+            method = "qPCR"
+            analyte = _QPCR_TARGET_GENE.get(target.lower()) or _QPCR_GENE.get(target.lower(), f"{target} gene")
+        else:
+            method = "ELISA" if method_raw.upper() == "ELISA" else method_raw
+            analyte = _NAME_FIX.get(target.lower(), target)
+        parsed = _value(_num(r.get("Result")))
+        if parsed is None:
+            continue
+        result, rqc = parsed
+        notes = (r.get("Notes") or "").strip()
+        if not rqc and re.search(r"\bC1\b", notes):
+            rqc = "DNQ"                                   # reported below the quantitation limit
+        unit = (r.get("Units") or "").strip()
+        dry = "/g" in unit.replace(" ", "")
+        out.append({**base(sid), "Analyte": analyte, "MethodName": method, "Result": result,
+                    "ResQualCode": rqc, "Units": unit, "RL": _num(r.get("Quantitation Limit")),
+                    "QACode": notes if notes and notes != "U" else None,
+                    "Fraction": "Dry Weight" if dry else "Total",
+                    "MatrixName": "sampletissue" if dry else "samplewater"})
+    for m in rep["microscopy"]:
+        sid = m.get("Sample ID", "")
+        if not sid:
+            continue
+        found = False
+        for col, role in _MICRO_ROLES:
+            taxa = (m.get(col) or "").strip()
+            if taxa and taxa.upper() not in ("NA", "N/A", "NONE", "-"):
+                found = True
+                out.append({**base(sid), "Analyte": f"Cyanobacteria taxa ({role})",
+                            "MethodName": "Microscopy", "Result": "", "ResQualCode": "",
+                            "ResultText": taxa, "Taxa": taxa, "QACode": None,
+                            "Units": None, "Fraction": None, "MatrixName": None})
+        if not found:   # examined, no cyanobacteria observed
+            out.append({**base(sid), "Analyte": "Cyanobacteria taxa (dominant)",
+                        "MethodName": "Microscopy", "Result": "", "ResQualCode": "ND",
+                        "ResultText": None, "Taxa": None, "QACode": None,
+                        "Units": None, "Fraction": None, "MatrixName": None})
+    return out
+
+
+def results_text(path: Path) -> str:
+    """Text of a results file: CSV decoded (UTF-8, falling back to Windows-1252), or the first
+    worksheet of an .xlsx rendered as CSV so both layouts share one parser."""
+    path = Path(path)
+    if path.suffix.lower() in (".xlsx", ".xlsm"):
+        import openpyxl
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        try:
+            buf = io.StringIO()
+            w = csv.writer(buf)
+            for row in wb.worksheets[0].iter_rows(values_only=True):
+                w.writerow(["" if v is None else _cell_text(v) for v in row])
+            return buf.getvalue()
+        finally:
+            wb.close()
+    raw = path.read_bytes()
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return raw.decode("cp1252", errors="replace")
+
+
+def _cell_text(v) -> str:
+    """Render an xlsx cell like the CSV export would (dates as M/D/YYYY H:MM, no trailing .0)."""
+    from datetime import datetime
+    if isinstance(v, datetime):
+        return f"{v.month}/{v.day}/{v.year} {v.hour}:{v.minute:02d}"
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
+    return str(v)
+
+
 # --- folder ingest ----------------------------------------------------------------------
 
 _CEDEN_COLS = ["StationCode", "StationName", "SampleDate", "SampleTime", "ProjectCode",
                "LabBatch", "BG_ID", "Analyte", "MethodName", "Result", "ResQualCode",
-               "Units", "Fraction", "MatrixName", "SampleTypeCode", "LabSampleID"]
+               "Units", "Fraction", "MatrixName", "SampleTypeCode", "LabSampleID",
+               "RL", "QACode", "ResultText", "Taxa"]
 
 _REGION_RE = re.compile(r"\bRB\s*([1-9])\b", re.I)
-_CATEGORY = [(re.compile(r"results.*\.csv$", re.I), "data"),
+_CATEGORY = [(re.compile(r"(results|report).*\.(csv|xlsx|xlsm)$", re.I), "data"),
              (re.compile(r"^coc", re.I), "coc"),
              (re.compile(r"testing_results.*\.pdf$", re.I), "transmittal"),
              (re.compile(r"receipt", re.I), "receipt"),
@@ -295,14 +507,46 @@ def ingest_bend_folder(conn: psycopg.Connection, folder, *, source: str | None =
     source = source or unpacked.get("subject") or folder.name
     region = region or region_from(source)
     files = sorted(p for p in folder.iterdir() if p.is_file() and not p.name.startswith("."))
-    data_csv = next((p for p in files if _categorize(p.name) == "data"), None)
+    data_file = next(iter(_data_files(files)), None)
 
-    n_samples = n_geocoded = n_results = 0
-    if data_csv is not None:
-        with data_csv.open(newline="", encoding="utf-8-sig") as fh:
-            reader = csv.DictReader(fh)
-            header = reader.fieldnames or []
-            rows = list(reader)
+    max_before = conn.execute("SELECT COALESCE(max(id),0) AS m FROM sample").fetchone()["m"]
+    if data_file is not None:
+        _load_results_file(conn, data_file)
+
+    batch_id = conn.execute(
+        """INSERT INTO lab_batch (filename, kind, source, region, status, uploaded_by, ingest_session)
+           VALUES (%s,'ingested',%s,%s,'open',%s,%s) RETURNING id""",
+        (data_file.name if data_file else None, source, region, user_id,
+         session_id)).fetchone()["id"]
+    counts = {"samples": 0, "geocoded": 0, "results": 0}
+    if data_file is not None:
+        conn.execute("UPDATE sample SET lab_batch_id=%s WHERE id > %s AND lab_batch_id IS NULL",
+                     (batch_id, max_before))
+        counts = _refresh_batch_counts(conn, batch_id)
+
+    n_files = sum(1 for p in files if attach_batch_file(conn, batch_id, p, _categorize(p.name)))
+    conn.commit()
+    return {"batch_id": batch_id, "source": source, "region": region, "session": session_id,
+            **counts, "files": n_files}
+
+
+def _data_files(paths) -> list:
+    """The results file(s) among a folder's files — CSV before XLSX (an xlsx is often a copy)."""
+    data = [Path(p) for p in paths if _categorize(Path(p).name) == "data"]
+    return sorted(data, key=lambda p: (p.suffix.lower() != ".csv", p.name.lower()))
+
+
+def _load_results_file(conn, path: Path) -> int:
+    """Parse one results file — the flat Bend table or the sectioned lab report, as CSV or XLSX —
+    and load it via the shared CEDEN loader. Returns result rows loaded. New samples are left
+    unattached; the caller assigns them to a batch."""
+    text = results_text(path)
+    if is_bend_report(text):
+        ceden_rows = bend_report_to_ceden(text, lambda code: _in_registry(conn, code))
+    else:
+        reader = csv.DictReader(io.StringIO(text))
+        header = reader.fieldnames or []
+        rows = list(reader)
 
         def pick(row):
             loc, cust = row.get("Location"), row.get("Customer Sample")
@@ -313,41 +557,74 @@ def ingest_bend_folder(conn: psycopg.Connection, folder, *, source: str | None =
             return loc, cust  # ungeocoded; Location is the better human/station guess
 
         ceden_rows = bend_wide_to_ceden(rows, header, pick)
-        max_before = conn.execute("SELECT COALESCE(max(id),0) AS m FROM sample").fetchone()["m"]
-        with tempfile.NamedTemporaryFile("w", suffix=".csv", newline="", delete=False) as tmp:
-            w = csv.DictWriter(tmp, fieldnames=_CEDEN_COLS)
-            w.writeheader()
-            w.writerows(ceden_rows)
-            tmp_path = tmp.name
-        try:
-            rep = load_ceden_output(conn, None, Path(tmp_path), link=False).counts
-        finally:
-            Path(tmp_path).unlink(missing_ok=True)
-        n_results = rep.get("results", 0)
+    if not ceden_rows:
+        return 0
+    with tempfile.NamedTemporaryFile("w", suffix=".csv", newline="", delete=False) as tmp:
+        w = csv.DictWriter(tmp, fieldnames=_CEDEN_COLS, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(ceden_rows)
+        tmp_path = tmp.name
+    try:
+        return load_ceden_output(conn, None, Path(tmp_path), link=False).counts.get("results", 0)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
 
-    batch_id = conn.execute(
-        """INSERT INTO lab_batch (filename, kind, source, region, status, n_results, uploaded_by,
-             ingest_session)
-           VALUES (%s,'ingested',%s,%s,'open',%s,%s,%s) RETURNING id""",
-        (data_csv.name if data_csv else None, source, region, n_results, user_id,
-         session_id)).fetchone()["id"]
 
-    if data_csv is not None:
+def _refresh_batch_counts(conn, batch_id: int) -> dict:
+    """Recompute a batch's sample / geocoded / result counts from what it actually holds."""
+    agg = conn.execute(
+        """SELECT count(*) AS n, count(*) FILTER (WHERE st.geom IS NOT NULL) AS g,
+                  (SELECT count(*) FROM result r JOIN sample s2 ON s2.id = r.sample_id
+                    WHERE s2.lab_batch_id = %(b)s) AS r
+           FROM sample s LEFT JOIN station st ON st.id = s.station_id
+           WHERE s.lab_batch_id = %(b)s""", {"b": batch_id}).fetchone()
+    conn.execute("UPDATE lab_batch SET n_samples=%s, n_geocoded=%s, n_results=%s WHERE id=%s",
+                 (agg["n"], agg["g"], agg["r"], batch_id))
+    return {"samples": agg["n"], "geocoded": agg["g"], "results": agg["r"]}
+
+
+def reparse_batches(conn, batch_ids) -> dict:
+    """Re-run results parsing on batches already in the database, from their stored files — for
+    folders that came in before the parser understood their layout (they hold the files but 0
+    samples). No re-upload needed; uploader, session and files are kept. A batch that already has
+    samples is skipped, so re-running is safe. Returns {parsed: [...], skipped: [...]}."""
+    ids = [int(x) for x in batch_ids if str(x).isdigit()]
+    parsed, skipped = [], []
+    for bid in ids:
+        if conn.execute("SELECT 1 FROM sample WHERE lab_batch_id=%s LIMIT 1", (bid,)).fetchone():
+            skipped.append({"id": bid, "reason": "already has samples"})
+            continue
+        stored = conn.execute("SELECT id, filename, data FROM lab_batch_file WHERE batch_id=%s",
+                              (bid,)).fetchall()
+        cands = {Path(f["filename"]).name: f for f in stored}
+        data_names = [p.name for p in _data_files(cands)]
+        if not data_names:
+            skipped.append({"id": bid, "reason": "no results spreadsheet (CSV/XLSX) on file"})
+            continue
+        f = cands[data_names[0]]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / f["filename"]
+            path.write_bytes(bytes(f["data"]))
+            max_before = conn.execute("SELECT COALESCE(max(id),0) AS m FROM sample").fetchone()["m"]
+            try:
+                _load_results_file(conn, path)
+            except Exception as exc:  # noqa: BLE001 — one bad file must not stop the rest
+                conn.rollback()
+                skipped.append({"id": bid, "reason": f"could not parse {f['filename']}: "
+                                + str(exc).splitlines()[0][:120]})
+                continue
         conn.execute("UPDATE sample SET lab_batch_id=%s WHERE id > %s AND lab_batch_id IS NULL",
-                     (batch_id, max_before))
-        agg = conn.execute(
-            """SELECT count(*) AS n,
-                      count(*) FILTER (WHERE st.geom IS NOT NULL) AS g
-               FROM sample s LEFT JOIN station st ON st.id = s.station_id
-               WHERE s.lab_batch_id = %s""", (batch_id,)).fetchone()
-        n_samples, n_geocoded = agg["n"], agg["g"]
-        conn.execute("UPDATE lab_batch SET n_samples=%s, n_geocoded=%s WHERE id=%s",
-                     (n_samples, n_geocoded, batch_id))
-
-    n_files = sum(1 for p in files if attach_batch_file(conn, batch_id, p, _categorize(p.name)))
-    conn.commit()
-    return {"batch_id": batch_id, "source": source, "region": region, "session": session_id,
-            "samples": n_samples, "geocoded": n_geocoded, "results": n_results, "files": n_files}
+                     (bid, max_before))
+        conn.execute("UPDATE lab_batch_file SET category='data' WHERE id=%s", (f["id"],))
+        conn.execute("UPDATE lab_batch SET filename=coalesce(filename, %s) WHERE id=%s",
+                     (f["filename"], bid))
+        counts = _refresh_batch_counts(conn, bid)
+        conn.commit()
+        if counts["samples"]:
+            parsed.append({"id": bid, **counts})
+        else:
+            skipped.append({"id": bid, "reason": f"no sample rows found in {f['filename']}"})
+    return {"parsed": parsed, "skipped": skipped}
 
 
 def batch_files(conn, batch_id: int) -> list[dict]:

@@ -41,10 +41,19 @@ async function ingestAllSubfolders() {
   if (!files.length) { prog.textContent = 'Select a parent folder first.'; return; }
   // Group files by their subfolder (the directory part of each file's relative path).
   const groups = {};
+  // An Excel file that was unzipped on disk leaves folders of XML parts ([Content_Types].xml,
+  // _rels, xl/, docProps/ …). They're not lab folders — skip that whole tree.
+  const OOXML = /^(_rels|docProps|xl|customXml|word|ppt)$/;
+  const ooxmlRoots = new Set(files.map(f => (f.webkitRelativePath || '').split('/'))
+    .filter(p => p.length >= 2 && (p[p.length - 1] === '[Content_Types].xml' || OOXML.test(p[p.length - 2])))
+    .map(p => { const i = p.findIndex((seg, k) => k > 0 && (OOXML.test(seg) || seg === '[Content_Types].xml'));
+                return p.slice(0, i > 0 ? i : p.length - 1).join('/'); }));
+  let skippedOoxml = 0;
   files.forEach(f => {
     const rel = f.webkitRelativePath || f.name;
     const parts = rel.split('/');
     if (parts.length < 2) return;                 // a loose file at the root — skip
+    if ([...ooxmlRoots].some(r => rel.startsWith(r + '/'))) { skippedOoxml++; return; }
     const dir = parts.slice(0, -1).join('/');
     (groups[dir] = groups[dir] || []).push(f);
   });
@@ -55,7 +64,7 @@ async function ingestAllSubfolders() {
   // One shared upload-session id for every subfolder in this multi-folder upload, so the
   // ingestion report can group them as a single ingestion.
   const sessionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/-/g, '');
-  const tot = { batches: 0, samples: 0, results: 0, files: 0, failed: 0, fails: [] };
+  const tot = { batches: 0, samples: 0, results: 0, files: 0, failed: 0, fails: [], empty: 0 };
   for (let i = 0; i < dirs.length; i++) {
     const source = dirs[i].split('/').pop();
     prog.textContent = `Ingesting ${i + 1} / ${dirs.length}: ${source} …`;
@@ -67,6 +76,7 @@ async function ingestAllSubfolders() {
       const j = await res.json();
       if (res.ok && !j.error) {
         tot.batches++; tot.samples += j.samples || 0; tot.results += j.results || 0; tot.files += j.files || 0;
+        if (!j.samples) tot.empty++;
       } else { tot.failed++; tot.fails.push(source); }
     } catch (e) { tot.failed++; tot.fails.push(source); }
   }
@@ -74,6 +84,9 @@ async function ingestAllSubfolders() {
   prog.innerHTML = `Done — ingested <b>${tot.batches}</b> folder(s): ${tot.samples} sample(s), `
     + `${tot.results} result(s), ${tot.files} file(s) stored`
     + (tot.failed ? ` · <b style="color:#b45309">${tot.failed} failed</b> (${tot.fails.join(', ')})` : '')
+    + (tot.empty ? ` · <b style="color:#b45309">${tot.empty} folder(s) had no readable results file</b>`
+       + ' (files stored; PDF-only results need manual entry — see the Ingestion report)' : '')
+    + (skippedOoxml ? ` · skipped ${skippedOoxml} file(s) from an unzipped Excel workbook` : '')
     + ' · <a href="{{ url_for("folder_ingest") }}">refresh list</a>';
 }
 </script>

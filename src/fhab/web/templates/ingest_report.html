@@ -54,16 +54,21 @@
   <div style="position:sticky; top:.4rem; z-index:5; background:var(--card); border:1px solid #e6b3b3;
               border-radius:8px; padding:.5rem .7rem; margin-bottom:.6rem">
     <form method="post" action="{{ url_for('ingest_delete', **csv_args) }}" id="ingestDel"
-          onsubmit="return this.confirm.value.toUpperCase()==='DELETE' || (alert('Type DELETE to confirm.'),false)">
+          onsubmit="return (event.submitter && event.submitter.dataset.safe) || this.confirm.value.toUpperCase()==='DELETE' || (alert('Type DELETE to confirm.'),false)">
       <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
+        <button formaction="{{ url_for('ingest_reparse', **csv_args) }}" data-safe="1"
+                title="Re-read the stored results file of each selected folder that has 0 samples — no re-upload needed">↻ Re-parse stored files</button>
         <button class="secondary" style="background:#b91c1c">🗑 Delete selected ingestions</button>
         <input name="confirm" placeholder="type DELETE" style="width:9rem" autocomplete="off">
         <span class="muted" id="ingestDelCount"></span>
         <label style="font-weight:400; font-size:.85rem"><input type="checkbox" name="force_linked" style="width:auto"> delete even when linked to a report/case</label>
       </div>
-      <p class="muted" style="margin:.35rem 0 0; font-size:.8rem">Removes each selected folder and
-        everything it ingested — its samples, their results, and the stored source files. Audited;
-        cannot be undone. Folders with report/case-linked samples are kept unless you tick the box.</p>
+      <p class="muted" style="margin:.35rem 0 0; font-size:.8rem"><strong>Re-parse</strong> re-reads
+        the results spreadsheet already stored on each selected folder that shows 0 samples (e.g. an
+        older lab-report layout the parser now understands) — nothing is re-uploaded or deleted.
+        <strong>Delete</strong> removes each selected folder and everything it ingested — its
+        samples, their results, and the stored source files. Audited; cannot be undone. Folders with
+        report/case-linked samples are kept unless you tick the box.</p>
     </form>
   </div>
   {% endif %}

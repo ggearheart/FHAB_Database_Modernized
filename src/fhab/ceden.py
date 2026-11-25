@@ -28,6 +28,7 @@ _METHOD_ANALYSIS_TYPE = {
     "ELISA": "Cyanotoxin",
     "qPCR": "Genetic",
     "Spectrophotometry": "Pigment",
+    "Microscopy": "Microscopy",
 }
 
 
@@ -142,17 +143,21 @@ class CedenLoader:
                 """INSERT INTO result
                      (result_id_unique, sample_id, analyte_id, data_type, method,
                       measurement_value, measurement_unit, matrix_name, res_qual_code,
-                      fraction_name, mdl, rl, qa_code, compliance_code, results_date)
-                   VALUES (%s,%s,%s,'Laboratory',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                      fraction_name, mdl, rl, qa_code, compliance_code, results_date,
+                      measurement_text, taxa)
+                   VALUES (%s,%s,%s,'Laboratory',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                    ON CONFLICT (result_id_unique) DO UPDATE SET
                      measurement_value = EXCLUDED.measurement_value,
-                     res_qual_code = EXCLUDED.res_qual_code""",
+                     res_qual_code = EXCLUDED.res_qual_code,
+                     measurement_text = coalesce(EXCLUDED.measurement_text, result.measurement_text),
+                     taxa = coalesce(EXCLUDED.taxa, result.taxa)""",
                 (ruid, samples[skey], analyte_id, clean(row.get("MethodName")),
                  parse_float(row.get("Result")), clean(row.get("Units")),
                  clean(row.get("MatrixName")), clean(row.get("ResQualCode")),
                  clean(row.get("Fraction")), parse_float(row.get("MDL")),
                  parse_float(row.get("RL")), clean(row.get("QACode")),
-                 clean(row.get("ComplianceCode")), parse_date(row.get("LabCompletionDate"))),
+                 clean(row.get("ComplianceCode")), parse_date(row.get("LabCompletionDate")),
+                 clean(row.get("ResultText")), clean(row.get("Taxa"))),
             )
             n_results += 1
         self.report.counts["samples"] = len(samples)

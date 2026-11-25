@@ -24,7 +24,7 @@ from ..auth import (acting_as, approve_signup, authenticate, change_own_password
 from ..cases import (CASE_STATUSES, assign_report_to_case, create_case, update_case)
 from ..ceden import (load_ceden_output, load_chemistry_for_case, load_chemistry_for_event)
 from ..bendlab import (batch_file, batch_files, delete_batches, ingest_bend_folder,
-                       ingested_batches, ingestion_report)
+                       ingested_batches, ingestion_report, reparse_batches)
 from ..labmatch import (_candidates, auto_match, create_event_from_stage, link_stage_sample,
                         skip_stage_sample, stage_batch)
 from ..places import COUNTIES, similar_waterbodies, suggest_waterbodies
@@ -2019,14 +2019,41 @@ def create_app(dsn: str | None = None) -> Flask:
         return render_template("ingest_report.html", sessions=rep["sessions"], totals=rep["totals"],
                                regions=regions, f=f, csv_args={k: v for k, v in f.items() if v})
 
+    def _ingest_report_back():
+        """The ingestion report URL with the current filters (carried in the action's query)."""
+        f = _ingest_report_filters()
+        return url_for("ingest_report", **{k: v for k, v in f.items() if v})
+
+    @app.route("/ingest/reparse", methods=["POST"])
+    @staff_required
+    def ingest_reparse():
+        back = _ingest_report_back()
+        batch_ids = request.form.getlist("batch_ids")
+        if not batch_ids:
+            flash("Select at least one ingestion (folder or session) to re-parse.", "error")
+            return redirect(back)
+        try:
+            res = reparse_batches(db(), batch_ids)
+        except psycopg.Error as exc:
+            db().rollback()
+            flash("Could not re-parse: " + str(exc).splitlines()[0], "error")
+            return redirect(back)
+        p = res["parsed"]
+        flash(f"Re-parsed {len(p)} ingestion(s) from their stored files: "
+              f"{sum(x['samples'] for x in p):,} sample(s), {sum(x['results'] for x in p):,} "
+              f"result(s), {sum(x['geocoded'] for x in p):,} geocoded.", "ok" if p else "error")
+        if res["skipped"]:
+            from collections import Counter
+            why = Counter(s["reason"].split(":")[0] for s in res["skipped"])
+            flash(f"Left {len(res['skipped'])} unchanged — " + "; ".join(
+                f"{n} {r}" for r, n in why.most_common()) + ".", "error")
+        return redirect(back)
+
     @app.route("/ingest/delete", methods=["POST"])
     @staff_required
     def ingest_delete():
         conn = db()
-        f = _ingest_report_filters()
-        back = url_for("ingest_report", **{k: v for k, v in
-                       {"kind": f["kind"], "region": f["region"], "q": f["q"],
-                        "date_from": f["date_from"], "date_to": f["date_to"]}.items() if v})
+        back = _ingest_report_back()
         if (request.form.get("confirm") or "").strip().upper() != "DELETE":
             flash("Type DELETE to confirm removing the selected ingestions.", "error")
             return redirect(back)
