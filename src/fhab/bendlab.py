@@ -268,7 +268,9 @@ def _report_station(sample_id: str, location: str, in_registry) -> tuple[str | N
     looks like a CEDEN code, then the Location text (a place name to geocode from the CoC)."""
     sid, loc = (sample_id or "").strip(), (location or "").strip()
     label = None if sid.isdigit() else (sid or None)   # a bare running number ("1") isn't an ID
-    candidates = ((sid, loc or None), (loc, label))
+    # A purely numeric Sample ID ("1", "3050") is the lab's sample number — never let it match a
+    # registry station that happens to share the number while the row names a real Location.
+    candidates = ((loc, label),) if sid.isdigit() and loc else ((sid, loc or None), (loc, label))
     for test in (in_registry, _STATION_CODE_RE.match):
         for code, name in candidates:
             if code and test(code):

@@ -385,6 +385,8 @@ def test_bend_report_station_prefers_registry():
     assert _report_station("999TSTB02", "Test Lake", known) == ("Test Lake", "999TSTB02")
     assert _report_station("1", "Test Lake", known) == ("Test Lake", None)   # running number dropped
     assert _report_station("999TSTB02", "", {"999TSTB02"}.__contains__) == ("999TSTB02", None)
+    # a numeric lab sample number never beats the Location, even if a registry code shares it
+    assert _report_station("3050", "RED01", {"3050"}.__contains__) == ("RED01", "RED01")
 
 
 def test_ingest_folder_with_report_layout(conn, tmp_path):
