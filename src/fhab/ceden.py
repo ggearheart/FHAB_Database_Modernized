@@ -144,7 +144,8 @@ class CedenLoader:
             analyte_id = self._analyte_id(row.get("Analyte"), row.get("MethodName"),
                                           row.get("AnalysisType"))
             # result_id_unique: BG_ID + analyte is unique within a batch.
-            ruid = f"{bg_id or skey}:{clean(row.get('Analyte'))}"
+            # ResultKey distinguishes several results of one analyte (e.g. cell density per genus).
+            ruid = f"{bg_id or skey}:{clean(row.get('ResultKey')) or clean(row.get('Analyte'))}"
             self.conn.execute(
                 """INSERT INTO result
                      (result_id_unique, sample_id, analyte_id, data_type, method,
@@ -352,7 +353,8 @@ def _load_chemistry_pinned(conn: psycopg.Connection, user_id: int, chemistry_csv
                 ).fetchone()
                 samples[skey] = srow["id"]
             analyte_id = loader._analyte_id(row.get("Analyte"), row.get("MethodName"))
-            ruid = f"{bg_id or skey}:{clean(row.get('Analyte'))}"
+            # ResultKey distinguishes several results of one analyte (e.g. cell density per genus).
+            ruid = f"{bg_id or skey}:{clean(row.get('ResultKey')) or clean(row.get('Analyte'))}"
             conn.execute(
                 """INSERT INTO result
                      (result_id_unique, sample_id, analyte_id, data_type, method,

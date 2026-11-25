@@ -2033,7 +2033,8 @@ def create_app(dsn: str | None = None) -> Flask:
             flash("Select at least one ingestion (folder or session) to re-parse.", "error")
             return redirect(back)
         try:
-            res = reparse_batches(db(), batch_ids)
+            res = reparse_batches(db(), batch_ids, replace=bool(request.form.get("replace")),
+                                  user_id=session["uid"])
         except psycopg.Error as exc:
             db().rollback()
             flash("Could not re-parse: " + str(exc).splitlines()[0], "error")

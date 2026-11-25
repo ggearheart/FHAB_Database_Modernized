@@ -499,8 +499,8 @@ def test_bend_pdf_parses_like_the_csv():
     nutrients/pigments typed, QC and photo captions ignored."""
     from fhab.bendlab import pdf_results, pdf_text
     rows = pdf_results(pdf_text(_report_pdf()))
-    by = {(r["LabSampleID"], r["Analyte"]): r for r in rows}
-    assert len(rows) == 7
+    by = {(r["LabSampleID"], r.get("ResultKey") or r["Analyte"]): r for r in rows}
+    assert len(rows) == 11                                # 4 results + 3 taxa + 2×2 enumeration
     mc = by[("999TSTC01", "Microcystins")]
     assert (mc["StationCode"], mc["Result"], mc["RL"], mc["Units"]) == ("999TSTC01", "0.24", "0.15", "ug/L")
     assert (mc["SampleDate"], mc["SampleTime"], mc["BG_ID"]) == ("6/20/2022", "10:58", "TP0001")
@@ -510,7 +510,11 @@ def test_bend_pdf_parses_like_the_csv():
     assert by[("Test Park", "Chlorophyll a")]["AnalysisType"] == "Pigment"
     assert by[("999TSTC01", "anaC gene")]["ResQualCode"] == "ND"
     assert by[("999TSTC01", "Cyanobacteria taxa (also present)")]["Taxa"] == "Dolichospermum"
+    assert by[("999TSTC01", "Cyanobacteria taxa (dominant)")]["ResQualCode"] == ""   # not a false ND
     assert by[("Test Park", "Cyanobacteria taxa (dominant)")]["ResQualCode"] == "ND"
+    dens = by[("999TSTC01", "Cyanobacteria cell density:Microcystis")]
+    assert (dens["Result"], dens["Units"], dens["Taxa"]) == ("12183", "cells/mL", "Microcystis")
+    assert by[("999TSTC01", "Cyanobacteria total biovolume:Dolichospermum")]["Result"] == "41600.0"
 
 
 def test_watsonville_pdf_parses():
@@ -535,6 +539,29 @@ def test_ingest_pdf_only_folder_geocodes_from_report(conn, tmp_path):
     (d / "Cyanobacteria_testing_results_20220624.pdf").write_bytes(_report_pdf())
     (d / "COC_20220620.pdf").write_bytes(b"%PDF-1.4 not a report")
     r = ingest_bend_folder(conn, d)
-    assert (r["samples"], r["results"], r["geocoded"]) == (2, 7, 1)
+    assert (r["samples"], r["results"], r["geocoded"]) == (2, 11, 1)
     g = conn.execute("SELECT ST_Y(geom) lat FROM station WHERE station_code='Test Park'").fetchone()
     assert abs(g["lat"] - 38.32465) < 1e-6
+
+
+def test_reparse_replace_only_untouched(conn):
+    """replace=True re-builds a batch's parsed samples (e.g. after a parser fix) — but leaves a
+    batch alone once staff have worked on any of its samples."""
+    from fhab.bendlab import reparse_batches
+    data = REPORT_FIXTURE.read_bytes()
+    for bid in (9401, 9402):
+        conn.execute("INSERT INTO lab_batch (id, kind, source, status) VALUES (%s,'ingested','F','open')", (bid,))
+    conn.execute("INSERT INTO lab_batch_file (batch_id, category, filename, data) "
+                 "VALUES (9401,'data','a_Results.csv',%s)", (data,))
+    conn.commit()
+    assert reparse_batches(conn, [9401])["parsed"][0]["samples"] == 3
+    old_ids = {r["id"] for r in conn.execute("SELECT id FROM sample WHERE lab_batch_id=9401").fetchall()}
+    res = reparse_batches(conn, [9401], replace=True, user_id=None)
+    assert res["parsed"][0]["samples"] == 3
+    new_ids = {r["id"] for r in conn.execute("SELECT id FROM sample WHERE lab_batch_id=9401").fetchall()}
+    assert new_ids and not (new_ids & old_ids)                 # rebuilt, not duplicated
+    assert conn.execute("SELECT count(*) c FROM sample").fetchone()["c"] == 3
+    conn.execute("UPDATE sample SET qa_status='approved' WHERE id = %s", (min(new_ids),)); conn.commit()
+    kept = reparse_batches(conn, [9401], replace=True)
+    assert kept["parsed"] == [] and "worked on" in kept["skipped"][0]["reason"]
+    assert {r["id"] for r in conn.execute("SELECT id FROM sample WHERE lab_batch_id=9401").fetchall()} == new_ids

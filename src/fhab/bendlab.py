@@ -136,6 +136,7 @@ def bend_wide_to_ceden(rows: list[dict], header: list[str], pick_station) -> lis
 # then QUALITY CONTROL and the qualifier legend, which are not sample data.
 
 _REPORT_SECTIONS = (("ANALYTICAL REPORT FOR SAMPLES", "samples"), ("SAMPLE RESULTS", "results"),
+                    ("MICROSCOPY RESULTS - ENUMERATION", "enumeration"),   # before the generic one
                     ("MICROSCOPY RESULTS", "microscopy"), ("QUALITY CONTROL", None),
                     ("QUALIFIERS", None))
 # In the report, a qPCR "Target" names the toxin its gene marker codes for.
@@ -193,6 +194,7 @@ def parse_bend_report(text: str) -> dict:
     samples: dict[str, dict] = {}
     results: list[dict] = []
     micro: list[dict] = []
+    enum: list[dict] = []
     section, header = None, None
     for raw in csv.reader(io.StringIO(text)):
         cells = [(c or "").strip() for c in raw]
@@ -221,10 +223,13 @@ def parse_bend_report(text: str) -> dict:
             samples[first] = rec
         elif section == "results":
             results.append(rec)
+        elif section == "enumeration":
+            enum.append(rec)
         else:   # microscopy: the narrative sits after the taxon columns (often under a blank header)
             rec["_notes"] = " ".join(c for c in cells[4:] if c)
             micro.append(rec)
-    return {"meta": meta, "samples": samples, "results": results, "microscopy": micro}
+    return {"meta": meta, "samples": samples, "results": results, "microscopy": micro,
+            "enumeration": enum}
 
 
 def _num(v: str | None) -> str:
@@ -335,6 +340,20 @@ def bend_report_to_ceden(text: str, in_registry=lambda code: False) -> list[dict
                         "Result": "", "ResQualCode": "ND",
                         "ResultText": None, "Taxa": None, "QACode": None,
                         "Units": None, "Fraction": None, "MatrixName": None})
+    for e in rep["enumeration"]:   # cell counts per genus: density + total biovolume
+        sid, genus = e.get("Sample ID", ""), (e.get("Genus") or e.get("Taxa") or "").strip()
+        if not sid or not genus:
+            continue
+        for want, analyte, unit in (("cells/ml", "Cyanobacteria cell density", "cells/mL"),
+                                    ("m3/ml", "Cyanobacteria total biovolume", "µm3/mL")):
+            col = next((k for k in e if want in k.lower().replace("µ", "u")), None)
+            parsed = _value(_num(e.get(col))) if col else None
+            if parsed is None:
+                continue
+            out.append({**base(sid), "Analyte": analyte, "MethodName": "Microscopy",
+                        "AnalysisType": "Microscopy", "Result": parsed[0], "ResQualCode": parsed[1],
+                        "ResultText": genus, "Taxa": genus, "Units": unit,
+                        "ResultKey": f"{analyte}:{genus}", "Fraction": None, "MatrixName": None})
     return out
 
 
@@ -427,14 +446,20 @@ def bend_pdf_to_csv(text: str) -> str:
         if cols is None:
             above = sp
             continue
-        cells = _assign(sp, cols)
+        notes_i = len(cols) - 1 if cols[-1][2].lower().startswith("notes") and len(cols) > 1 else None
+        if notes_i is not None:     # free text: everything right of the previous column is the note
+            edge = cols[notes_i - 1][1] + 3
+            head = [x for x in sp if x[0] <= edge]
+            note = " ".join(x[2] for x in sp if x[0] > edge)
+            cells = _assign(head, cols[:notes_i]) + [note]
+        else:
+            cells, note = _assign(sp, cols), ""
         if cells[0]:
             rows.append(cells)
             last = cells
-        elif last is not None:                      # continuation of the row above
-            for i, c in enumerate(cells):
-                if c:
-                    last[i] = f"{last[i]} {c}".strip()
+        elif last is not None:      # a wrapped line: only ever extends the note (captions etc. ignored)
+            if notes_i is not None and note:
+                last[notes_i] = f"{last[notes_i]} {note}".strip()
         else:
             above = sp
     buf = io.StringIO()
@@ -567,7 +592,7 @@ def _cell_text(v) -> str:
 _CEDEN_COLS = ["StationCode", "StationName", "SampleDate", "SampleTime", "ProjectCode",
                "LabBatch", "BG_ID", "Analyte", "MethodName", "Result", "ResQualCode",
                "Units", "Fraction", "MatrixName", "SampleTypeCode", "LabSampleID",
-               "RL", "QACode", "ResultText", "Taxa", "AnalysisType",
+               "RL", "QACode", "ResultText", "Taxa", "AnalysisType", "ResultKey",
                "TargetLatitude", "TargetLongitude"]
 
 _REGION_RE = re.compile(r"\bRB\s*([1-9])\b", re.I)
@@ -844,17 +869,36 @@ def _refresh_batch_counts(conn, batch_id: int) -> dict:
     return {"samples": agg["n"], "geocoded": agg["g"], "results": agg["r"]}
 
 
-def reparse_batches(conn, batch_ids) -> dict:
+def reparse_batches(conn, batch_ids, *, replace=False, user_id=None) -> dict:
     """Re-run results parsing on batches already in the database, from their stored files — for
     folders that came in before the parser understood their layout (they hold the files but 0
     samples). No re-upload needed; uploader, session and files are kept. A batch that already has
-    samples is skipped, so re-running is safe. Returns {parsed: [...], skipped: [...]}."""
+    samples is skipped, so re-running is safe — unless `replace`, which first removes the batch's
+    previously parsed samples (audited as `user_id`), but only if no one has worked on them yet
+    (linked, assigned, QA'd or tagged routine). Returns {parsed: [...], skipped: [...]}."""
+    from .cleanup import purge_samples
     ids = [int(x) for x in batch_ids if str(x).isdigit()]
     parsed, skipped = [], []
+    if replace:
+        conn.execute("SELECT set_config('fhab.user_id', %s, false)", (str(user_id or ""),))
     for bid in ids:
-        if conn.execute("SELECT 1 FROM sample WHERE lab_batch_id=%s LIMIT 1", (bid,)).fetchone():
+        existing = [r["id"] for r in conn.execute(
+            "SELECT id FROM sample WHERE lab_batch_id=%s", (bid,)).fetchall()]
+        if existing and not replace:
             skipped.append({"id": bid, "reason": "already has samples"})
             continue
+        if existing:
+            worked = conn.execute(
+                """SELECT count(*) AS c FROM sample WHERE id = ANY(%s)
+                     AND (bloom_report_id IS NOT NULL OR case_id IS NOT NULL OR assigned_to IS NOT NULL
+                          OR qa_status IS NOT NULL OR sampling_type = 'routine')""",
+                (existing,)).fetchone()["c"]
+            if worked:
+                skipped.append({"id": bid, "reason": "has samples staff already worked on "
+                                "(linked / assigned / QA'd) — not replaced"})
+                continue
+            purge_samples(conn, existing)
+            conn.commit()
         stored = conn.execute("SELECT id, filename, data FROM lab_batch_file WHERE batch_id=%s",
                               (bid,)).fetchall()
         cands = {Path(f["filename"]).name: f for f in stored}

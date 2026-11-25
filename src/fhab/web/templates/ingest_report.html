@@ -61,6 +61,7 @@
         <button class="secondary" style="background:#b91c1c">🗑 Delete selected ingestions</button>
         <input name="confirm" placeholder="type DELETE" style="width:9rem" autocomplete="off">
         <span class="muted" id="ingestDelCount"></span>
+        <label style="font-weight:400; font-size:.85rem" title="Re-parse: first remove samples a previous parse created, if no one has linked/assigned/QA'd them yet"><input type="checkbox" name="replace" style="width:auto"> re-parse replaces earlier parsed samples</label>
         <label style="font-weight:400; font-size:.85rem"><input type="checkbox" name="force_linked" style="width:auto"> delete even when linked to a report/case</label>
       </div>
       <p class="muted" style="margin:.35rem 0 0; font-size:.8rem"><strong>Re-parse</strong> re-reads
