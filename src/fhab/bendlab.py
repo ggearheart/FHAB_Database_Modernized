@@ -607,7 +607,7 @@ def reparse_batches(conn, batch_ids) -> dict:
             path.write_bytes(bytes(f["data"]))
             max_before = conn.execute("SELECT COALESCE(max(id),0) AS m FROM sample").fetchone()["m"]
             try:
-                _load_results_file(conn, path)
+                loaded = _load_results_file(conn, path)
             except Exception as exc:  # noqa: BLE001 — one bad file must not stop the rest
                 conn.rollback()
                 skipped.append({"id": bid, "reason": f"could not parse {f['filename']}: "
@@ -622,8 +622,11 @@ def reparse_batches(conn, batch_ids) -> dict:
         conn.commit()
         if counts["samples"]:
             parsed.append({"id": bid, **counts})
+        elif loaded:   # rows parsed, but every BG_ID already belongs to another folder
+            skipped.append({"id": bid, "reason": "duplicate copy: its samples are already loaded "
+                            f"from another folder ({f['filename']})"})
         else:
-            skipped.append({"id": bid, "reason": f"no sample rows found in {f['filename']}"})
+            skipped.append({"id": bid, "reason": f"no sample rows recognized in {f['filename']}"})
     return {"parsed": parsed, "skipped": skipped}
 
 

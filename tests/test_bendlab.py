@@ -437,6 +437,14 @@ def test_reparse_stored_batches(conn):
     again = reparse_batches(conn, [9101])                  # idempotent
     assert again["parsed"] == [] and again["skipped"][0]["reason"] == "already has samples"
     assert conn.execute("SELECT count(*) c FROM sample WHERE lab_batch_id=9101").fetchone()["c"] == 3
+    # a forwarded copy of the same report (same BG_IDs) is named as a duplicate, not re-loaded
+    conn.execute("INSERT INTO lab_batch (id, kind, source, status) VALUES (9103,'ingested','Copy (2)','open')")
+    conn.execute("INSERT INTO lab_batch_file (batch_id, category, filename, data) "
+                 "VALUES (9103,'data','20230511_TEST_R5_Results.csv',%s)", (data,))
+    conn.commit()
+    dup = reparse_batches(conn, [9103])
+    assert dup["parsed"] == [] and dup["skipped"][0]["reason"].startswith("duplicate copy")
+    assert conn.execute("SELECT count(*) c FROM sample").fetchone()["c"] == 3
 
 
 def test_reparse_route(conn):
