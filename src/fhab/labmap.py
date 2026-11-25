@@ -209,6 +209,8 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None,
             det = _is_detected(r["val"], r["rqc"])
             g = st["genes"].setdefault(analyte, {"detected": False, "unit": unit or "copies/mL"})
             g["detected"] = g["detected"] or det
+        elif cat == "microscopy" and (r["rqc"] or "").upper() == "ND":
+            st["micro_nd"] = True                     # examined; no cyanobacteria observed
         elif cat == "microscopy" and (r["txt"] or analyte):
             label = r["txt"] or analyte
             if label and label not in st["taxa"]:
@@ -246,7 +248,7 @@ def lab_map_features(conn, uid, *, region=None, days=None, tier=None, kind=None,
                 det = any(sp["detected"] for sp in st["spatt"].values())
                 dk = "detected" if det else ("nondetect" if st["spatt"] else "none")
             else:  # microscopy
-                dk = "detected" if st["taxa"] else "none"
+                dk = "detected" if st["taxa"] else ("nondetect" if st.get("micro_nd") else "none")
             meta = DETECT_META[dk]
             status_key, color, label, guidance = dk, meta["color"], meta["label"], meta["guidance"]
 

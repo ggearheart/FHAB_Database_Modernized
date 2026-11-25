@@ -1,5 +1,7 @@
 """Ingest of Bend/partner lab email folders: wide->CEDEN conversion + batch file storage."""
 
+from pathlib import Path
+
 import pytest
 
 from fhab.bendlab import (batch_file, batch_files, bend_wide_to_ceden, ingest_bend_folder,
@@ -335,3 +337,120 @@ def test_delete_batches_is_audited(conn):
     a = conn.execute("SELECT actor_id, action FROM audit_log WHERE table_name='sample' "
                      "AND row_key=%s", (str(sids[0]),)).fetchone()
     assert a and a["action"] == "DELETE" and a["actor_id"] == uid
+
+
+# --- older (2022–2023) Bend "analytical report" layout ------------------------------------
+
+REPORT_FIXTURE = Path(__file__).parent / "fixtures" / "bend" / "report_2023_sample.csv"
+
+
+def test_bend_report_parses_sections():
+    """The sectioned report layout yields long CEDEN rows: station picked from Sample ID or
+    Location, date/time split, QL→RL, ND/DNQ, dry weight, qPCR gene targets, microscopy taxa
+    (incl. a 'none observed' ND), and the QC block ignored."""
+    from fhab.bendlab import bend_report_to_ceden, is_bend_report
+    text = REPORT_FIXTURE.read_text(encoding="utf-8")
+    assert is_bend_report(text)
+    rows = bend_report_to_ceden(text)
+    by = {(r["LabSampleID"], r["Analyte"]): r for r in rows}
+    assert len(rows) == 9                                  # 6 results + 3 microscopy, no QC rows
+    assert not any("Blank" in r["Analyte"] or "Positive" in r["Analyte"] for r in rows)
+
+    s1 = by[("1", "mcyE gene")]                            # QPCR target -> gene marker
+    assert (s1["StationCode"], s1["StationName"]) == ("999TSTA01", None)   # code in Location
+    assert (s1["SampleDate"], s1["SampleTime"], s1["BG_ID"]) == ("5/4/2023", "11:00", "TB0001")
+    assert (s1["ResQualCode"], s1["Result"], s1["RL"], s1["MethodName"]) == ("ND", "", "100", "qPCR")
+    assert by[("1", "sxtA gene")]["Result"] == "46075"     # thousands separator stripped
+    assert s1["ProjectCode"] == "TEST_IncResp_2023"
+
+    mat = by[("999TSTB02", "Microcystins")]                # code in Sample ID, name in Location
+    assert (mat["StationCode"], mat["StationName"]) == ("999TSTB02", "Test Lake")
+    assert mat["SampleTime"] is None                       # 0:00 = not recorded
+    assert (mat["Fraction"], mat["MatrixName"]) == ("Dry Weight", "sampletissue")
+    assert by[("999TSTB02", "Anatoxin-a")]["ResQualCode"] == "DNQ"   # C1 = below quantitation
+
+    s2 = by[("2", "Cylindrospermopsin")]                   # neither looks like a code: place name
+    assert (s2["StationCode"], s2["SampleTime"]) == ("Test Pond", "13:30")
+
+    assert by[("1", "Cyanobacteria taxa (dominant)")]["Taxa"] == "Nostoc"
+    assert by[("1", "Cyanobacteria taxa (sub-dominant)")]["ResultText"] == "Planktothrix"
+    none_seen = by[("2", "Cyanobacteria taxa (dominant)")]
+    assert (none_seen["ResQualCode"], none_seen["Taxa"]) == ("ND", None)
+
+
+def test_bend_report_station_prefers_registry():
+    """A code the CEDEN registry knows wins over the look-alike heuristic."""
+    from fhab.bendlab import _report_station
+    known = {"Test Lake"}.__contains__
+    assert _report_station("999TSTB02", "Test Lake", known) == ("Test Lake", "999TSTB02")
+    assert _report_station("1", "Test Lake", known) == ("Test Lake", None)   # running number dropped
+    assert _report_station("999TSTB02", "", {"999TSTB02"}.__contains__) == ("999TSTB02", None)
+
+
+def test_ingest_folder_with_report_layout(conn, tmp_path):
+    """A folder whose results CSV is the report layout materializes samples + results (it used to
+    store the files but load 0 samples), with microscopy typed and taxa kept."""
+    d = tmp_path / "Testing results - Test Lake (RB5)"; d.mkdir()
+    (d / "20230511_TEST_R5_Results.csv").write_bytes(REPORT_FIXTURE.read_bytes())
+    (d / "COC_20230504.pdf").write_bytes(b"%PDF-1.4")
+    r = ingest_bend_folder(conn, d)
+    assert (r["samples"], r["results"], r["files"]) == (3, 9, 2)
+    micro = conn.execute(
+        """SELECT a.analysis_type, r.taxa, r.measurement_text FROM result r
+           JOIN analyte a ON a.id = r.analyte_id JOIN sample s ON s.id = r.sample_id
+           WHERE s.lab_batch_id=%s AND r.taxa='Nostoc'""", (r["batch_id"],)).fetchone()
+    assert micro["analysis_type"] == "Microscopy" and micro["measurement_text"] == "Nostoc"
+    b = conn.execute("SELECT n_samples, n_results FROM lab_batch WHERE id=%s", (r["batch_id"],)).fetchone()
+    assert (b["n_samples"], b["n_results"]) == (3, 9)
+
+
+def test_report_layout_from_xlsx(tmp_path):
+    """The same report saved as .xlsx parses identically to the CSV."""
+    import csv as _csv
+    import openpyxl
+    from fhab.bendlab import bend_report_to_ceden, results_text
+    wb = openpyxl.Workbook(); ws = wb.active
+    for row in _csv.reader(REPORT_FIXTURE.read_text(encoding="utf-8").splitlines()):
+        ws.append(row)
+    x = tmp_path / "Cyanotoxin Final Report.xlsx"; wb.save(x)
+    from_csv = bend_report_to_ceden(REPORT_FIXTURE.read_text(encoding="utf-8"))
+    assert bend_report_to_ceden(results_text(x)) == from_csv
+
+
+def test_reparse_stored_batches(conn):
+    """Batches that hold the report file but 0 samples (an earlier ingest) are parsed from their
+    stored bytes; re-running is a no-op; a PDF-only batch is reported, not touched."""
+    from fhab.bendlab import reparse_batches
+    data = REPORT_FIXTURE.read_bytes()
+    conn.execute("INSERT INTO lab_batch (id, kind, source, status, ingest_session) VALUES "
+                 "(9101,'ingested','Old folder','open','sess-old'), (9102,'ingested','PDF only','open','sess-old')")
+    conn.execute("INSERT INTO lab_batch_file (batch_id, category, filename, data) VALUES "
+                 "(9101,'other','20230511_TEST_R5_Results.csv',%s), (9102,'transmittal','Cyanobacteria_testing_results_20230206.pdf',%s)",
+                 (data, b"%PDF-1.4"))
+    conn.commit()
+    res = reparse_batches(conn, [9101, 9102])
+    assert [p["id"] for p in res["parsed"]] == [9101] and res["parsed"][0]["samples"] == 3
+    assert res["skipped"][0]["id"] == 9102 and "no results spreadsheet" in res["skipped"][0]["reason"]
+    b = conn.execute("SELECT n_samples, n_results, filename, ingest_session FROM lab_batch WHERE id=9101").fetchone()
+    assert (b["n_samples"], b["n_results"], b["ingest_session"]) == (3, 9, "sess-old")
+    assert conn.execute("SELECT category FROM lab_batch_file WHERE batch_id=9101").fetchone()["category"] == "data"
+    again = reparse_batches(conn, [9101])                  # idempotent
+    assert again["parsed"] == [] and again["skipped"][0]["reason"] == "already has samples"
+    assert conn.execute("SELECT count(*) c FROM sample WHERE lab_batch_id=9101").fetchone()["c"] == 3
+
+
+def test_reparse_route(conn):
+    from fhab.auth import create_user, grant_role, set_password
+    from fhab.web import create_app
+    from tests.conftest import TEST_DSN
+    conn.execute("INSERT INTO lab_batch (id, kind, source, status) VALUES (9201,'ingested','Old','open')")
+    conn.execute("INSERT INTO lab_batch_file (batch_id, category, filename, data) "
+                 "VALUES (9201,'data','x_Results.csv',%s)", (REPORT_FIXTURE.read_bytes(),))
+    u = create_user(conn, "rp@wb.ca.gov"); set_password(conn, u, "pw"); grant_role(conn, u, "wb_staff")
+    conn.commit()
+    app = create_app(dsn=TEST_DSN); app.config["TESTING"] = True
+    cl = app.test_client(); cl.post("/login", data={"email": "rp@wb.ca.gov", "password": "pw"})
+    assert "Re-parse stored files" in cl.get("/ingest/report").get_data(as_text=True)
+    html = cl.post("/ingest/reparse", data={"batch_ids": ["9201"]}, follow_redirects=True).get_data(as_text=True)
+    assert "Re-parsed 1 ingestion" in html
+    assert conn.execute("SELECT n_samples FROM lab_batch WHERE id=9201").fetchone()["n_samples"] == 3
