@@ -80,3 +80,27 @@ def build_watsonville() -> bytes:
              [],
              [(200, "Report Approved by:")]]
     return mini_pdf([lines])
+
+
+def build_pages_2025() -> bytes:
+    """Synthetic 2025-style Bend report: cover letter, then one sample per page."""
+    cover = [[(60, "Example Lab")], [(60, "Date:"), (160, "7/1/2025")],
+             [(60, "Testing results are attached for ELISA and QPCR analyses.")], [(520, "Page 1 of 3")]]
+
+    def page(n, loc, bg, sid, collected, rows):
+        head = [[(60, "Received:"), (130, "6/25/2025"), (400, "Customer:"), (460, "Example")],
+                [(60, "Matrix:"), (130, "Water Grab"), (400, "Location:"), (460, loc)],
+                [(60, "BG ID:"), (130, bg), (400, "Collected:"), (460, collected)],
+                [(60, "Reported:"), (130, "7/1/2025 15:10")],
+                [(400, "Sample ID:"), (460, sid)],
+                [(40, "SAMPLE RESULTS")],
+                [(60, "Method"), (140, "Analyte"), (250, "Result"), (320, "Reporting Limit"),
+                 (420, "Units"), (480, "Qualifiers"), (550, "Batch")]]
+        body = [[(x, v) for x, v in zip((60, 140, 250, 320, 420, 480, 550), r) if v] for r in rows]
+        return head + body + [[(520, f"Page {n} of 3")]]
+    p2 = page(2, "TESTLOC01", "TB2001", "3042", "6/23/2025 13:26",
+              [("ELISA", "Microcystin/Nod.", "3.83", "1.00", "ug/L", "D", "2")])
+    p3 = page(3, "TESTLOC02", "TB2002", "3043", "6/23/2025 15:40",
+              [("QPCR", "Microcystin", "443", "100", "copies/mL", "", ""),
+               ("ELISA", "Microcystin/Nod.", "ND", "0.20", "ug/L", "U", "1")])
+    return mini_pdf([cover, p2, p3])

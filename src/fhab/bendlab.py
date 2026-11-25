@@ -481,6 +481,63 @@ def bend_pdf_to_csv(text: str) -> str:
     return buf.getvalue()
 
 
+_PAGE_FIELD = re.compile(r"(Received|Matrix|BG ID|Customer|Project|Location|Collected|Sample ID):"
+                         r"\s+(\S.*?)(?=\s{2,}|$)")
+
+
+def is_bend_page_report(text: str) -> bool:
+    """The 2025 Bend PDF layout: one sample per page (key/value header + a results table)."""
+    return "BG ID:" in (text or "") and "ANALYTICAL REPORT FOR SAMPLES" not in (text or "")
+
+
+def bend_pages_to_csv(text: str) -> str:
+    """Re-lay a one-sample-per-page Bend PDF (2025) as the sectioned report's rows: each page's
+    header fields become a sample-table row, its results table (Method / Analyte / Result /
+    Reporting Limit / Units / Qualifiers) the result rows — so the shared parser handles it."""
+    samples, results = [], []
+    page: dict = {}
+    cols, sid = None, None
+    for line in text.splitlines():
+        if re.search(r"Page \d+ of \d+", line):
+            cols = None
+            continue
+        fields = _PAGE_FIELD.findall(line)
+        if fields:
+            if "Received" in dict(fields):
+                page = {}                               # a new sample page starts
+            page.update({k: v.strip() for k, v in fields})
+            continue
+        if line.strip().upper().startswith("SAMPLE RESULTS"):
+            sid = page.get("Sample ID") or page.get("BG ID")
+            if sid and sid not in {r[0] for r in samples}:
+                samples.append([sid, page.get("Location", ""), page.get("Collected", ""),
+                                page.get("Received", ""), page.get("Matrix", ""), "",
+                                page.get("BG ID", "")])
+            cols = []
+            continue
+        if cols is None or not line.strip():
+            continue
+        sp = _spans(line)
+        if cols == []:                                  # the results table's header line
+            cols = [list(x) for x in sp]
+            continue
+        rec = dict(zip([c[2].lower() for c in cols], _assign(sp, cols)))
+        if rec.get("method") and rec.get("analyte"):
+            results.append([sid, rec["method"], rec["analyte"], rec.get("result", ""),
+                            rec.get("reporting limit", ""), rec.get("units", ""),
+                            rec.get("qualifiers", "")])
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["", "Project:", page.get("Project", "")])
+    w.writerow(["ANALYTICAL REPORT FOR SAMPLES"])
+    w.writerow(["Sample ID", "Location", "Date Collected", "Date Received", "Matrix", "Preserved", "BG_ID"])
+    w.writerows(samples)
+    w.writerow(["SAMPLE RESULTS"])
+    w.writerow(["Sample ID", "Method", "Target", "Result", "Quantitation Limit", "Units", "Notes"])
+    w.writerows(results)
+    return buf.getvalue()
+
+
 def is_watsonville_report(text: str) -> bool:
     head = (text or "")[:4000]
     return "Watsonville" in head and "Laboratory ID No" in head
@@ -548,6 +605,8 @@ def watsonville_to_ceden(text: str) -> list[dict]:
 def pdf_results(text: str, in_registry=lambda code: False) -> list[dict]:
     """CEDEN rows from a lab-report PDF's text: Bend's analytical report or a Watsonville report;
     [] for anything else (cover letters, invoices, scanned charts)."""
+    if is_bend_page_report(text):
+        return bend_report_to_ceden(bend_pages_to_csv(text), in_registry)
     if is_bend_report(text):
         return bend_report_to_ceden(bend_pdf_to_csv(text), in_registry)
     if is_watsonville_report(text):

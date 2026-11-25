@@ -587,3 +587,17 @@ def test_report_tables_labelled_location():
     assert {r["Analyte"] for r in rows} == {"Saxitoxin", "Cyanobacteria taxa (dominant)",
                                             "Cyanobacteria taxa (sub-dominant)"}
     assert all(r["BG_ID"] == "PL38" and r["StationCode"] == "Large Lake" for r in rows)
+
+
+def test_bend_2025_one_sample_per_page_pdf():
+    from fhab.bendlab import is_bend_page_report, pdf_results, pdf_text
+    from tests.fixtures.bend.make_report_pdf import build_pages_2025
+    text = pdf_text(build_pages_2025())
+    assert is_bend_page_report(text)
+    by = {(r["BG_ID"], r["Analyte"]): r for r in pdf_results(text)}
+    assert set(by) == {("TB2001", "Microcystins"), ("TB2002", "mcyE gene"), ("TB2002", "Microcystins")}
+    a = by[("TB2001", "Microcystins")]
+    assert (a["StationCode"], a["SampleDate"], a["SampleTime"], a["Result"], a["RL"], a["QACode"]) == \
+        ("TESTLOC01", "6/23/2025", "13:26", "3.83", "1.00", "D")
+    assert by[("TB2002", "mcyE gene")]["Result"] == "443"
+    assert by[("TB2002", "Microcystins")]["ResQualCode"] == "ND"
