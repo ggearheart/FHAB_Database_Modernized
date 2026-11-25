@@ -29,6 +29,8 @@ _METHOD_ANALYSIS_TYPE = {
     "qPCR": "Genetic",
     "Spectrophotometry": "Pigment",
     "Microscopy": "Microscopy",
+    "Fluorometry": "Pigment",
+    "Strip test": "Cyanotoxin",
 }
 
 
@@ -87,11 +89,14 @@ class CedenLoader:
         self._stations[code] = row["id"]
         return row["id"]
 
-    def _analyte_id(self, analyte: str | None, method: str | None) -> int | None:
+    def _analyte_id(self, analyte: str | None, method: str | None,
+                    analysis_type: str | None = None) -> int | None:
         a = clean(analyte)
         if a is None:
             return None
-        analysis_type = _METHOD_ANALYSIS_TYPE.get(clean(method) or "", None)
+        # An explicit AnalysisType (e.g. Nutrient vs Pigment, both spectrophotometric) wins
+        # over the method-based default.
+        analysis_type = clean(analysis_type) or _METHOD_ANALYSIS_TYPE.get(clean(method) or "", None)
         key = (analysis_type, None, a)
         if key in self._analytes:
             return self._analytes[key]
@@ -136,7 +141,8 @@ class CedenLoader:
                      clean(row.get("LabAgencyCode"))),
                 ).fetchone()
                 samples[skey] = srow["id"]
-            analyte_id = self._analyte_id(row.get("Analyte"), row.get("MethodName"))
+            analyte_id = self._analyte_id(row.get("Analyte"), row.get("MethodName"),
+                                          row.get("AnalysisType"))
             # result_id_unique: BG_ID + analyte is unique within a batch.
             ruid = f"{bg_id or skey}:{clean(row.get('Analyte'))}"
             self.conn.execute(

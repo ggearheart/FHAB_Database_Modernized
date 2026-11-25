@@ -424,13 +424,15 @@ def test_reparse_stored_batches(conn):
     data = REPORT_FIXTURE.read_bytes()
     conn.execute("INSERT INTO lab_batch (id, kind, source, status, ingest_session) VALUES "
                  "(9101,'ingested','Old folder','open','sess-old'), (9102,'ingested','PDF only','open','sess-old')")
+    from tests.pdfmini import mini_pdf
+    scanned = mini_pdf([[]])                               # a PDF with no text layer
     conn.execute("INSERT INTO lab_batch_file (batch_id, category, filename, data) VALUES "
-                 "(9101,'other','20230511_TEST_R5_Results.csv',%s), (9102,'transmittal','Cyanobacteria_testing_results_20230206.pdf',%s)",
-                 (data, b"%PDF-1.4"))
+                 "(9101,'other','20230511_TEST_R5_Results.csv',%s), (9102,'transmittal','Cyanotoxin Chart results 2023.pdf',%s)",
+                 (data, scanned))
     conn.commit()
     res = reparse_batches(conn, [9101, 9102])
     assert [p["id"] for p in res["parsed"]] == [9101] and res["parsed"][0]["samples"] == 3
-    assert res["skipped"][0]["id"] == 9102 and "no results spreadsheet" in res["skipped"][0]["reason"]
+    assert res["skipped"][0]["id"] == 9102 and "scanned image" in res["skipped"][0]["reason"]
     b = conn.execute("SELECT n_samples, n_results, filename, ingest_session FROM lab_batch WHERE id=9101").fetchone()
     assert (b["n_samples"], b["n_results"], b["ingest_session"]) == (3, 9, "sess-old")
     assert conn.execute("SELECT category FROM lab_batch_file WHERE batch_id=9101").fetchone()["category"] == "data"
@@ -482,3 +484,57 @@ def test_pdf_text_and_route(conn):
     cl = app.test_client(); cl.post("/login", data={"email": "pt@wb.ca.gov", "password": "pw"})
     r = cl.get(f"/batch/9301/file/{fid}.txt")
     assert r.status_code == 200 and "Saxitoxin" in r.get_data(as_text=True)
+
+
+# --- PDF lab reports ------------------------------------------------------------------------
+
+def _report_pdf():
+    from tests.fixtures.bend.make_report_pdf import build
+    return build()
+
+
+def test_bend_pdf_parses_like_the_csv():
+    """A Bend PDF report: cells placed by column position (empty Location, wrapped
+    'Quantitation / Limit' header, wrapped notes), lat/lon in Location kept as coordinates,
+    nutrients/pigments typed, QC and photo captions ignored."""
+    from fhab.bendlab import pdf_results, pdf_text
+    rows = pdf_results(pdf_text(_report_pdf()))
+    by = {(r["LabSampleID"], r["Analyte"]): r for r in rows}
+    assert len(rows) == 7
+    mc = by[("999TSTC01", "Microcystins")]
+    assert (mc["StationCode"], mc["Result"], mc["RL"], mc["Units"]) == ("999TSTC01", "0.24", "0.15", "ug/L")
+    assert (mc["SampleDate"], mc["SampleTime"], mc["BG_ID"]) == ("6/20/2022", "10:58", "TP0001")
+    tn = by[("Test Park", "Total Nitrogen")]
+    assert (tn["AnalysisType"], tn["ResQualCode"], tn["QACode"]) == ("Nutrient", "DNQ", "C1,J")
+    assert (tn["StationCode"], tn["TargetLatitude"], tn["TargetLongitude"]) == ("Test Park", 38.32465, -122.34848)
+    assert by[("Test Park", "Chlorophyll a")]["AnalysisType"] == "Pigment"
+    assert by[("999TSTC01", "anaC gene")]["ResQualCode"] == "ND"
+    assert by[("999TSTC01", "Cyanobacteria taxa (also present)")]["Taxa"] == "Dolichospermum"
+    assert by[("Test Park", "Cyanobacteria taxa (dominant)")]["ResQualCode"] == "ND"
+
+
+def test_watsonville_pdf_parses():
+    from fhab.bendlab import is_watsonville_report, pdf_results, pdf_text
+    from tests.fixtures.bend.make_report_pdf import build_watsonville
+    text = pdf_text(build_watsonville())
+    assert is_watsonville_report(text)
+    rows = pdf_results(text)
+    mc = next(r for r in rows if r["Analyte"] == "Microcystins")
+    assert (mc["Result"], mc["ResQualCode"], mc["Units"], mc["MethodName"]) == ("1", "<", "ppb", "Strip test")
+    assert (mc["SampleDate"], mc["SampleTime"], mc["BG_ID"]) == ("3/21/2023", "10:45", "WPUL-230321-0001")
+    assert (mc["StationCode"], mc["ProjectCode"]) == ("Boat Launch TL1", "HABID 9999")
+    micro = next(r for r in rows if r["MethodName"] == "Microscopy")
+    assert micro["ResQualCode"] == "ND"
+    assert not any("Sampler" in str(v) or "example.org" in str(v) for r in rows for v in r.values())
+
+
+def test_ingest_pdf_only_folder_geocodes_from_report(conn, tmp_path):
+    """A folder with only PDFs loads its results from the report PDF (CoC ignored); a station
+    whose report gave lat/lon is geocoded from it."""
+    d = tmp_path / "Cyanobacteria testing results - Test Park (RB2)"; d.mkdir()
+    (d / "Cyanobacteria_testing_results_20220624.pdf").write_bytes(_report_pdf())
+    (d / "COC_20220620.pdf").write_bytes(b"%PDF-1.4 not a report")
+    r = ingest_bend_folder(conn, d)
+    assert (r["samples"], r["results"], r["geocoded"]) == (2, 7, 1)
+    g = conn.execute("SELECT ST_Y(geom) lat FROM station WHERE station_code='Test Park'").fetchone()
+    assert abs(g["lat"] - 38.32465) < 1e-6

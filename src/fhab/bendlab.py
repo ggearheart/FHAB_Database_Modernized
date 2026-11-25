@@ -147,6 +147,34 @@ _QPCR_TARGET_GENE = {"anatoxin-a": "anaC gene", "anatoxin": "anaC gene",
 _MICRO_ROLES = (("Dominant", "dominant"), ("Sub-dominant", "sub-dominant"),
                 ("Also present", "also present"))
 _STATION_CODE_RE = re.compile(r"^\d{3}[A-Z0-9][A-Z0-9_\-]{2,}$", re.I)   # e.g. 204LME025, 909CCCSPX
+# Report header wording varies by year ("Target Analyte", "Quantification Limit" …).
+_HEADER_ALIAS = {"target analyte": "Target", "analyte": "Target",
+                 "quantification limit": "Quantitation Limit", "quantitation limit": "Quantitation Limit",
+                 "reporting limit": "Quantitation Limit", "ql": "Quantitation Limit"}
+# Some (2022) reports give the sampling point as "lat lon" in the Location column.
+_LATLON_RE = re.compile(r"^\s*(-?\d{1,3}\.\d{3,})\s*[,\s]\s*(-?\d{1,3}\.\d{3,})\s*$")
+_NUTRIENT_RE = re.compile(r"nitrogen|phosph|ammonia|nitrate|nitrite|\bTKN\b", re.I)
+_PIGMENT_RE = re.compile(r"chlorophyll|pheophytin|phycocyanin", re.I)
+
+
+def _latlon(v: str | None):
+    """'38.32465 -122.34848' -> (lat, lon) when it's a plausible California point, else None."""
+    m = _LATLON_RE.match(v or "")
+    if not m:
+        return None
+    lat, lon = float(m.group(1)), float(m.group(2))
+    return (lat, lon) if 32.0 <= lat <= 42.2 and -124.7 <= lon <= -113.9 else None
+
+
+def _analysis_type(method: str, analyte: str) -> str | None:
+    """Analysis type for a report row: by analyte for pigments/nutrients (both are measured by
+    spectrophotometry/fluorometry), else by method; None lets the loader's method default apply."""
+    if _PIGMENT_RE.search(analyte or ""):
+        return "Pigment"
+    if _NUTRIENT_RE.search(analyte or ""):
+        return "Nutrient"
+    return {"qPCR": "Genetic", "ELISA": "Cyanotoxin", "Microscopy": "Microscopy",
+            "Strip test": "Cyanotoxin"}.get(method)
 
 
 def is_bend_report(text: str) -> bool:
@@ -181,7 +209,7 @@ def parse_bend_report(text: str) -> dict:
         if section is None:
             continue
         if first.lower() == "sample id":
-            header = cells
+            header = [_HEADER_ALIAS.get(c.lower(), c) for c in cells]
             continue
         if header is None:
             continue
@@ -248,13 +276,16 @@ def bend_report_to_ceden(text: str, in_registry=lambda code: False) -> list[dict
     def base(sample_id: str) -> dict:
         if sample_id not in base_for:
             s = rep["samples"].get(sample_id, {})
-            code, name = _report_station(sample_id, s.get("Location", ""), in_registry)
+            loc = s.get("Location", "")
+            ll = _latlon(loc)          # a coordinate pair, not a place: the Sample ID names the site
+            code, name = _report_station(sample_id, "" if ll else loc, in_registry)
             d, t = _split_collected(s.get("Date Collected"))
             base_for[sample_id] = {
                 "StationCode": clean(code), "StationName": clean(name), "SampleDate": d,
                 "SampleTime": t, "ProjectCode": project, "LabBatch": None,
                 "BG_ID": clean(s.get("BG_ID")), "SampleTypeCode": clean(s.get("Matrix")),
-                "LabSampleID": clean(sample_id)}
+                "LabSampleID": clean(sample_id),
+                "TargetLatitude": ll[0] if ll else None, "TargetLongitude": ll[1] if ll else None}
         return base_for[sample_id]
 
     out: list[dict] = []
@@ -279,6 +310,7 @@ def bend_report_to_ceden(text: str, in_registry=lambda code: False) -> list[dict
         unit = (r.get("Units") or "").strip()
         dry = "/g" in unit.replace(" ", "")
         out.append({**base(sid), "Analyte": analyte, "MethodName": method, "Result": result,
+                    "AnalysisType": _analysis_type(method, analyte),
                     "ResQualCode": rqc, "Units": unit, "RL": _num(r.get("Quantitation Limit")),
                     "QACode": notes if notes and notes != "U" else None,
                     "Fraction": "Dry Weight" if dry else "Total",
@@ -293,15 +325,195 @@ def bend_report_to_ceden(text: str, in_registry=lambda code: False) -> list[dict
             if taxa and taxa.upper() not in ("NA", "N/A", "NONE", "-"):
                 found = True
                 out.append({**base(sid), "Analyte": f"Cyanobacteria taxa ({role})",
-                            "MethodName": "Microscopy", "Result": "", "ResQualCode": "",
+                            "MethodName": "Microscopy", "AnalysisType": "Microscopy",
+                            "Result": "", "ResQualCode": "",
                             "ResultText": taxa, "Taxa": taxa, "QACode": None,
                             "Units": None, "Fraction": None, "MatrixName": None})
         if not found:   # examined, no cyanobacteria observed
             out.append({**base(sid), "Analyte": "Cyanobacteria taxa (dominant)",
-                        "MethodName": "Microscopy", "Result": "", "ResQualCode": "ND",
+                        "MethodName": "Microscopy", "AnalysisType": "Microscopy",
+                        "Result": "", "ResQualCode": "ND",
                         "ResultText": None, "Taxa": None, "QACode": None,
                         "Units": None, "Fraction": None, "MatrixName": None})
     return out
+
+
+# --- PDF lab reports ---------------------------------------------------------------------
+
+_PDF_FURNITURE = re.compile(r"Bend Genetics, LLC|Scripps Drive|Sacramento, CA \d|Tel: \(\d|"
+                            r"Page \d+ of \d+|Analysis for Tox", re.I)
+_PDF_META = re.compile(r"(Project #|Project|Reported):\s+(\S.*?)(?=\s{2,}|$)")
+_SPAN = re.compile(r"\S+(?: \S+)*")          # text runs separated by 2+ spaces = table cells
+
+
+def _spans(line: str) -> list[tuple[int, int, str]]:
+    return [(m.start(), m.end(), m.group()) for m in _SPAN.finditer(line)]
+
+
+def _assign(spans, cols) -> list[str]:
+    """Place a row's text runs under the header columns: in order, one run per column, choosing the
+    left-to-right assignment that best fits the header positions. An empty cell (no Location) leaves
+    its column blank, and drift in long rows can't push two values into one column."""
+    n, m = len(spans), len(cols)
+    cells = [""] * m
+    if not n:
+        return cells
+
+    def cost(sp, col):
+        (s, e), (cs, ce) = sp[:2], col[:2]
+        return max(0, max(s, cs) - min(e, ce)) + 0.01 * abs((s + e) - (cs + ce)) / 2
+
+    if n > m:   # more runs than columns (shouldn't happen): fall back to nearest column
+        for sp in spans:
+            i = min(range(m), key=lambda j: cost(sp, cols[j]))
+            cells[i] = f"{cells[i]} {sp[2]}".strip()
+        return cells
+    inf = float("inf")
+    best = [[inf] * m for _ in range(n)]
+    back = [[-1] * m for _ in range(n)]
+    for j in range(m):
+        best[0][j] = cost(spans[0], cols[j])
+    for i in range(1, n):
+        run_min, run_arg = inf, -1
+        for j in range(m):
+            if j >= 1 and best[i - 1][j - 1] < run_min:
+                run_min, run_arg = best[i - 1][j - 1], j - 1
+            if run_arg >= 0:
+                best[i][j] = run_min + cost(spans[i], cols[j])
+                back[i][j] = run_arg
+    j = min(range(m), key=lambda k: best[n - 1][k])
+    for i in range(n - 1, -1, -1):
+        cells[j] = spans[i][2]
+        j = back[i][j]
+    return cells
+
+
+def bend_pdf_to_csv(text: str) -> str:
+    """Re-lay a Bend PDF report's text (pypdf layout mode) as the CSV export's rows, so one parser
+    serves both: letterhead -> meta, section titles, 'Sample ID' headers (merging a wrapped label
+    such as 'Quantitation' / 'Limit'), and data rows placed by column position. Wrapped lines
+    (long notes) join the row above; page furniture and the cover letter are dropped."""
+    rows: list[list[str]] = []
+    section, cols, above, last = None, None, [], None
+    for line in text.splitlines():
+        for k, v in _PDF_META.findall(line):
+            rows.append(["", f"{k}:", v.strip()])
+        if not line.strip():
+            above, last = [], None
+            continue
+        if _PDF_FURNITURE.search(line):
+            continue
+        stripped = line.strip()
+        title = next((sec for key, sec in _REPORT_SECTIONS if stripped.upper().startswith(key)), "")
+        if title != "":
+            section, cols, above, last = title, None, [], None
+            rows.append([stripped])
+            continue
+        if section is None:
+            continue
+        sp = _spans(line)
+        if sp and sp[0][2].lower() == "sample id":
+            cols = [list(x) for x in sp]
+            for s, e, t in above:                   # a header label wrapped onto the line above
+                labels = [c[2].lower() for c in cols]
+                if t.lower().startswith(("quantita", "quantifica", "reporting")) and "limit" in labels:
+                    i = labels.index("limit")       # "Quantitation" / "Limit"
+                else:
+                    i = min(range(len(cols)), key=lambda j: abs((s + e) / 2 - (cols[j][0] + cols[j][1]) / 2))
+                cols[i][2] = f"{t} {cols[i][2]}"
+            rows.append([c[2] for c in cols])
+            above, last = [], None
+            continue
+        if cols is None:
+            above = sp
+            continue
+        cells = _assign(sp, cols)
+        if cells[0]:
+            rows.append(cells)
+            last = cells
+        elif last is not None:                      # continuation of the row above
+            for i, c in enumerate(cells):
+                if c:
+                    last[i] = f"{last[i]} {c}".strip()
+        else:
+            above = sp
+    buf = io.StringIO()
+    csv.writer(buf).writerows(rows)
+    return buf.getvalue()
+
+
+def is_watsonville_report(text: str) -> bool:
+    head = (text or "")[:4000]
+    return "Watsonville" in head and "Laboratory ID No" in head
+
+
+def watsonville_to_ceden(text: str) -> list[dict]:
+    """City of Watsonville Public Utilities lab report (Pinto Lake HABID series): one sample per
+    PDF — key/value header, a small results table (e.g. an Abraxis microcystin strip test), and a
+    microscopy observation. Sampler names / contact details on the form are not carried over."""
+    def field(rx):
+        m = re.search(rx, text)
+        return m.group(1).strip() if m else None
+
+    lab_id = field(r"Laboratory ID No:\s*(\S+)")
+    name = field(r"Sample Name:\s*(.+?)(?:\s{2,}|\n)")
+    loc = field(r"\n\s*Location:\s*(.+?)(?:\s{2,}|\n)")
+    habid = field(r"HABID:\s*(\d+)")
+    stype = field(r"Sample Type:\s*(\S+)")
+    m = re.search(r"Collection Date/Time:\s*(\d{1,2})/(\d{1,2})/(\d{2,4})\s*(\d{1,2}:\d{2}\s*[AP]M)?", text)
+    if not m:
+        return []
+    year = int(m.group(3)) + (2000 if len(m.group(3)) == 2 else 0)
+    date, time = _split_collected(f"{int(m.group(1))}/{int(m.group(2))}/{year} {m.group(4) or ''}")
+    base = {"StationCode": clean(loc or name), "StationName": clean(name), "SampleDate": date,
+            "SampleTime": time, "ProjectCode": f"HABID {habid}" if habid else None,
+            "LabBatch": None, "BG_ID": f"WPUL-{lab_id}" if lab_id else None,
+            "SampleTypeCode": clean(stype), "LabSampleID": clean(lab_id)}
+    out: list[dict] = []
+    lines = text.splitlines()
+    hdr = next((i for i, l in enumerate(lines)
+                if re.match(r"\s*Analyte\s{2,}Method\s{2,}", l) and "Result" in l), None)
+    if hdr is not None:
+        cols = [list(x) for x in _spans(lines[hdr])]
+        labels = [c[2] for c in cols]
+        for l in lines[hdr + 1:]:
+            if not l.strip() or "Report Approved" in l:
+                break
+            rec = dict(zip(labels, _assign(_spans(l), cols)))
+            raw = (rec.get("Analyte") or "").lstrip("*").strip()
+            low = raw.lower()
+            analyte = ("Microcystins" if "microcystin" in low else "Anatoxin-a" if "anatoxin" in low
+                       else "Cylindrospermopsin" if "cylindro" in low
+                       else "Saxitoxin" if "saxitoxin" in low else raw)
+            method = "Strip test" if "strip" in (rec.get("Method") or "").lower() else rec.get("Method")
+            parsed = _value(rec.get("Result"))
+            if not analyte or parsed is None:
+                continue
+            result, rqc = parsed
+            out.append({**base, "Analyte": analyte, "MethodName": method,
+                        "AnalysisType": _analysis_type(method or "", analyte) or "Cyanotoxin",
+                        "Result": result, "ResQualCode": rqc or (rec.get("Qual") or ""),
+                        "Units": rec.get("Units"), "RL": _num(rec.get("PQL")),
+                        "Fraction": "Total", "MatrixName": "samplewater"})
+    mm = re.search(r"Microscopic\s+(.*?)\n\s*Results:", text, re.S)
+    if mm:
+        obs = re.sub(r"\s+", " ", mm.group(1).replace("Analysis:", " ")).strip()
+        none_seen = bool(re.search(r"no cyanobacteria", obs, re.I))
+        out.append({**base, "Analyte": "Cyanobacteria (microscopy observation)",
+                    "MethodName": "Microscopy", "AnalysisType": "Microscopy", "Result": "",
+                    "ResQualCode": "ND" if none_seen else "", "ResultText": None if none_seen else obs[:300],
+                    "Taxa": None, "Units": None, "Fraction": None, "MatrixName": None})
+    return out
+
+
+def pdf_results(text: str, in_registry=lambda code: False) -> list[dict]:
+    """CEDEN rows from a lab-report PDF's text: Bend's analytical report or a Watsonville report;
+    [] for anything else (cover letters, invoices, scanned charts)."""
+    if is_bend_report(text):
+        return bend_report_to_ceden(bend_pdf_to_csv(text), in_registry)
+    if is_watsonville_report(text):
+        return watsonville_to_ceden(text)
+    return []
 
 
 def results_text(path: Path) -> str:
@@ -355,7 +567,8 @@ def _cell_text(v) -> str:
 _CEDEN_COLS = ["StationCode", "StationName", "SampleDate", "SampleTime", "ProjectCode",
                "LabBatch", "BG_ID", "Analyte", "MethodName", "Result", "ResQualCode",
                "Units", "Fraction", "MatrixName", "SampleTypeCode", "LabSampleID",
-               "RL", "QACode", "ResultText", "Taxa"]
+               "RL", "QACode", "ResultText", "Taxa", "AnalysisType",
+               "TargetLatitude", "TargetLongitude"]
 
 _REGION_RE = re.compile(r"\bRB\s*([1-9])\b", re.I)
 _CATEGORY = [(re.compile(r"(results|report).*\.(csv|xlsx|xlsm)$", re.I), "data"),
@@ -521,11 +734,12 @@ def ingest_bend_folder(conn: psycopg.Connection, folder, *, source: str | None =
     source = source or unpacked.get("subject") or folder.name
     region = region or region_from(source)
     files = sorted(p for p in folder.iterdir() if p.is_file() and not p.name.startswith("."))
-    data_file = next(iter(_data_files(files)), None)
+    sources = _results_sources(files)
+    data_file = sources[0] if sources else None
 
     max_before = conn.execute("SELECT COALESCE(max(id),0) AS m FROM sample").fetchone()["m"]
-    if data_file is not None:
-        _load_results_file(conn, data_file)
+    for src in sources:
+        _load_results_file(conn, src)
 
     batch_id = conn.execute(
         """INSERT INTO lab_batch (filename, kind, source, region, status, uploaded_by, ingest_session)
@@ -550,13 +764,29 @@ def _data_files(paths) -> list:
     return sorted(data, key=lambda p: (p.suffix.lower() != ".csv", p.name.lower()))
 
 
+# PDFs worth trying for results (lab reports/memos); CoCs, receipts, invoices and advisory signs aren't.
+_RESULTS_PDF_RE = re.compile(r"result|report|HABID|memo", re.I)
+
+
+def _results_sources(paths) -> list:
+    """What to parse for results: the folder's results spreadsheet if it has one (its PDF is the
+    same report), otherwise every lab-report PDF in it (a folder can hold several reports)."""
+    data = _data_files(paths)
+    if data:
+        return data[:1]
+    return sorted((Path(p) for p in paths if Path(p).suffix.lower() == ".pdf"
+                   and _RESULTS_PDF_RE.search(Path(p).name)), key=lambda p: p.name.lower())
+
+
 def _load_results_file(conn, path: Path) -> int:
     """Parse one results file — the flat Bend table or the sectioned lab report, as CSV or XLSX —
     and load it via the shared CEDEN loader. Returns result rows loaded. New samples are left
     unattached; the caller assigns them to a batch."""
-    text = results_text(path)
-    if is_bend_report(text):
-        ceden_rows = bend_report_to_ceden(text, lambda code: _in_registry(conn, code))
+    in_reg = lambda code: _in_registry(conn, code)  # noqa: E731
+    if Path(path).suffix.lower() == ".pdf":
+        ceden_rows = pdf_results(pdf_text(path), in_reg)
+    elif is_bend_report(text := results_text(path)):
+        ceden_rows = bend_report_to_ceden(text, in_reg)
     else:
         reader = csv.DictReader(io.StringIO(text))
         header = reader.fieldnames or []
@@ -579,9 +809,26 @@ def _load_results_file(conn, path: Path) -> int:
         w.writerows(ceden_rows)
         tmp_path = tmp.name
     try:
-        return load_ceden_output(conn, None, Path(tmp_path), link=False).counts.get("results", 0)
+        n = load_ceden_output(conn, None, Path(tmp_path), link=False).counts.get("results", 0)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+    _apply_report_coords(conn, ceden_rows)
+    return n
+
+
+def _apply_report_coords(conn, ceden_rows) -> int:
+    """Give a station the coordinates its lab report stated (lat/lon in the Location column) when
+    it has none yet — a registry location, or one a staffer set, is never overwritten."""
+    seen, n = set(), 0
+    for r in ceden_rows:
+        code, lat, lon = r.get("StationCode"), r.get("TargetLatitude"), r.get("TargetLongitude")
+        if code and lat is not None and lon is not None and code not in seen:
+            seen.add(code)
+            n += conn.execute(
+                "UPDATE station SET geom = ST_SetSRID(ST_MakePoint(%s, %s), 4326) "
+                "WHERE station_code = %s AND geom IS NULL", (float(lon), float(lat), code)).rowcount
+    conn.commit()
+    return n
 
 
 def _refresh_batch_counts(conn, batch_id: int) -> dict:
@@ -611,36 +858,42 @@ def reparse_batches(conn, batch_ids) -> dict:
         stored = conn.execute("SELECT id, filename, data FROM lab_batch_file WHERE batch_id=%s",
                               (bid,)).fetchall()
         cands = {Path(f["filename"]).name: f for f in stored}
-        data_names = [p.name for p in _data_files(cands)]
-        if not data_names:
-            skipped.append({"id": bid, "reason": "no results spreadsheet (CSV/XLSX) on file"})
+        sources = [cands[p.name] for p in _results_sources(cands)]
+        if not sources:
+            skipped.append({"id": bid, "reason": "no results spreadsheet or lab-report PDF on file"})
             continue
-        f = cands[data_names[0]]
+        label = sources[0]["filename"] + (f" (+{len(sources) - 1} more)" if len(sources) > 1 else "")
+        max_before = conn.execute("SELECT COALESCE(max(id),0) AS m FROM sample").fetchone()["m"]
+        loaded, failed = 0, None
         with tempfile.TemporaryDirectory() as tmpdir:
-            path = Path(tmpdir) / f["filename"]
-            path.write_bytes(bytes(f["data"]))
-            max_before = conn.execute("SELECT COALESCE(max(id),0) AS m FROM sample").fetchone()["m"]
-            try:
-                loaded = _load_results_file(conn, path)
-            except Exception as exc:  # noqa: BLE001 — one bad file must not stop the rest
-                conn.rollback()
-                skipped.append({"id": bid, "reason": f"could not parse {f['filename']}: "
-                                + str(exc).splitlines()[0][:120]})
-                continue
+            for f in sources:
+                path = Path(tmpdir) / Path(f["filename"]).name
+                path.write_bytes(bytes(f["data"]))
+                try:
+                    loaded += _load_results_file(conn, path)
+                except Exception as exc:  # noqa: BLE001 — one bad file must not stop the rest
+                    conn.rollback()
+                    failed = f"could not parse {f['filename']}: " + str(exc).splitlines()[0][:120]
+                    break
+        if failed:
+            skipped.append({"id": bid, "reason": failed})
+            continue
         conn.execute("UPDATE sample SET lab_batch_id=%s WHERE id > %s AND lab_batch_id IS NULL",
                      (bid, max_before))
-        conn.execute("UPDATE lab_batch_file SET category='data' WHERE id=%s", (f["id"],))
+        if Path(sources[0]["filename"]).suffix.lower() != ".pdf":
+            conn.execute("UPDATE lab_batch_file SET category='data' WHERE id=%s", (sources[0]["id"],))
         conn.execute("UPDATE lab_batch SET filename=coalesce(filename, %s) WHERE id=%s",
-                     (f["filename"], bid))
+                     (sources[0]["filename"], bid))
         counts = _refresh_batch_counts(conn, bid)
         conn.commit()
         if counts["samples"]:
             parsed.append({"id": bid, **counts})
         elif loaded:   # rows parsed, but every BG_ID already belongs to another folder
             skipped.append({"id": bid, "reason": "duplicate copy: its samples are already loaded "
-                            f"from another folder ({f['filename']})"})
+                            f"from another folder ({label})"})
         else:
-            skipped.append({"id": bid, "reason": f"no sample rows recognized in {f['filename']}"})
+            skipped.append({"id": bid, "reason": f"no sample rows recognized in {label} "
+                            "(scanned image or an unfamiliar layout)"})
     return {"parsed": parsed, "skipped": skipped}
 
 
